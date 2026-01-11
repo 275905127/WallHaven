@@ -1,12 +1,12 @@
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:image_gallery_saver/image_gallery_saver.dart';
+import 'package:gal/gal.dart'; // 【改动点1】引用新库
 import 'package:permission_handler/permission_handler.dart';
 
 class ImageDetailPage extends StatefulWidget {
   final String imageUrl;
-  final String heroTag; // 用于转场动画
+  final String heroTag;
 
   const ImageDetailPage({
     super.key,
@@ -22,19 +22,16 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
   bool _isFavorited = false;
   bool _isDownloading = false;
 
-  // 保存图片逻辑
   Future<void> _saveImage() async {
     if (_isDownloading) return;
 
     setState(() => _isDownloading = true);
 
     try {
-      // 1. 请求权限 (安卓 10+ 其实不需要，但为了保险)
-      var status = await Permission.storage.request();
-      if (!status.isGranted && !await Permission.photos.isGranted) {
-        // 部分机型可能需要这个权限，如果拒绝了提示用户
-        // 注意：Android 13+ 使用 photos 权限，老版本用 storage
-        // 这里简单处理，如果不是永久拒绝就尝试保存
+      // 1. 权限检查 (GAL 库会自动处理大部分权限，但为了保险保留这个)
+      // Android 10+ 不需要写权限也能保存，Android 9 以下需要
+      if (!await Gal.hasAccess()) {
+        await Gal.requestAccess();
       }
 
       // 2. 下载图片数据
@@ -43,26 +40,23 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
         options: Options(responseType: ResponseType.bytes),
       );
 
-      // 3. 保存到相册
-      final result = await ImageGallerySaver.saveImage(
+      // 3. 【改动点2】使用 Gal 保存图片到相册
+      // Gal.putImageBytes 直接把二进制数据存为图片，非常方便
+      await Gal.putImageBytes(
         Uint8List.fromList(response.data),
-        quality: 100,
         name: "wallhaven_${DateTime.now().millisecondsSinceEpoch}",
       );
 
-      if (result['isSuccess']) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("图片已保存到相册！"), backgroundColor: Colors.green),
-          );
-        }
-      } else {
-        throw Exception("保存失败");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ 图片已保存到相册！"), backgroundColor: Colors.green),
+        );
       }
     } catch (e) {
       if (mounted) {
+        // 如果是用户拒绝权限，Gal 会抛出 GalExceptionType.accessDenied
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("保存失败: $e"), backgroundColor: Colors.red),
+          SnackBar(content: Text("❌ 保存失败: $e"), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -75,8 +69,8 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black, // 看图通常用黑色背景
-      extendBodyBehindAppBar: true, // 让图片顶到状态栏
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -85,8 +79,7 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. 大图展示
-          InteractiveViewer( // 支持双指缩放
+          InteractiveViewer(
             child: Hero(
               tag: widget.heroTag,
               child: Image.network(
@@ -107,8 +100,6 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
               ),
             ),
           ),
-
-          // 2. 底部操作栏
           Positioned(
             bottom: 40,
             left: 20,
@@ -116,13 +107,12 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9), // 半透明白色
+                color: Colors.white.withOpacity(0.9),
                 borderRadius: BorderRadius.circular(30),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  // 收藏按钮
                   IconButton(
                     icon: Icon(
                       _isFavorited ? Icons.favorite : Icons.favorite_border,
@@ -133,14 +123,9 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
                       setState(() {
                         _isFavorited = !_isFavorited;
                       });
-                      // 这里以后可以接收藏 API
                     },
                   ),
-                  
-                  // 分隔线
                   Container(width: 1, height: 24, color: Colors.grey[300]),
-
-                  // 下载按钮
                   _isDownloading
                       ? const SizedBox(
                           width: 24,
@@ -151,11 +136,7 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
                           icon: const Icon(Icons.download, color: Colors.black, size: 28),
                           onPressed: _saveImage,
                         ),
-
-                  // 分隔线
                   Container(width: 1, height: 24, color: Colors.grey[300]),
-
-                  // 分享/更多按钮
                   IconButton(
                     icon: const Icon(Icons.share, color: Colors.black, size: 28),
                     onPressed: () {
