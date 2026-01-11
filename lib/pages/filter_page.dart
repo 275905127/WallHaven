@@ -27,67 +27,90 @@ class _FilterPageState extends State<FilterPage> {
       if (group.type == 'bitmask') {
         String currentVal = currentFilters[group.paramName]?.toString() ?? "";
         if (currentVal.length != group.options.length) {
-          // 默认只选中第一个 (对于 Wallhaven 来说就是 SFW=1, Sketchy=0, NSFW=0 -> "100")
-          // 之前是 "1" * length 全选，现在改保守一点，或者保持原样。
-          // 既然改了 NSFW 逻辑，我们保持全选逻辑不变，只控制 UI 显隐
           currentVal = "1" * group.options.length; 
         }
         _tempBitmasks[group.paramName] = currentVal.split('').map((e) => e == '1').toList();
       } else if (group.type == 'radio') {
         if (!_tempParams.containsKey(group.paramName) && group.options.isNotEmpty) {
-          _tempParams[group.paramName] = group.options.first.value;
+           // 如果有默认值或已经是空，这里不强制赋值，或者根据需要赋默认值
+           // _tempParams[group.paramName] = group.options.first.value;
         }
       }
     }
   }
 
+  // === 核心逻辑：应用筛选 ===
+  void _applyFilters() {
+    final appState = context.read<AppState>();
+    
+    _tempParams.forEach((key, value) {
+      appState.updateParam(key, value);
+    });
+
+    _tempBitmasks.forEach((key, boolList) {
+      String mask = boolList.map((b) => b ? '1' : '0').join();
+      appState.updateParam(key, mask);
+    });
+    
+    appState.updateParam('page', 1);
+  }
+
   @override
   Widget build(BuildContext context) {
     final filters = context.read<AppState>().currentSource.filters;
+    final textColor = Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black;
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: const Text("筛选"),
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _tempParams.clear();
-                for (var group in filters) {
-                   if (group.type == 'bitmask') {
-                     _tempBitmasks[group.paramName] = List.filled(group.options.length, true);
-                   } else if (group.options.isNotEmpty) {
-                     _tempParams[group.paramName] = group.options.first.value;
-                   }
-                }
-              });
-            },
-            child: const Text("重置"),
-          )
-        ],
-      ),
-      body: filters.isEmpty 
-          ? const Center(child: Text("此图源没有配置筛选规则")) 
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: filters.length,
-              itemBuilder: (context, index) {
-                final group = filters[index];
-                return _buildFilterGroup(group);
+    // 使用 PopScope 拦截返回事件
+    return PopScope(
+      canPop: false, // 禁止自动 Pop，我们需要先执行逻辑
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        _applyFilters(); // 退出前应用筛选
+        Navigator.pop(context); // 手动 Pop
+      },
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: const Text("筛选"),
+          actions: [
+            // === 修改：重置改为图标 ===
+            IconButton(
+              icon: Icon(Icons.restart_alt, color: textColor),
+              tooltip: "重置",
+              onPressed: () {
+                setState(() {
+                  _tempParams.clear();
+                  for (var group in filters) {
+                     if (group.type == 'bitmask') {
+                       _tempBitmasks[group.paramName] = List.filled(group.options.length, true);
+                     } else if (group.options.isNotEmpty) {
+                       // 这里的逻辑看你是否需要重置回第一个，还是重置为空
+                       // _tempParams[group.paramName] = group.options.first.value;
+                     }
+                  }
+                });
               },
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        label: const Text("应用筛选"),
-        icon: const Icon(Icons.check),
-        onPressed: _applyFilters,
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: filters.isEmpty 
+            ? const Center(child: Text("此图源没有配置筛选规则")) 
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: filters.length,
+                itemBuilder: (context, index) {
+                  final group = filters[index];
+                  return _buildFilterGroup(group);
+                },
+              ),
+        // === 修改：移除 FloatingActionButton ===
       ),
     );
   }
 
   Widget _buildFilterGroup(FilterGroup group) {
     final appState = context.read<AppState>();
-    // 判断是否有 Key (用于控制 NSFW 显示)
     final hasApiKey = appState.currentSource.apiKey.isNotEmpty;
 
     return Column(
@@ -100,14 +123,11 @@ class _FilterPageState extends State<FilterPage> {
           runSpacing: 8,
           children: [
             for (int i = 0; i < group.options.length; i++) ...[
-              // === 核心逻辑：动态过滤 NSFW 选项 ===
-              // 如果是 purity 组，且选项是 NSFW，且没有 Key -> 则不显示
               if (group.paramName == 'purity' && 
                   group.options[i].value == 'NSFW' && 
                   !hasApiKey) 
-                  const SizedBox.shrink() // 隐藏
+                  const SizedBox.shrink()
               else 
-                  // 正常显示
                   _buildOptionChip(group, i)
             ]
           ],
@@ -135,6 +155,7 @@ class _FilterPageState extends State<FilterPage> {
       );
     } else {
       final currentValue = _tempParams[group.paramName];
+      // 只要值相等就选中，处理空值的情况
       final isSelected = currentValue == option.value;
       return ChoiceChip(
         label: Text(option.label),
@@ -148,22 +169,6 @@ class _FilterPageState extends State<FilterPage> {
         },
       );
     }
-  }
-
-  void _applyFilters() {
-    final appState = context.read<AppState>();
-    
-    _tempParams.forEach((key, value) {
-      appState.updateParam(key, value);
-    });
-
-    _tempBitmasks.forEach((key, boolList) {
-      String mask = boolList.map((b) => b ? '1' : '0').join();
-      appState.updateParam(key, mask);
-    });
-    
-    appState.updateParam('page', 1);
-    Navigator.pop(context);
   }
 
   Color? _getChipColor(String label) {
