@@ -9,10 +9,12 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   // 开关状态
-  bool _quickSearchBar = true;
   bool _welcomeSearch = false;
   bool _infoCatcher = false;
   bool _fixSearch = false;
+  
+  // 模拟存储的 API Key
+  String _apiKey = "";
 
   @override
   Widget build(BuildContext context) {
@@ -20,39 +22,27 @@ class _SettingsPageState extends State<SettingsPage> {
       backgroundColor: const Color(0xFFF2F2F2),
       
       body: CustomScrollView(
-        // 依然保留 BouncingScrollPhysics，保证列表滚动时的回弹手感
         physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
         
         slivers: [
-          // 【核心修改】：回归最标准的 AppBar
-          // 不再有 stretch (拉伸)、flexibleSpace (弹性空间) 和 expandedHeight (展开高度)
           const SliverAppBar(
-            pinned: true, // 标题栏固定在顶部，不随滑动消失
+            pinned: true,
             floating: false,
-            
-            // 标题直接写在这里
             title: Text(
               "设置",
               style: TextStyle(
                 color: Colors.black, 
                 fontWeight: FontWeight.bold,
-                fontSize: 20, // 标准标题大小
+                fontSize: 20,
               ),
             ),
-            
-            // 明确靠左显示
             centerTitle: false, 
-
-            // 背景色与页面一致
             backgroundColor: Color(0xFFF2F2F2),
-            surfaceTintColor: Colors.transparent, // 滚动时不改变颜色
+            surfaceTintColor: Colors.transparent,
             elevation: 0,
-            
-            // 返回键颜色
             iconTheme: IconThemeData(color: Colors.black),
           ),
 
-          // 下面的内容列表保持不变
           SliverList(
             delegate: SliverChildListDelegate([
               Padding(
@@ -98,15 +88,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           _divider(),
                           _buildTile(title: "语言", subtitle: "设置应用语言"),
                           _divider(),
-                          SwitchListTile(
-                            value: _quickSearchBar,
-                            onChanged: (v) => setState(() => _quickSearchBar = v),
-                            title: const Text("快速搜索栏", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            subtitle: Text("在主屏幕上显示书签。", style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                            activeColor: Colors.white,
-                            activeTrackColor: Colors.blue,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                          ),
+                          // 【改动点】：把原来的开关改成了 API Key 输入入口
+                          _buildApiKeyTile(),
                         ],
                       ),
                     ),
@@ -168,7 +151,71 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // 样式：白色圆角卡片
+  // 新增：构建 API Key 配置项
+  Widget _buildApiKeyTile() {
+    return InkWell(
+      onTap: _showApiKeyDialog,
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Wallhaven API Key", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text(
+                    _apiKey.isEmpty ? "点击配置 API Key 以访问 NSFW 内容" : "已配置: ${_apiKey.substring(0, 4)}****", 
+                    style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.3)
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 新增：显示输入弹窗
+  void _showApiKeyDialog() {
+    final TextEditingController controller = TextEditingController(text: _apiKey);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("设置 API Key"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: "在此粘贴你的 API Key",
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("取消"),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _apiKey = controller.text;
+              });
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("API Key 已保存 (仅当前会话有效)")),
+              );
+            },
+            child: const Text("保存"),
+          ),
+        ],
+      ),
+    );
+  }
+
   BoxDecoration _boxDecoration() {
     return BoxDecoration(
       color: Colors.white,
@@ -179,7 +226,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // 组件：纯文字列表项
   Widget _buildTile({required String title, required String subtitle}) {
     return InkWell(
       onTap: () {},
@@ -204,7 +250,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
   
-  // 组件：开关列表项
   Widget _buildSwitchTile({
     required String title, 
     required String subtitle, 
@@ -222,7 +267,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // 组件：分割线
   Widget _divider() {
     return const Divider(height: 1, indent: 20, endIndent: 20, color: Color(0xFFF0F0F0));
   }
