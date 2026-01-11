@@ -6,31 +6,69 @@ import 'models/source_config.dart';
 class AppState extends ChangeNotifier {
   SharedPreferences? _prefs;
 
-  // 默认图源
+  // 默认图源 - Wallhaven
   List<SourceConfig> _sources = [
     SourceConfig(
       name: 'Wallhaven',
       baseUrl: 'https://wallhaven.cc/api/v1/search',
       filters: [
-        FilterGroup(title: '排序', paramName: 'sorting', type: 'radio', options: [
-            FilterOption(label: '最新', value: 'date_added'),
-            FilterOption(label: '最热', value: 'views'),
-            FilterOption(label: '收藏', value: 'favorites'),
-            FilterOption(label: '排行', value: 'toplist'),
-        ]),
-        FilterGroup(title: '分类', paramName: 'categories', type: 'bitmask', options: [
+        // 1. 分类 (Categories)
+        FilterGroup(title: '分类 (Categories)', paramName: 'categories', type: 'bitmask', options: [
             FilterOption(label: 'General', value: 'General'),
             FilterOption(label: 'Anime', value: 'Anime'),
             FilterOption(label: 'People', value: 'People'),
         ]),
-        FilterGroup(title: '分级', paramName: 'purity', type: 'bitmask', options: [
+        // 2. 分级 (Purity)
+        FilterGroup(title: '分级 (Purity)', paramName: 'purity', type: 'bitmask', options: [
             FilterOption(label: 'SFW', value: 'SFW'),
             FilterOption(label: 'Sketchy', value: 'Sketchy'),
             FilterOption(label: 'NSFW', value: 'NSFW'),
         ]),
+        // 3. 排序 (Sorting)
+        FilterGroup(title: '排序 (Sorting)', paramName: 'sorting', type: 'radio', options: [
+            FilterOption(label: '最新 (Date Added)', value: 'date_added'),
+            FilterOption(label: '相关 (Relevance)', value: 'relevance'),
+            FilterOption(label: '随机 (Random)', value: 'random'),
+            FilterOption(label: '浏览 (Views)', value: 'views'),
+            FilterOption(label: '收藏 (Favorites)', value: 'favorites'),
+            FilterOption(label: '排行 (Toplist)', value: 'toplist'),
+        ]),
+        // 4. 顺序 (Order)
+        FilterGroup(title: '顺序 (Order)', paramName: 'order', type: 'radio', options: [
+            FilterOption(label: '降序 (Desc)', value: 'desc'),
+            FilterOption(label: '升序 (Asc)', value: 'asc'),
+        ]),
+        // 5. 排行榜时间范围 (Toplist Range) - 仅在排序为 Toplist 时有效
+        FilterGroup(title: '排行榜范围 (Top Range)', paramName: 'topRange', type: 'radio', options: [
+            FilterOption(label: '1天', value: '1d'),
+            FilterOption(label: '3天', value: '3d'),
+            FilterOption(label: '1周', value: '1w'),
+            FilterOption(label: '1月', value: '1M'),
+            FilterOption(label: '3月', value: '3M'),
+            FilterOption(label: '6月', value: '6M'),
+            FilterOption(label: '1年', value: '1y'),
+        ]),
+        // 6. 分辨率 (Resolution)
+        FilterGroup(title: '最低分辨率 (At Least)', paramName: 'atleast', type: 'radio', options: [
+            FilterOption(label: '任意', value: ''),
+            FilterOption(label: '1920x1080', value: '1920x1080'),
+            FilterOption(label: '2560x1440', value: '2560x1440'),
+            FilterOption(label: '3840x2160 (4K)', value: '3840x2160'),
+        ]),
+        // 7. 比例 (Ratios)
+        FilterGroup(title: '比例 (Ratios)', paramName: 'ratios', type: 'radio', options: [
+            FilterOption(label: '任意', value: ''),
+            FilterOption(label: '横屏 (Landscape)', value: 'landscape'),
+            FilterOption(label: '竖屏 (Portrait)', value: 'portrait'),
+            FilterOption(label: '16:9', value: '16x9'),
+            FilterOption(label: '16:10', value: '16x10'),
+            FilterOption(label: '21:9', value: '21x9'),
+            FilterOption(label: '9:16', value: '9x16'),
+        ]),
       ]
     ),
   ];
+
   int _currentSourceIndex = 0;
   Map<String, dynamic> _activeParams = {};
 
@@ -43,7 +81,7 @@ class AppState extends ChangeNotifier {
   bool _useAmoled = false;
   Locale _locale = const Locale('zh');
   
-  // === 🎨 外观设置 ===
+  // 外观设置
   double _cornerRadius = 24.0; 
   double _homeCornerRadius = 12.0;
 
@@ -65,7 +103,6 @@ class AppState extends ChangeNotifier {
     String? lang = _prefs?.getString('language');
     if (lang != null) _locale = Locale(lang);
 
-    // 读取圆角设置
     _cornerRadius = _prefs?.getDouble('corner_radius') ?? 24.0;
     _homeCornerRadius = _prefs?.getDouble('home_corner_radius') ?? 12.0;
 
@@ -149,7 +186,6 @@ class AppState extends ChangeNotifier {
   void setAmoled(bool v) { _useAmoled = v; _prefs?.setBool('useAmoled', v); notifyListeners(); }
   void setLanguage(String v) { _locale = Locale(v); _prefs?.setString('language', v); notifyListeners(); }
   
-  // === 设置圆角方法 ===
   void setCornerRadius(double value) { _cornerRadius = value; _prefs?.setDouble('corner_radius', value); notifyListeners(); }
   void setHomeCornerRadius(double value) { _homeCornerRadius = value; _prefs?.setDouble('home_corner_radius', value); notifyListeners(); }
 }
