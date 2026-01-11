@@ -28,7 +28,6 @@ void main() async {
   );
 }
 
-// === 全局滚动行为 ===
 class AppScrollBehavior extends MaterialScrollBehavior {
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) {
@@ -45,74 +44,17 @@ class MyApp extends StatelessWidget {
 
     return DynamicColorBuilder(
       builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
-        // === 1. 统一颜色 ===
         const lightBg = Color(0xFFF1F1F3);
-        const lightSurface = Color(0xFFFFFDFD);
-        
-        final darkBg = appState.useAmoled ? Colors.black : const Color(0xFF121212);
-        final darkSurface = appState.useAmoled ? const Color(0xFF1A1A1A) : const Color(0xFF2C2C2C);
+        const lightSurface = Colors.white; // 弹窗保持纯白
 
-        ColorScheme lightScheme;
-        ColorScheme darkScheme;
-
-        if (lightDynamic != null && appState.useMaterialYou) {
-          lightScheme = lightDynamic.harmonized();
-          lightScheme = lightScheme.copyWith(surface: lightSurface, surfaceContainerHighest: lightSurface);
-          darkScheme = darkDynamic?.harmonized() ?? const ColorScheme.dark();
-          darkScheme = darkScheme.copyWith(surface: darkSurface, surfaceContainerHighest: darkSurface);
-        } else {
-          lightScheme = ColorScheme.fromSeed(seedColor: Colors.blue, surface: lightSurface);
-          darkScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark, surface: darkSurface);
-        }
-
-        // === 2. 统一形状 ===
+        // 统一圆角（复刻图中大圆角）
+        const commonRadius = Radius.circular(32);
         const commonShape = RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(28)), 
-        );
-        
-        // === 3. 统一转场动画 ===
-        const pageTransitions = PageTransitionsTheme(
-          builders: {
-            TargetPlatform.android: ZoomPageTransitionsBuilder(),
-            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-          },
-        );
-
-        // === 4. 统一字体 ===
-        final textThemeBase = Theme.of(context).textTheme;
-        final appTextTheme = textThemeBase.copyWith(
-          titleLarge: textThemeBase.titleLarge?.copyWith(fontWeight: FontWeight.bold, fontSize: 20),
-          titleMedium: textThemeBase.titleMedium?.copyWith(fontWeight: FontWeight.bold, fontSize: 16),
-          bodyMedium: textThemeBase.bodyMedium?.copyWith(fontSize: 14),
-        );
-
-        // === 5. 统一弹窗样式 ===
-        // 修复：删除了 actionsAlignment，解决报错
-        final dialogThemeLight = DialogThemeData(
-          backgroundColor: lightSurface,
-          elevation: 0,
-          shape: commonShape,
-          alignment: Alignment.bottomCenter, // 保持底部悬浮
-          // actionsAlignment: MainAxisAlignment.spaceEvenly, // <--- 已删除，解决报错
-          titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
-          contentTextStyle: const TextStyle(fontSize: 16, color: Colors.black87),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 24), 
-        );
-        
-        final dialogThemeDark = DialogThemeData(
-          backgroundColor: darkSurface,
-          elevation: 0,
-          shape: commonShape,
-          alignment: Alignment.bottomCenter, // 保持底部悬浮
-          // actionsAlignment: MainAxisAlignment.spaceEvenly, // <--- 已删除，解决报错
-          titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-          contentTextStyle: const TextStyle(fontSize: 16, color: Colors.white70),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          borderRadius: BorderRadius.all(commonRadius),
         );
 
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'Wallhaven Client',
           scrollBehavior: AppScrollBehavior(),
           locale: appState.locale,
           supportedLocales: const [Locale('zh'), Locale('en')],
@@ -121,99 +63,41 @@ class MyApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-
-          // === 浅色主题 ===
           theme: ThemeData(
             useMaterial3: true,
-            colorScheme: lightScheme,
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue, surface: lightSurface),
             scaffoldBackgroundColor: lightBg,
-            textTheme: appTextTheme,
-            pageTransitionsTheme: pageTransitions,
-
-            appBarTheme: AppBarTheme(
-              backgroundColor: lightBg,
-              scrolledUnderElevation: 0,
-              titleTextStyle: const TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
-              iconTheme: const IconThemeData(color: Colors.black),
-            ),
             
-            cardTheme: CardThemeData(
-              color: lightSurface, 
-              elevation: 0, 
-              margin: EdgeInsets.zero, 
-              shape: commonShape
-            ),
-            
-            dialogTheme: dialogThemeLight,
-
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-              )
-            ),
-            
-            bottomSheetTheme: const BottomSheetThemeData(
+            // 弹窗主题：底部悬浮
+            dialogTheme: DialogThemeData(
               backgroundColor: lightSurface,
-              modalBackgroundColor: lightSurface,
+              elevation: 0,
               shape: commonShape,
+              alignment: Alignment.bottomCenter,
+              actionsPadding: EdgeInsets.zero, // 我们在子组件里自定义 padding
             ),
-            
-            inputDecorationTheme: const InputDecorationTheme(
-              filled: true,
-              fillColor: Colors.black12,
-              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide.none),
-              isDense: true,
-            ),
-          ),
 
-          // === 深色主题 ===
-          darkTheme: ThemeData(
-            useMaterial3: true,
-            colorScheme: darkScheme,
-            scaffoldBackgroundColor: darkBg,
-            textTheme: appTextTheme.apply(bodyColor: Colors.white, displayColor: Colors.white),
-            pageTransitionsTheme: pageTransitions,
-
-            appBarTheme: AppBarTheme(
-              backgroundColor: darkBg,
-              scrolledUnderElevation: 0,
-              titleTextStyle: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-              iconTheme: const IconThemeData(color: Colors.white),
-            ),
-            
-            cardTheme: CardThemeData(
-              color: darkSurface, 
-              elevation: 0, 
-              margin: EdgeInsets.zero, 
-              shape: commonShape
-            ),
-            
-            dialogTheme: dialogThemeDark,
-
+            // 复刻 GIF 里的按钮按压效果
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-              )
+                foregroundColor: Colors.black,
+                // 按压时的灰色水波纹
+                backgroundColor: Colors.transparent,
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                // 关键：复刻 GIF 中按压时那种带圆角的反馈形状
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(16)),
+                ),
+                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ),
             
-            bottomSheetTheme: BottomSheetThemeData(
-              backgroundColor: darkSurface,
-              modalBackgroundColor: darkSurface,
-              shape: commonShape,
-            ),
-            
-            inputDecorationTheme: const InputDecorationTheme(
-              filled: true,
-              fillColor: Colors.white10,
-              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide.none),
-              isDense: true,
+            cardTheme: const CardTheme(
+              color: lightSurface,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(24))),
             ),
           ),
-          
           themeMode: appState.themeMode,
           home: const HomePage(),
         );
