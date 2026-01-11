@@ -711,48 +711,64 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildFancySlider(BuildContext context, {required String label, required double value, required double max, required ValueChanged<double> onChanged}) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text(value.toInt().toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
-            ],
+  Widget _buildFancySlider(
+  BuildContext context, {
+  required String label,
+  required double value,
+  required double max,
+  required ValueChanged<double> onChanged,
+}) {
+  final primaryColor = Theme.of(context).colorScheme.primary;
+
+  const double step = 0.5; // 👈 这里控制步进（0.5 / 1 / 0.25 都改这一个）
+  final int divisions = (max / step).round();
+
+  double snap(double v) => (v / step).round() * step;
+
+  final double displayValue = snap(value);
+
+  return Column(
+    children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              displayValue.toStringAsFixed(1), // 👈 不再用 toInt()
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+      SizedBox(
+        height: 48,
+        child: SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 12,
+            trackShape: const RoundedRectSliderTrackShape(),
+            activeTrackColor: primaryColor,
+            inactiveTrackColor: primaryColor.withOpacity(0.15),
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12.0, elevation: 4.0),
+            thumbColor: Colors.white,
+            overlayColor: Colors.white.withOpacity(0.3),
+            // 👇 想更丝滑就关刻度点（可选）
+            tickMarkShape: SliderTickMarkShape.noTickMark,
+          ),
+          child: Slider(
+            value: value,
+            min: 0.0,
+            max: max,
+            divisions: divisions, // 👈 自动按 max + step 算
+            onChanged: onChanged,
+            onChangeEnd: (v) => onChanged(snap(v)), // 👈 松手对齐到步进
           ),
         ),
-        SizedBox(
-          height: 48, 
-          child: SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 12, 
-              trackShape: const RoundedRectSliderTrackShape(),
-              activeTrackColor: primaryColor,
-              inactiveTrackColor: primaryColor.withOpacity(0.15),
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12.0, elevation: 4.0),
-              thumbColor: Colors.white,
-              overlayColor: Colors.white.withOpacity(0.3),
-              tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 3.5),
-              activeTickMarkColor: Colors.white.withOpacity(0.5),
-              inactiveTickMarkColor: primaryColor.withOpacity(0.5),
-            ),
-            child: Slider(
-              value: value,
-              min: 0.0,
-              max: max,
-              divisions: 24,
-              onChanged: onChanged,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
 
   Widget _buildCard(BuildContext context, {required Widget child}) { 
     final radius = context.read<AppState>().cornerRadius; 
