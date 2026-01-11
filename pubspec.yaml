@@ -14,7 +14,7 @@ dependencies:
   flutter_staggered_grid_view: ^0.7.0
   cupertino_icons: ^1.0.8
   dio: ^5.4.0
-  image_gallery_saver: ^2.0.3
+  gal: ^2.3.0
   permission_handler: ^11.3.0
   
   # 保留这个较新的版本
