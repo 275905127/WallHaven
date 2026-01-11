@@ -82,7 +82,7 @@ class _HomePageState extends State<HomePage> {
 
     // === 直链模式 (Luvbree 等随机图) ===
     if (currentSource.listKey == '@direct') {
-      int batchSize = 8; 
+      int batchSize = 6; 
       for (int i = 0; i < batchSize; i++) {
         if (!mounted) return;
 
@@ -109,7 +109,7 @@ class _HomePageState extends State<HomePage> {
             _wallpapers.add(newItem);
           });
         }
-        await Future.delayed(const Duration(milliseconds: 600));
+        await Future.delayed(const Duration(milliseconds: 1000));
       }
 
       if (mounted) {
