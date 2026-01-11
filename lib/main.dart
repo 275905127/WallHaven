@@ -1,3 +1,4 @@
+import 'dart:io'; // <--- 1. 引入 IO 库
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +10,10 @@ import 'pages/home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // === 2. 启用全局 SSL 忽略 (解决 VPN 问题) ===
+  HttpOverrides.global = MyHttpOverrides(); 
+
   final appState = AppState();
   await appState.init();
 
@@ -26,6 +31,16 @@ void main() async {
       child: const MyApp(),
     ),
   );
+}
+
+// === 3. 定义覆盖类 ===
+class MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      // 核心逻辑：直接返回 true，信任所有证书（包括 VPN 的自签名证书）
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
 }
 
 // === 全局滚动行为 ===
@@ -66,7 +81,6 @@ class MyApp extends StatelessWidget {
         }
 
         // === 2. 统一形状 (动态读取设置) ===
-        // 注意：这里不是 const，因为 appState.cornerRadius 是变量
         final commonShape = RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(appState.cornerRadius)), 
         );
@@ -152,7 +166,6 @@ class MyApp extends StatelessWidget {
               )
             ),
             
-            // 修复点：这里去掉了 const，因为 commonShape 是变量
             bottomSheetTheme: BottomSheetThemeData(
               backgroundColor: lightSurface,
               modalBackgroundColor: lightSurface,
@@ -199,7 +212,6 @@ class MyApp extends StatelessWidget {
               )
             ),
             
-            // 这里本来就没有 const，保持原样
             bottomSheetTheme: BottomSheetThemeData(
               backgroundColor: darkSurface,
               modalBackgroundColor: darkSurface,
