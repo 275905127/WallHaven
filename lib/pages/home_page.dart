@@ -270,7 +270,7 @@ class _HomePageState extends State<HomePage> {
               ),
 
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 sliver: SliverMasonryGrid.count(
                   crossAxisCount: 2,
                   mainAxisSpacing: 8,
