@@ -69,7 +69,7 @@ class MyApp extends StatelessWidget {
             colorScheme: lightScheme,
             scaffoldBackgroundColor: const Color(0xFFF1F1F3), // 经典灰白底
             appBarTheme: const AppBarTheme(
-              backgroundColor: Color(0xFFF2F2F2),
+              backgroundColor: Color(0xFFF1F1F3),
               scrolledUnderElevation: 0,
             ),
           ),
