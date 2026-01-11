@@ -1,146 +1,103 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers.dart';
 
-class SettingsPage extends StatefulWidget {
+class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends State<SettingsPage> {
-  // 开关状态
-  bool _welcomeSearch = false;
-  bool _infoCatcher = false;
-  bool _fixSearch = false;
-  
-  // 模拟存储的 API Key
-  String _apiKey = "";
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F2),
-      
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-        
-        slivers: [
-          const SliverAppBar(
-            pinned: true,
-            floating: false,
-            title: Text(
-              "设置",
-              style: TextStyle(
-                color: Colors.black, 
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
-            ),
-            centerTitle: false, 
-            backgroundColor: Color(0xFFF2F2F2),
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            iconTheme: IconThemeData(color: Colors.black),
-          ),
+    // 获取全局状态
+    final appState = context.watch<AppState>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // 动态计算容器颜色
+    final cardColor = isDark 
+        ? (appState.useAmoled ? const Color(0xFF1A1A1A) : const Color(0xFF2C2C2C)) 
+        : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
 
+    return Scaffold(
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            title: Text("设置", style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            elevation: 0,
+            centerTitle: false,
+            iconTheme: IconThemeData(color: textColor),
+          ),
           SliverList(
             delegate: SliverChildListDelegate([
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Column(
                   children: [
-                    // 卡片 1：用户信息
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-                      decoration: _boxDecoration(),
+                    // 用户信息卡片 (保持 UI 不变)
+                    _buildCard(
+                      color: cardColor,
                       child: Row(
                         children: [
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text("用户名", 
-                                  style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.0)
-                                ),
+                                Text(appState.locale.languageCode == 'zh' ? "当前图源" : "Current Source", 
+                                  style: TextStyle(color: Colors.grey, fontSize: 13)),
                                 const SizedBox(height: 6),
-                                const Text("Unknown", 
-                                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, height: 1.2)
-                                ),
+                                Text(appState.currentSource.name, 
+                                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
                               ],
                             ),
                           ),
                           CircleAvatar(
                             radius: 26,
-                            backgroundColor: const Color(0xFF333333),
-                            child: const Icon(Icons.person, size: 30, color: Colors.white),
+                            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                            child: Icon(Icons.hub, color: Theme.of(context).colorScheme.primary),
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 16),
 
-                    // 卡片 2：常规设置
-                    Container(
-                      decoration: _boxDecoration(),
+                    // 第一组：外观设置 (核心功能升级)
+                    _buildCard(
+                      color: cardColor,
                       child: Column(
                         children: [
-                          _buildTile(title: "主题", subtitle: "设置应用主题"),
-                          _divider(),
-                          _buildTile(title: "语言", subtitle: "设置应用语言"),
-                          _divider(),
-                          // 【改动点】：把原来的开关改成了 API Key 输入入口
-                          _buildApiKeyTile(),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // 卡片 3：书签管理
-                    Container(
-                      decoration: _boxDecoration(),
-                      child: Column(
-                        children: [
-                          _buildTile(title: "书签顺序", subtitle: "排序书签"),
-                          _divider(),
-                          _buildTile(title: "重置书签", subtitle: "重置所有书签和类别。仅在出现错误时使用此功能。"),
-                          _divider(),
-                          _buildTile(title: "备份与恢复", subtitle: "备份和恢复 CheckFirm 书签和类别。"),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // 卡片 4：高级功能
-                    Container(
-                      decoration: _boxDecoration(),
-                      child: Column(
-                        children: [
-                          _buildSwitchTile(
-                            title: "欢迎搜索", 
-                            subtitle: "启动时搜索固件。", 
-                            value: _welcomeSearch, 
-                            onChanged: (v) => setState(() => _welcomeSearch = v)
+                          _buildTile(
+                            context,
+                            title: appState.locale.languageCode == 'zh' ? "主题" : "Theme",
+                            subtitle: _getThemeSubtitle(appState),
+                            icon: Icons.palette_outlined,
+                            textColor: textColor,
+                            onTap: () => _showThemeDialog(context, appState), // 弹出高级主题设置
                           ),
                           _divider(),
-                          _buildSwitchTile(
-                            title: "信息捕获器", 
-                            subtitle: "Info Catcher 将在固件更新时向您发送通知。", 
-                            value: _infoCatcher, 
-                            onChanged: (v) => setState(() => _infoCatcher = v)
+                          _buildTile(
+                            context,
+                            title: appState.locale.languageCode == 'zh' ? "语言" : "Language",
+                            subtitle: appState.locale.languageCode == 'zh' ? "简体中文" : "English",
+                            icon: Icons.language,
+                            textColor: textColor,
+                            onTap: () => _showLanguageDialog(context, appState),
                           ),
                           _divider(),
-                          _buildSwitchTile(
-                            title: "修复搜索错误", 
-                            subtitle: "由于中国或伊朗等一些国家禁止使用Firebase，因此存在搜索错误。如果您在这些国家，请启用此设置。", 
-                            value: _fixSearch, 
-                            onChanged: (v) => setState(() => _fixSearch = v)
+                          // 【改为图源设置入口】
+                          _buildTile(
+                            context,
+                            title: appState.locale.languageCode == 'zh' ? "图源管理" : "Image Sources",
+                            subtitle: appState.locale.languageCode == 'zh' ? "切换或添加新的图片来源" : "Switch or add new sources",
+                            icon: Icons.source_outlined,
+                            textColor: textColor,
+                            // 这里可以加一个 Switch 或 Chevron，保持风格
+                            trailing: Icon(Icons.chevron_right, color: Colors.grey),
+                            onTap: () => _showSourceDialog(context, appState),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 50),
                   ],
                 ),
               ),
@@ -151,123 +108,222 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // 新增：构建 API Key 配置项
-  Widget _buildApiKeyTile() {
-    return InkWell(
-      onTap: _showApiKeyDialog,
-      borderRadius: BorderRadius.circular(24),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+  // --- 辅助方法 ---
+
+  String _getThemeSubtitle(AppState state) {
+    String mode = "跟随系统";
+    if (state.themeMode == ThemeMode.light) mode = "浅色";
+    if (state.themeMode == ThemeMode.dark) mode = "深色";
+    if (state.useMaterialYou) mode += " + 动态取色";
+    if (state.useAmoled && state.themeMode != ThemeMode.light) mode += " (纯黑)";
+    return mode;
+  }
+
+  // 1. 高级主题设置弹窗 (复刻参考图功能，保持 App 风格)
+  void _showThemeDialog(BuildContext context, AppState state) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("外观设置", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              
+              // 深色模式 (单选)
+              const Text("深色模式", style: TextStyle(fontSize: 14, color: Colors.grey)),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  const Text("Wallhaven API Key", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 4),
-                  Text(
-                    _apiKey.isEmpty ? "点击配置 API Key 以访问 NSFW 内容" : "已配置: ${_apiKey.substring(0, 4)}****", 
-                    style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.3)
-                  ),
+                  _buildThemeOption(context, state, "跟随系统", ThemeMode.system),
+                  _buildThemeOption(context, state, "浅色", ThemeMode.light),
+                  _buildThemeOption(context, state, "深色", ThemeMode.dark),
                 ],
               ),
-            ),
-            const Icon(Icons.chevron_right, color: Colors.grey),
-          ],
-        ),
-      ),
+              const SizedBox(height: 20),
+              
+              // 动态取色 (开关)
+              SwitchListTile(
+                title: const Text("动态取色 (Material You)"),
+                value: state.useMaterialYou,
+                onChanged: (v) => state.setMaterialYou(v),
+                contentPadding: EdgeInsets.zero,
+              ),
+              
+              // 纯黑背景 (开关)
+              SwitchListTile(
+                title: const Text("纯黑背景 (AMOLED)"),
+                subtitle: const Text("仅在深色模式下生效"),
+                value: state.useAmoled,
+                onChanged: state.themeMode == ThemeMode.light ? null : (v) => state.setAmoled(v),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  // 新增：显示输入弹窗
-  void _showApiKeyDialog() {
-    final TextEditingController controller = TextEditingController(text: _apiKey);
+  Widget _buildThemeOption(BuildContext context, AppState state, String label, ThemeMode mode) {
+    final isSelected = state.themeMode == mode;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (v) {
+        if (v) {
+          state.setThemeMode(mode);
+          // Navigator.pop(context); // 保持弹窗不关闭，方便继续设置
+        }
+      },
+    );
+  }
+
+  // 2. 语言设置弹窗
+  void _showLanguageDialog(BuildContext context, AppState state) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("设置 API Key"),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            hintText: "在此粘贴你的 API Key",
-            border: OutlineInputBorder(),
+      builder: (context) => SimpleDialog(
+        title: const Text("选择语言 / Language"),
+        children: [
+          SimpleDialogOption(
+            onPressed: () { state.setLanguage('zh'); Navigator.pop(context); },
+            child: const Padding(padding: EdgeInsets.all(12), child: Text("简体中文")),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("取消"),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _apiKey = controller.text;
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("API Key 已保存 (仅当前会话有效)")),
-              );
-            },
-            child: const Text("保存"),
+          SimpleDialogOption(
+            onPressed: () { state.setLanguage('en'); Navigator.pop(context); },
+            child: const Padding(padding: EdgeInsets.all(12), child: Text("English")),
           ),
         ],
       ),
     );
   }
 
-  BoxDecoration _boxDecoration() {
-    return BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(24),
-      boxShadow: [
-        BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
-      ],
+  // 3. 图源管理弹窗
+  void _showSourceDialog(BuildContext context, AppState state) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          expand: false,
+          builder: (_, controller) => ListView(
+            controller: controller,
+            padding: const EdgeInsets.all(24),
+            children: [
+              const Text("选择图源", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ...List.generate(state.sources.length, (index) {
+                final source = state.sources[index];
+                final isSelected = state.currentSource == source;
+                return ListTile(
+                  title: Text(source.name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                  subtitle: Text(source.baseUrl),
+                  trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.blue) : null,
+                  onTap: () {
+                    state.setSource(index);
+                    Navigator.pop(context);
+                  },
+                );
+              }),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.add),
+                title: const Text("添加自定义 Wallhaven API"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showAddSourceDialog(context, state);
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildTile({required String title, required String subtitle}) {
+  // 添加图源弹窗
+  void _showAddSourceDialog(BuildContext context, AppState state) {
+    final nameCtrl = TextEditingController();
+    final urlCtrl = TextEditingController(text: "https://wallhaven.cc/api/v1/search");
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("添加图源"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "名称 (例如: 赛博朋克风)")),
+            TextField(controller: urlCtrl, decoration: const InputDecoration(labelText: "API 地址")),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消")),
+          TextButton(
+            onPressed: () {
+              if (nameCtrl.text.isNotEmpty && urlCtrl.text.isNotEmpty) {
+                state.addSource(nameCtrl.text, urlCtrl.text);
+                Navigator.pop(context);
+              }
+            }, 
+            child: const Text("添加"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // UI 样式封装
+  Widget _buildCard({required Widget child, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildTile(BuildContext context, {
+    required String title, required String subtitle, required IconData icon, required Color textColor,
+    Widget? trailing, VoidCallback? onTap
+  }) {
     return InkWell(
-      onTap: () {},
-      borderRadius: BorderRadius.circular(24),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
           children: [
+            Icon(icon, color: textColor.withOpacity(0.7)),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)),
                   const SizedBox(height: 4),
-                  Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.3)),
+                  Text(subtitle, style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 13)),
                 ],
               ),
             ),
+            if (trailing != null) trailing,
           ],
         ),
       ),
     );
   }
-  
-  Widget _buildSwitchTile({
-    required String title, 
-    required String subtitle, 
-    required bool value, 
-    required Function(bool) onChanged
-  }) {
-    return SwitchListTile(
-      value: value,
-      onChanged: onChanged,
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-      subtitle: Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.3)),
-      activeColor: Colors.white,
-      activeTrackColor: Colors.blue,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-    );
-  }
 
-  Widget _divider() {
-    return const Divider(height: 1, indent: 20, endIndent: 20, color: Color(0xFFF0F0F0));
-  }
+  Widget _divider() => const Divider(height: 1, indent: 50, color: Color(0x10000000));
 }
