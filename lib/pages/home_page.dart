@@ -3,8 +3,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
 
-import '../models/wallpaper.dart'; // 我们依然用这个模型来承载最终显示的图片
-import '../models/source_config.dart'; // 新的配置模型
+import '../models/wallpaper.dart';
 import '../providers.dart';
 import 'settings_page.dart';
 import 'filter_page.dart';
@@ -23,7 +22,6 @@ class _HomePageState extends State<HomePage> {
   int _page = 1; 
   final ScrollController _scrollController = ScrollController();
   
-  // 记录上次请求的 URL 以检测变化
   String? _lastSourceHash;
 
   @override
@@ -43,8 +41,6 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  // --- 通用 JSON 解析器 ---
-  // 比如传入 obj, "thumbs.large" -> 返回 obj['thumbs']['large']
   dynamic _getValueByPath(dynamic json, String path) {
     if (path.isEmpty) return json;
     List<String> keys = path.split('.');
@@ -64,10 +60,9 @@ class _HomePageState extends State<HomePage> {
 
     final appState = context.read<AppState>();
     final currentSource = appState.currentSource;
-    // 获取所有动态参数
+    // 【修复点】这里是 activeParams，不是 activeFilters
     final activeParams = appState.activeParams;
     
-    // Hash 判断逻辑，防止重复请求
     String currentHash = "${currentSource.baseUrl}|${activeParams.toString()}";
 
     if (refresh || _lastSourceHash != currentHash) {
@@ -81,33 +76,26 @@ class _HomePageState extends State<HomePage> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. 基础参数
-      final queryParams = {
+      // 【修复点】明确指定类型为 Map<String, dynamic> 解决类型不兼容报错
+      final Map<String, dynamic> queryParams = {
         'page': _page,
         if (currentSource.apiKey.isNotEmpty) 
           currentSource.apiKeyParam: currentSource.apiKey,
       };
 
-      // 2. 【关键】合并动态筛选参数
-      // 这里的 activeParams 里面现在包含了 "sorting", "categories" 等由 FilterPage 动态生成的值
+      // 合并动态筛选参数
       queryParams.addAll(activeParams);
 
-      // 3. 发起请求
       var response = await Dio().get(
         currentSource.baseUrl,
         queryParameters: queryParams,
       );
-      
-      // ... (后续解析代码保持不变) ...
 
-      // 3. 通用解析
       if (response.statusCode == 200) {
-        // 根据配置的 listKey 找到数组 (例如 'data' 或 'hits')
         var rawList = _getValueByPath(response.data, currentSource.listKey);
         
         if (rawList is List) {
           List<Wallpaper> newWallpapers = rawList.map((item) {
-            // 根据配置的 key 动态取值
             String thumb = _getValueByPath(item, currentSource.thumbKey) ?? "";
             String full = _getValueByPath(item, currentSource.fullKey) ?? thumb;
             String id = _getValueByPath(item, currentSource.idKey).toString();
@@ -116,11 +104,11 @@ class _HomePageState extends State<HomePage> {
               id: id,
               thumbUrl: thumb,
               fullSizeUrl: full,
-              resolution: "", // 可选
-              views: 0,       // 可选
-              favorites: 0,   // 可选
+              resolution: "",
+              views: 0,
+              favorites: 0,
             );
-          }).where((w) => w.thumbUrl.isNotEmpty).toList(); // 过滤掉无效数据
+          }).where((w) => w.thumbUrl.isNotEmpty).toList();
 
           if (mounted) {
             setState(() {
@@ -145,9 +133,9 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
 
-    // 自动刷新逻辑
+    // 【修复点】这里改为 activeParams
     if (_lastSourceHash != null && 
-        _lastSourceHash != "${appState.currentSource.baseUrl}|${appState.activeFilters['q']}") {
+        _lastSourceHash != "${appState.currentSource.baseUrl}|${appState.activeParams.toString()}") {
        Future.microtask(() => _fetchWallpapers(refresh: true));
     }
 
@@ -178,6 +166,12 @@ class _HomePageState extends State<HomePage> {
                         }
                       );
                       if (query != null) context.read<AppState>().updateSearchQuery(query);
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.filter_list_alt, size: 26),
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const FilterPage()));
                     },
                   ),
                   IconButton(
