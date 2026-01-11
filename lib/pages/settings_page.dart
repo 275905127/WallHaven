@@ -8,7 +8,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  // 模拟开关状态
+  // 开关状态
   bool _quickSearchBar = true;
   bool _welcomeSearch = false;
   bool _infoCatcher = false;
@@ -17,34 +17,47 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // 背景色与 main.dart 保持一致
       backgroundColor: const Color(0xFFF2F2F2),
       
       body: CustomScrollView(
+        // 【关键点1】必须用 BouncingScrollPhysics 才能有下拉回弹的物理效果
+        // AlwaysScrollableScrollPhysics 确保即使内容少也能下拉
         physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+        
         slivers: [
-          // 1. 顶部大标题栏 (支持下拉放大)
+          // 【关键点2】使用 SliverAppBar.large 实现大标题交互
           SliverAppBar.large(
-            stretch: true, 
-            centerTitle: false,
-            title: const Text("设置", style: TextStyle(fontWeight: FontWeight.bold)),
-            backgroundColor: const Color(0xFFF2F2F2), // 必须与背景同色，否则下拉会露馅
-            surfaceTintColor: Colors.transparent, 
-            expandedHeight: 120,
-            // 只有当不是首页跳转过来时，才需要手动写 leading，
-            // 既然你是 push 进来的，系统自动生成的返回箭头是最标准的，不用改。
+            stretch: true, // 【核心】开启下拉拉伸效果（放大）
+            pinned: true,  // 上滑时标题栏固定在顶部
+            
+            // 标题文本
+            title: const Text("设置"),
+            
+            // 【关键点3】控制标题位置
+            // centerTitle: false 表示标题平时靠左（在返回键旁边）
+            // 如果你希望能“下拉时居中”，这是原生组件很难做到的动态动画，
+            // 但开启 stretch 后，背景和文字的放大回弹会非常有质感。
+            centerTitle: false, 
+
+            // 颜色配置
+            backgroundColor: const Color(0xFFF2F2F2),
+            surfaceTintColor: Colors.transparent, // 滚动时不改变颜色
+            
+            // 展开高度，120-140 是比较舒适的大标题高度
+            expandedHeight: 140.0,
+            
+            // 自动处理返回键颜色
+            iconTheme: const IconThemeData(color: Colors.black),
           ),
 
-          // 2. 内容列表
+          // 内容列表
           SliverList(
             delegate: SliverChildListDelegate([
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Column(
                   children: [
-                    // ==============================
-                    // 卡片 1：用户信息 (1:1 复刻)
-                    // ==============================
+                    // 卡片 1：用户信息
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
                       decoration: _boxDecoration(),
@@ -64,10 +77,9 @@ class _SettingsPageState extends State<SettingsPage> {
                               ],
                             ),
                           ),
-                          // 深色头像
                           CircleAvatar(
                             radius: 26,
-                            backgroundColor: const Color(0xFF333333), // 参考图是深灰偏黑
+                            backgroundColor: const Color(0xFF333333),
                             child: const Icon(Icons.person, size: 30, color: Colors.white),
                           ),
                         ],
@@ -75,9 +87,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     const SizedBox(height: 16),
 
-                    // ==============================
                     // 卡片 2：常规设置
-                    // ==============================
                     Container(
                       decoration: _boxDecoration(),
                       child: Column(
@@ -91,11 +101,9 @@ class _SettingsPageState extends State<SettingsPage> {
                             onChanged: (v) => setState(() => _quickSearchBar = v),
                             title: const Text("快速搜索栏", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             subtitle: Text("在主屏幕上显示书签。", style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                            // 【关键修改】：参考图是蓝色开关
                             activeColor: Colors.white,
-                            activeTrackColor: Colors.blue, 
+                            activeTrackColor: Colors.blue,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                            // 去掉左侧图标，保持简洁
                           ),
                         ],
                       ),
@@ -103,9 +111,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
                     const SizedBox(height: 16),
 
-                    // ==============================
                     // 卡片 3：书签管理
-                    // ==============================
                     Container(
                       decoration: _boxDecoration(),
                       child: Column(
@@ -121,9 +127,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
                     const SizedBox(height: 16),
 
-                    // ==============================
-                    // 卡片 4：高级功能 (开关组)
-                    // ==============================
+                    // 卡片 4：高级功能
                     Container(
                       decoration: _boxDecoration(),
                       child: Column(
@@ -151,8 +155,6 @@ class _SettingsPageState extends State<SettingsPage> {
                         ],
                       ),
                     ),
-                    
-                    // 底部加点留白
                     const SizedBox(height: 50),
                   ],
                 ),
@@ -164,19 +166,16 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // 样式：白色圆角卡片
   BoxDecoration _boxDecoration() {
     return BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(24), // 参考图圆角很大
-      // 几乎不可见的阴影，保持扁平感
+      borderRadius: BorderRadius.circular(24),
       boxShadow: [
         BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
       ],
     );
   }
 
-  // 组件：纯文字列表项 (无图标)
   Widget _buildTile({required String title, required String subtitle}) {
     return InkWell(
       onTap: () {},
@@ -201,7 +200,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
   
-  // 组件：开关列表项
   Widget _buildSwitchTile({
     required String title, 
     required String subtitle, 
@@ -219,9 +217,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // 组件：分割线
   Widget _divider() {
-    // 缩进 20，颜色非常浅
     return const Divider(height: 1, indent: 20, endIndent: 20, color: Color(0xFFF0F0F0));
   }
 }
