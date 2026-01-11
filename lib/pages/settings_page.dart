@@ -83,7 +83,7 @@ class SettingsPage extends StatelessWidget {
                           _divider(),
                           _buildTile(
                             context,
-                            title: appState.locale.languageCode == 'zh' ? "图源" : "Source Manager",
+                            title: appState.locale.languageCode == 'zh' ? "图源管理" : "Source Manager",
                             subtitle: appState.locale.languageCode == 'zh' ? "添加、编辑或删除" : "Manage sources",
                             icon: Icons.source_outlined,
                             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
@@ -122,7 +122,7 @@ class SettingsPage extends StatelessWidget {
               context,
               title: "图源管理",
               content: Container(
-                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
                 width: double.maxFinite,
                 child: ListView(
                   shrinkWrap: true,
@@ -148,7 +148,6 @@ class SettingsPage extends StatelessWidget {
                                 _showSourceConfigDialog(context, state, existingSource: source, index: index);
                               },
                             ),
-                            // === 修改：选中状态改为 Radio 样式 ===
                             if (isSelected) 
                               const Icon(Icons.radio_button_checked, color: Colors.blue)
                             else
@@ -198,7 +197,6 @@ class SettingsPage extends StatelessWidget {
         title: const Text("确认删除"),
         content: const Text("确定要删除这个图源吗？此操作无法撤销。"),
         actions: [
-          // === 修改：统一按钮颜色 ===
           TextButton(
              onPressed: () => Navigator.pop(ctx), 
              style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).textTheme.bodyLarge?.color),
@@ -216,6 +214,7 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
+  // === 🚀 核心修改：图源配置弹窗 (加入筛选器编辑器入口) ===
   void _showSourceConfigDialog(BuildContext context, AppState state, {SourceConfig? existingSource, int? index}) {
     final isEditing = existingSource != null;
     final nameCtrl = TextEditingController(text: existingSource?.name);
@@ -224,6 +223,10 @@ class SettingsPage extends StatelessWidget {
     final listKeyCtrl = TextEditingController(text: existingSource?.listKey ?? "data");
     final thumbKeyCtrl = TextEditingController(text: existingSource?.thumbKey ?? "thumbs.large");
     final fullKeyCtrl = TextEditingController(text: existingSource?.fullKey ?? "path");
+    
+    // 临时存储筛选器列表
+    List<FilterGroup> tempFilters = existingSource?.filters.toList() ?? [];
+
     bool showAdvanced = false;
 
     showDialog(
@@ -241,8 +244,33 @@ class SettingsPage extends StatelessWidget {
                   const SizedBox(height: 10),
                   _buildInput(urlCtrl, "API 地址 (URL)"),
                   const SizedBox(height: 10),
+                  
+                  // === ✨ 新增：可视化筛选规则编辑器入口 ===
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.filter_list),
+                      label: Text("配置筛选规则 (${tempFilters.length})"),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.all(16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () async {
+                        // 打开二级编辑器
+                        final result = await _openFilterEditor(context, List.from(tempFilters));
+                        if (result != null) {
+                          setState(() {
+                            tempFilters = result;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+
                   _buildInput(apiKeyCtrl, "API Key (可选)"),
                   const SizedBox(height: 10),
+                  
                   TextButton(
                     onPressed: () => setState(() => showAdvanced = !showAdvanced),
                     style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.primary),
@@ -270,7 +298,7 @@ class SettingsPage extends StatelessWidget {
                   listKey: listKeyCtrl.text,
                   thumbKey: thumbKeyCtrl.text,
                   fullKey: fullKeyCtrl.text,
-                  filters: isEditing ? existingSource!.filters : [], 
+                  filters: tempFilters, // 保存编辑后的 filters
                 );
                 if (isEditing) {
                   state.updateSource(index!, newConfig);
@@ -286,6 +314,197 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
+  // === 🛠️ 筛选规则编辑器 (二级页面) ===
+  Future<List<FilterGroup>?> _openFilterEditor(BuildContext context, List<FilterGroup> currentFilters) {
+    return showDialog<List<FilterGroup>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) {
+          return Dialog(
+            backgroundColor: Theme.of(context).dialogTheme.backgroundColor,
+            shape: Theme.of(context).dialogTheme.shape,
+            insetPadding: const EdgeInsets.all(16),
+            child: Container(
+              height: MediaQuery.of(context).size.height * 0.8,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("筛选规则编辑", style: Theme.of(context).textTheme.titleLarge),
+                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                    ],
+                  ),
+                  const Divider(),
+                  Expanded(
+                    child: currentFilters.isEmpty
+                        ? const Center(child: Text("暂无筛选组，请点击下方添加", style: TextStyle(color: Colors.grey)))
+                        : ReorderableListView(
+                            onReorder: (oldIndex, newIndex) {
+                              setState(() {
+                                if (oldIndex < newIndex) newIndex -= 1;
+                                final item = currentFilters.removeAt(oldIndex);
+                                currentFilters.insert(newIndex, item);
+                              });
+                            },
+                            children: [
+                              for (int i = 0; i < currentFilters.length; i++)
+                                ListTile(
+                                  key: ValueKey(currentFilters[i]),
+                                  title: Text(currentFilters[i].title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  subtitle: Text("参数: ${currentFilters[i].paramName} | 类型: ${currentFilters[i].type}"),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.edit, color: Colors.blue),
+                                        onPressed: () async {
+                                          final edited = await _openGroupEditor(context, currentFilters[i]);
+                                          if (edited != null) {
+                                            setState(() => currentFilters[i] = edited);
+                                          }
+                                        },
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete, color: Colors.red),
+                                        onPressed: () => setState(() => currentFilters.removeAt(i)),
+                                      ),
+                                      const Icon(Icons.drag_handle, color: Colors.grey),
+                                    ],
+                                  ),
+                                )
+                            ],
+                          ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.add),
+                      label: const Text("添加筛选组"),
+                      onPressed: () async {
+                        final newGroup = await _openGroupEditor(context, null);
+                        if (newGroup != null) {
+                          setState(() => currentFilters.add(newGroup));
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, foregroundColor: Colors.white),
+                      onPressed: () => Navigator.pop(ctx, currentFilters),
+                      child: const Text("保存全部规则"),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      ),
+    );
+  }
+
+  // === 🛠️ 单个筛选组编辑器 (三级页面) ===
+  Future<FilterGroup?> _openGroupEditor(BuildContext context, FilterGroup? group) {
+    final titleCtrl = TextEditingController(text: group?.title);
+    final paramCtrl = TextEditingController(text: group?.paramName);
+    String type = group?.type ?? 'radio';
+    List<FilterOption> options = group?.options.toList() ?? [];
+
+    return showDialog<FilterGroup>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) {
+          return Dialog(
+            backgroundColor: Theme.of(context).dialogTheme.backgroundColor,
+            shape: Theme.of(context).dialogTheme.shape,
+            insetPadding: const EdgeInsets.all(16),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              // 高度自适应，防止溢出
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(group == null ? "新建筛选组" : "编辑筛选组", style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 20),
+                    _buildInput(titleCtrl, "显示标题 (如: 排序)"),
+                    const SizedBox(height: 10),
+                    _buildInput(paramCtrl, "API参数名 (如: sorting)"),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: type,
+                      decoration: const InputDecoration(labelText: "类型", border: OutlineInputBorder()),
+                      items: const [
+                        DropdownMenuItem(value: 'radio', child: Text("单选 (Radio)")),
+                        DropdownMenuItem(value: 'bitmask', child: Text("多选/位掩码 (Bitmask)")),
+                      ],
+                      onChanged: (v) => setState(() => type = v!),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text("选项列表:", style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    ...List.generate(options.length, (index) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Expanded(child: TextFormField(
+                              initialValue: options[index].label,
+                              decoration: const InputDecoration(hintText: "名称", isDense: true, contentPadding: EdgeInsets.all(8)),
+                              onChanged: (v) => options[index] = FilterOption(label: v, value: options[index].value),
+                            )),
+                            const SizedBox(width: 8),
+                            Expanded(child: TextFormField(
+                              initialValue: options[index].value,
+                              decoration: const InputDecoration(hintText: "值", isDense: true, contentPadding: EdgeInsets.all(8)),
+                              onChanged: (v) => options[index] = FilterOption(label: options[index].label, value: v),
+                            )),
+                            IconButton(
+                              icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                              onPressed: () => setState(() => options.removeAt(index)),
+                            )
+                          ],
+                        ),
+                      );
+                    }),
+                    TextButton.icon(
+                      icon: const Icon(Icons.add),
+                      label: const Text("添加选项"),
+                      onPressed: () => setState(() => options.add(FilterOption(label: "", value: ""))),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        if (titleCtrl.text.isNotEmpty && paramCtrl.text.isNotEmpty) {
+                           Navigator.pop(ctx, FilterGroup(
+                             title: titleCtrl.text,
+                             paramName: paramCtrl.text,
+                             type: type,
+                             options: options,
+                           ));
+                        }
+                      },
+                      child: const Text("确认"),
+                    )
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+      ),
+    );
+  }
+
+  // --- 其他原有弹窗保持不变 ---
   void _showThemeDialog(BuildContext context, AppState state) {
     showDialog(
       context: context,
@@ -373,9 +592,7 @@ class SettingsPage extends StatelessWidget {
   // === 组件 ===
 
   Widget _buildBottomDialog(BuildContext context, {required String title, required Widget content, required VoidCallback onConfirm, String confirmText = "确定", bool hideCancel = false}) {
-    // 统一按钮颜色：跟随主题正文颜色
     final buttonColor = Theme.of(context).textTheme.bodyLarge?.color;
-    
     return Dialog(
       alignment: Alignment.bottomCenter,
       insetPadding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -392,9 +609,8 @@ class SettingsPage extends StatelessWidget {
             if (!hideCancel) Expanded(
               child: TextButton(
                 onPressed: () => Navigator.pop(context), 
-                // === 修改：统一颜色 ===
                 style: TextButton.styleFrom(
-                  foregroundColor: buttonColor, // 字体 & 波纹颜色
+                  foregroundColor: buttonColor,
                   textStyle: const TextStyle(fontSize: 16),
                 ),
                 child: const Text("取消")
@@ -404,9 +620,8 @@ class SettingsPage extends StatelessWidget {
             Expanded(
               child: TextButton(
                 onPressed: onConfirm, 
-                // === 修改：统一颜色 ===
                 style: TextButton.styleFrom(
-                  foregroundColor: buttonColor, // 字体 & 波纹颜色
+                  foregroundColor: buttonColor,
                   textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 child: Text(confirmText)
@@ -444,7 +659,7 @@ class SettingsPage extends StatelessWidget {
           height: 40, 
           child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              trackHeight: 16, // === 修改：改为 16，变细一点 ===
+              trackHeight: 16, 
               trackShape: const RoundedRectSliderTrackShape(),
               activeTrackColor: primaryColor,
               inactiveTrackColor: primaryColor.withOpacity(0.15),
