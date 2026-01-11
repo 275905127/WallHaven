@@ -81,7 +81,7 @@ class SettingsPage extends StatelessWidget {
                           _buildTile(
                             context,
                             title: appState.locale.languageCode == 'zh' ? "图源管理" : "Source Manager",
-                            subtitle: appState.locale.languageCode == 'zh' ? "添加、切换或导入配置" : "Manage sources",
+                            subtitle: appState.locale.languageCode == 'zh' ? "添加、切换或编辑" : "Manage sources",
                             icon: Icons.source_outlined,
                             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
                             onTap: () => _showSourceManagerDialog(context, appState),
@@ -99,8 +99,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // --- 辅助方法 ---
-
   String _getThemeSubtitle(AppState state) {
     String mode = "跟随系统";
     if (state.themeMode == ThemeMode.light) mode = "浅色";
@@ -108,100 +106,18 @@ class SettingsPage extends StatelessWidget {
     return mode;
   }
 
-  // 1. 主题设置 - 使用标准 AlertDialog
-  void _showThemeDialog(BuildContext context, AppState state) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        ThemeMode tempMode = state.themeMode;
-        bool tempMaterialYou = state.useMaterialYou;
-        bool tempAmoled = state.useAmoled;
+  // --- 弹窗逻辑 ---
 
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text("外观设置"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: EdgeInsets.only(left: 12, bottom: 8),
-                      child: Text("模式选择", style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                  RadioListTile<ThemeMode>(title: const Text("跟随系统"), value: ThemeMode.system, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
-                  RadioListTile<ThemeMode>(title: const Text("浅色"), value: ThemeMode.light, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
-                  RadioListTile<ThemeMode>(title: const Text("深色"), value: ThemeMode.dark, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
-                  const Divider(),
-                  SwitchListTile(title: const Text("动态取色"), value: tempMaterialYou, onChanged: (v) => setState(() => tempMaterialYou = v)),
-                  SwitchListTile(title: const Text("纯黑背景"), subtitle: const Text("AMOLED"), value: tempAmoled, onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)),
-                ],
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消", style: TextStyle(color: Colors.grey))),
-                TextButton(
-                  onPressed: () {
-                    state.setThemeMode(tempMode);
-                    state.setMaterialYou(tempMaterialYou);
-                    state.setAmoled(tempAmoled);
-                    Navigator.pop(context);
-                  },
-                  child: const Text("确定"),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // 2. 语言设置
-  void _showLanguageDialog(BuildContext context, AppState state) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        String tempLang = state.locale.languageCode;
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text("选择语言 / Language"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  RadioListTile<String>(title: const Text("简体中文"), value: 'zh', groupValue: tempLang, onChanged: (v) => setState(() => tempLang = v!)),
-                  RadioListTile<String>(title: const Text("English"), value: 'en', groupValue: tempLang, onChanged: (v) => setState(() => tempLang = v!)),
-                ],
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消", style: TextStyle(color: Colors.grey))),
-                TextButton(
-                  onPressed: () {
-                    state.setLanguage(tempLang);
-                    Navigator.pop(context);
-                  },
-                  child: const Text("确定"),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // 3. 图源管理
+  // 1. 图源管理 (增加编辑功能)
   void _showSourceManagerDialog(BuildContext context, AppState state) {
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text("图源管理"),
-          // 使用 Container 限制高度
+        return _buildBottomDialog(
+          context,
+          title: "图源管理",
           content: Container(
-            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
             width: double.maxFinite,
             child: ListView(
               shrinkWrap: true,
@@ -212,7 +128,22 @@ class SettingsPage extends StatelessWidget {
                   return ListTile(
                     title: Text(source.name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
                     subtitle: Text(source.baseUrl, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                    trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.blue) : null,
+                    // 右侧增加编辑按钮
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, size: 20, color: Colors.grey),
+                          onPressed: () {
+                            Navigator.pop(context); // 关掉列表
+                            // 打开编辑弹窗
+                            _showSourceConfigDialog(context, state, existingSource: source, index: index);
+                          },
+                        ),
+                        if (isSelected) 
+                          const Icon(Icons.check_circle, color: Colors.blue),
+                      ],
+                    ),
                     onTap: () {
                       state.setSource(index);
                       Navigator.pop(context);
@@ -225,7 +156,7 @@ class SettingsPage extends StatelessWidget {
                   title: const Text("添加自定义图源"),
                   onTap: () {
                     Navigator.pop(context);
-                    _showAddSourceDialog(context, state);
+                    _showSourceConfigDialog(context, state); // 打开新增弹窗 (无参数)
                   },
                 ),
                 ListTile(
@@ -239,71 +170,48 @@ class SettingsPage extends StatelessWidget {
               ],
             ),
           ),
-          actions: [
-             TextButton(onPressed: () => Navigator.pop(context), child: const Text("关闭")),
-          ],
+          onConfirm: () => Navigator.pop(context),
+          confirmText: "关闭",
+          hideCancel: true,
         );
       },
     );
   }
 
-  // 4. 导入配置
-  void _showImportDialog(BuildContext context, AppState state) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("导入配置"),
-        content: TextField(
-          controller: controller,
-          maxLines: 5,
-          decoration: const InputDecoration(hintText: "在此粘贴 JSON 配置代码..."),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消", style: TextStyle(color: Colors.grey))),
-          TextButton(
-            onPressed: () {
-              bool success = state.importSourceConfig(controller.text);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(success ? "导入成功！" : "导入失败，请检查 JSON 格式"),
-                  backgroundColor: success ? Colors.green : Colors.red,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                ),
-              );
-            }, 
-            child: const Text("导入"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 5. 手动添加
-  void _showAddSourceDialog(BuildContext context, AppState state) {
-    final nameCtrl = TextEditingController();
-    final urlCtrl = TextEditingController(text: "https://");
-    final listKeyCtrl = TextEditingController(text: "data");
-    final thumbKeyCtrl = TextEditingController(text: "thumbs.large");
-    final fullKeyCtrl = TextEditingController(text: "path");
+  // 2. 添加/编辑图源 统一弹窗
+  void _showSourceConfigDialog(BuildContext context, AppState state, {SourceConfig? existingSource, int? index}) {
+    final isEditing = existingSource != null;
     
+    final nameCtrl = TextEditingController(text: existingSource?.name);
+    final urlCtrl = TextEditingController(text: existingSource?.baseUrl ?? "https://");
+    final apiKeyCtrl = TextEditingController(text: existingSource?.apiKey); // 新增 API Key 字段
+    
+    // 高级字段
+    final listKeyCtrl = TextEditingController(text: existingSource?.listKey ?? "data");
+    final thumbKeyCtrl = TextEditingController(text: existingSource?.thumbKey ?? "thumbs.large");
+    final fullKeyCtrl = TextEditingController(text: existingSource?.fullKey ?? "path");
+
     bool showAdvanced = false;
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
-          return AlertDialog(
-            title: const Text("添加图源"),
+          return _buildBottomDialog(
+            context,
+            title: isEditing ? "编辑图源" : "添加图源",
+            confirmText: "保存",
             content: SingleChildScrollView(
               child: Column(
                 children: [
-                  TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "名称")),
+                  _buildInput(nameCtrl, "名称 (Name)"),
                   const SizedBox(height: 10),
-                  TextField(controller: urlCtrl, decoration: const InputDecoration(labelText: "API 地址")),
+                  _buildInput(urlCtrl, "API 地址 (URL)"),
                   const SizedBox(height: 10),
+                  // === 这里可以填 Key ===
+                  _buildInput(apiKeyCtrl, "API Key (可选)"),
+                  const SizedBox(height: 10),
+                  
                   TextButton(
                     onPressed: () => setState(() => showAdvanced = !showAdvanced),
                     child: Row(
@@ -312,74 +220,152 @@ class SettingsPage extends StatelessWidget {
                     ),
                   ),
                   if (showAdvanced) ...[
-                     TextField(controller: listKeyCtrl, decoration: const InputDecoration(labelText: "List Key")),
+                     _buildInput(listKeyCtrl, "List Key"),
                      const SizedBox(height: 8),
-                     TextField(controller: thumbKeyCtrl, decoration: const InputDecoration(labelText: "Thumb Key")),
+                     _buildInput(thumbKeyCtrl, "Thumb Key"),
                      const SizedBox(height: 8),
-                     TextField(controller: fullKeyCtrl, decoration: const InputDecoration(labelText: "Full Key")),
+                     _buildInput(fullKeyCtrl, "Full Key"),
                   ]
                 ],
               ),
             ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消", style: TextStyle(color: Colors.grey))),
-              TextButton(
-                onPressed: () {
-                  if (nameCtrl.text.isNotEmpty) {
-                    final config = SourceConfig(
-                      name: nameCtrl.text,
-                      baseUrl: urlCtrl.text,
-                      listKey: listKeyCtrl.text,
-                      thumbKey: thumbKeyCtrl.text,
-                      fullKey: fullKeyCtrl.text,
-                    );
-                    state.addSource(config);
-                    Navigator.pop(context);
-                  }
-                }, 
-                child: const Text("添加"),
-              ),
-            ],
+            onConfirm: () {
+              if (nameCtrl.text.isNotEmpty) {
+                // 构造新配置
+                final newConfig = SourceConfig(
+                  name: nameCtrl.text,
+                  baseUrl: urlCtrl.text,
+                  apiKey: apiKeyCtrl.text, // 保存 Key
+                  listKey: listKeyCtrl.text,
+                  thumbKey: thumbKeyCtrl.text,
+                  fullKey: fullKeyCtrl.text,
+                  // 【关键】如果是编辑，保留原有的 filters (SFW/NSFW 规则)
+                  // 如果是新增，filters 为空 (或者之后可以加 UI 配置)
+                  filters: isEditing ? existingSource!.filters : [], 
+                );
+
+                if (isEditing) {
+                  state.updateSource(index!, newConfig);
+                } else {
+                  state.addSource(newConfig);
+                }
+                Navigator.pop(context);
+              }
+            },
           );
         }
       ),
     );
   }
 
-  Widget _buildCard(BuildContext context, {required Widget child}) {
-    return Card(child: Padding(padding: const EdgeInsets.all(20), child: child));
+  // 3. 主题/语言/导入 其他弹窗保持不变...
+  void _showThemeDialog(BuildContext context, AppState state) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        ThemeMode tempMode = state.themeMode;
+        bool tempMaterialYou = state.useMaterialYou;
+        bool tempAmoled = state.useAmoled;
+        return StatefulBuilder(
+          builder: (context, setState) => _buildBottomDialog(
+            context, title: "外观设置",
+            content: Column(children: [
+              RadioListTile<ThemeMode>(title: const Text("跟随系统"), value: ThemeMode.system, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
+              RadioListTile<ThemeMode>(title: const Text("浅色"), value: ThemeMode.light, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
+              RadioListTile<ThemeMode>(title: const Text("深色"), value: ThemeMode.dark, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
+              const Divider(),
+              SwitchListTile(title: const Text("动态取色"), value: tempMaterialYou, onChanged: (v) => setState(() => tempMaterialYou = v)),
+              SwitchListTile(title: const Text("纯黑背景"), value: tempAmoled, onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)),
+            ]),
+            onConfirm: () { state.setThemeMode(tempMode); state.setMaterialYou(tempMaterialYou); state.setAmoled(tempAmoled); Navigator.pop(context); }
+          ),
+        );
+      },
+    );
   }
 
-  Widget _buildTile(BuildContext context, {
-    required String title, required String subtitle, required IconData icon, 
-    Widget? trailing, VoidCallback? onTap
-  }) {
-    final textColor = Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+  void _showLanguageDialog(BuildContext context, AppState state) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        String tempLang = state.locale.languageCode;
+        return StatefulBuilder(
+          builder: (context, setState) => _buildBottomDialog(
+            context, title: "选择语言",
+            content: Column(children: [
+              RadioListTile<String>(title: const Text("简体中文"), value: 'zh', groupValue: tempLang, onChanged: (v) => setState(() => tempLang = v!)),
+              RadioListTile<String>(title: const Text("English"), value: 'en', groupValue: tempLang, onChanged: (v) => setState(() => tempLang = v!)),
+            ]),
+            onConfirm: () { state.setLanguage(tempLang); Navigator.pop(context); }
+          ),
+        );
+      },
+    );
+  }
+
+  void _showImportDialog(BuildContext context, AppState state) {
+    final controller = TextEditingController();
+    showDialog(context: context, builder: (context) => _buildBottomDialog(
+      context, title: "导入配置",
+      content: TextField(controller: controller, maxLines: 5, decoration: const InputDecoration(hintText: "在此粘贴 JSON...")),
+      confirmText: "导入",
+      onConfirm: () {
+        bool success = state.importSourceConfig(controller.text);
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(success ? "导入成功" : "导入失败"), backgroundColor: success ? Colors.green : Colors.red));
+      }
+    ));
+  }
+
+  // --- 通用组件 ---
+
+  Widget _buildBottomDialog(BuildContext context, {required String title, required Widget content, required VoidCallback onConfirm, String confirmText = "确定", bool hideCancel = false}) {
+    return Dialog(
+      alignment: Alignment.bottomCenter,
+      insetPadding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      shape: Theme.of(context).dialogTheme.shape,
+      backgroundColor: Theme.of(context).dialogTheme.backgroundColor,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Row(
-          children: [
-            Icon(icon, color: textColor.withOpacity(0.7)),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)),
-                  const SizedBox(height: 4),
-                  Text(subtitle, style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 13)),
-                ],
-              ),
-            ),
-            if (trailing != null) trailing,
-          ],
-        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 20),
+          content,
+          const SizedBox(height: 28),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+            if (!hideCancel) Expanded(child: TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消", style: TextStyle(color: Colors.grey, fontSize: 16)))),
+            if (!hideCancel) const SizedBox(width: 16),
+            Expanded(child: TextButton(onPressed: onConfirm, child: Text(confirmText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
+          ]),
+        ]),
       ),
     );
   }
 
+  Widget _buildInput(TextEditingController ctrl, String label) {
+    return TextField(
+      controller: ctrl,
+      decoration: InputDecoration(labelText: label, isDense: true, border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)))),
+    );
+  }
+
+  Widget _buildCard(BuildContext context, {required Widget child}) { return Card(child: Padding(padding: const EdgeInsets.all(20), child: child)); }
+
+  Widget _buildTile(BuildContext context, {required String title, required String subtitle, required IconData icon, Widget? trailing, VoidCallback? onTap}) {
+    final textColor = Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Row(children: [
+        Icon(icon, color: textColor.withOpacity(0.7)), const SizedBox(width: 16),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)), const SizedBox(height: 4),
+          Text(subtitle, style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 13)),
+        ])),
+        if (trailing != null) trailing,
+      ])),
+    );
+  }
+  
   Widget _divider() => const Divider(height: 1, indent: 50, color: Color(0x10000000));
 }
