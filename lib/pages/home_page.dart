@@ -24,8 +24,11 @@ class _HomePageState extends State<HomePage> {
   final ScrollController _scrollController = ScrollController();
   
   String? _lastSourceHash;
+  
+  // === 🛡️ 新增：防抖动时间锁 (防止滑动过快触发大量请求) ===
+  DateTime _lastFetchTime = DateTime.fromMillisecondsSinceEpoch(0);
 
-  // === 定义通用的伪装头 (浏览器 User-Agent) ===
+  // === 🎭 定义通用的伪装头 (浏览器 User-Agent) ===
   final Map<String, String> _headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   };
@@ -64,6 +67,13 @@ class _HomePageState extends State<HomePage> {
   Future<void> _fetchWallpapers({bool refresh = false}) async {
     if (_isLoading) return;
 
+    // === 🛡️ 安全检查：如果距离上次请求不足 2 秒，且不是强制刷新，则忽略 ===
+    // 这能有效防止因惯性滑动导致的重复触发
+    if (!refresh && DateTime.now().difference(_lastFetchTime).inSeconds < 2) {
+      return;
+    }
+    _lastFetchTime = DateTime.now();
+
     final appState = context.read<AppState>();
     final currentSource = appState.currentSource;
     final activeParams = appState.activeParams;
@@ -82,7 +92,9 @@ class _HomePageState extends State<HomePage> {
 
     // === 直链模式 (Luvbree 等随机图) ===
     if (currentSource.listKey == '@direct') {
-      int batchSize = 6; 
+      // 🛡️ 修改点1：减少单次批量，由 8 改为 5
+      int batchSize = 5; 
+      
       for (int i = 0; i < batchSize; i++) {
         if (!mounted) return;
 
@@ -109,6 +121,9 @@ class _HomePageState extends State<HomePage> {
             _wallpapers.add(newItem);
           });
         }
+        
+        // 🛡️ 修改点2：增加延时，由 600ms 改为 1000ms (1秒)
+        // 慢一点，但更安全，不容易被 API 判定为攻击
         await Future.delayed(const Duration(milliseconds: 1000));
       }
 
@@ -132,7 +147,7 @@ class _HomePageState extends State<HomePage> {
         queryParams[currentSource.apiKeyParam] = currentSource.apiKey;
       }
 
-      // 修复：给 API 请求也加上 Headers
+      // 给 API 请求也加上 Headers
       var response = await Dio().get(
         currentSource.baseUrl,
         queryParameters: queryParams,
@@ -302,7 +317,7 @@ class _HomePageState extends State<HomePage> {
               child: Image.network(
                 wallpaper.thumbUrl,
                 fit: BoxFit.cover,
-                // === 核心修复：添加 Headers 伪装成浏览器 ===
+                // === 核心：添加 Headers 伪装成浏览器 ===
                 headers: _headers, 
                 // ===================================
                 loadingBuilder: (context, child, loadingProgress) {
@@ -310,7 +325,6 @@ class _HomePageState extends State<HomePage> {
                   return Container(color: Colors.transparent);
                 },
                 errorBuilder: (_, error, stack) {
-                   // 方便调试，打印错误
                    debugPrint("Img Error: $error");
                    return const Center(child: Icon(Icons.broken_image, color: Colors.grey));
                 },
