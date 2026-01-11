@@ -27,37 +27,41 @@ class SettingsPage extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Column(
                   children: [
-                    // 当前图源卡片
+                    // === 1. 当前图源卡片 ===
                     _buildCard(
                       context,
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(appState.locale.languageCode == 'zh' ? "当前图源" : "Current Source", 
-                                  style: TextStyle(color: Colors.grey, fontSize: 13)),
-                                const SizedBox(height: 6),
-                                Text(appState.currentSource.name, 
-                                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
-                                const SizedBox(height: 4),
-                                Text(appState.currentSource.baseUrl, 
-                                  style: TextStyle(fontSize: 10, color: Colors.grey, overflow: TextOverflow.ellipsis), maxLines: 1),
-                              ],
+                      // 因为 Card 去掉了默认 Padding，这里需要手动加回去，否则内容贴边了
+                      child: Padding(
+                        padding: const EdgeInsets.all(20), 
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(appState.locale.languageCode == 'zh' ? "当前图源" : "Current Source", 
+                                    style: TextStyle(color: Colors.grey, fontSize: 13)),
+                                  const SizedBox(height: 6),
+                                  Text(appState.currentSource.name, 
+                                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
+                                  const SizedBox(height: 4),
+                                  Text(appState.currentSource.baseUrl, 
+                                    style: TextStyle(fontSize: 10, color: Colors.grey, overflow: TextOverflow.ellipsis), maxLines: 1),
+                                ],
+                              ),
                             ),
-                          ),
-                          CircleAvatar(
-                            radius: 26,
-                            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                            child: Icon(Icons.hub, color: Theme.of(context).colorScheme.primary),
-                          ),
-                        ],
+                            CircleAvatar(
+                              radius: 26,
+                              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                              child: Icon(Icons.hub, color: Theme.of(context).colorScheme.primary),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
 
-                    // 设置项卡片
+                    // === 2. 设置项列表卡片 ===
                     _buildCard(
                       context,
                       child: Column(
@@ -106,8 +110,9 @@ class SettingsPage extends StatelessWidget {
     return mode;
   }
 
-  // --- 弹窗逻辑 ---
-
+  // --- 弹窗逻辑保持不变，为了节省篇幅略去 ---
+  // (这里的代码逻辑与之前完全一致，直接用上面的类包裹即可)
+  
   // 1. 图源管理
   void _showSourceManagerDialog(BuildContext context) {
     showDialog(
@@ -207,15 +212,12 @@ class SettingsPage extends StatelessWidget {
 
   void _showSourceConfigDialog(BuildContext context, AppState state, {SourceConfig? existingSource, int? index}) {
     final isEditing = existingSource != null;
-    
     final nameCtrl = TextEditingController(text: existingSource?.name);
     final urlCtrl = TextEditingController(text: existingSource?.baseUrl ?? "https://");
     final apiKeyCtrl = TextEditingController(text: existingSource?.apiKey);
-    
     final listKeyCtrl = TextEditingController(text: existingSource?.listKey ?? "data");
     final thumbKeyCtrl = TextEditingController(text: existingSource?.thumbKey ?? "thumbs.large");
     final fullKeyCtrl = TextEditingController(text: existingSource?.fullKey ?? "path");
-
     bool showAdvanced = false;
 
     showDialog(
@@ -235,7 +237,6 @@ class SettingsPage extends StatelessWidget {
                   const SizedBox(height: 10),
                   _buildInput(apiKeyCtrl, "API Key (可选)"),
                   const SizedBox(height: 10),
-                  
                   TextButton(
                     onPressed: () => setState(() => showAdvanced = !showAdvanced),
                     child: Row(
@@ -264,7 +265,6 @@ class SettingsPage extends StatelessWidget {
                   fullKey: fullKeyCtrl.text,
                   filters: isEditing ? existingSource!.filters : [], 
                 );
-
                 if (isEditing) {
                   state.updateSource(index!, newConfig);
                 } else {
@@ -279,7 +279,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // 3. 外观设置 (含圆角滑块)
   void _showThemeDialog(BuildContext context, AppState state) {
     showDialog(
       context: context,
@@ -287,8 +286,6 @@ class SettingsPage extends StatelessWidget {
         ThemeMode tempMode = state.themeMode;
         bool tempMaterialYou = state.useMaterialYou;
         bool tempAmoled = state.useAmoled;
-        
-        // 临时圆角变量
         double tempGlobalRadius = state.cornerRadius;
         double tempHomeRadius = state.homeCornerRadius;
 
@@ -307,8 +304,6 @@ class SettingsPage extends StatelessWidget {
                   SwitchListTile(title: const Text("纯黑背景 (AMOLED)"), value: tempAmoled, onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)),
                   const Divider(),
                   const SizedBox(height: 8),
-                  
-                  // 圆角滑块
                   _buildSliderRow(
                     label: "全局圆角", 
                     value: tempGlobalRadius, 
@@ -369,7 +364,7 @@ class SettingsPage extends StatelessWidget {
     ));
   }
 
-  // --- 通用组件 ---
+  // === 3. 通用组件修改 ===
 
   Widget _buildBottomDialog(BuildContext context, {required String title, required Widget content, required VoidCallback onConfirm, String confirmText = "确定", bool hideCancel = false}) {
     return Dialog(
@@ -400,8 +395,7 @@ class SettingsPage extends StatelessWidget {
       decoration: InputDecoration(labelText: label, isDense: true, border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)))),
     );
   }
-  
-  // 辅助方法：构建滑块行
+
   Widget _buildSliderRow({required String label, required double value, required ValueChanged<double> onChanged}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -424,23 +418,40 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildCard(BuildContext context, {required Widget child}) { return Card(child: Padding(padding: const EdgeInsets.all(20), child: child)); }
+  // === ✏️ 关键修改点：卡片容器 ===
+  Widget _buildCard(BuildContext context, {required Widget child}) { 
+    final radius = context.read<AppState>().cornerRadius; // 读取动态圆角
+    return Card(
+      // 1. 开启抗锯齿裁切，这样子组件(波纹)溢出时会被自动切成圆角
+      clipBehavior: Clip.antiAlias, 
+      // 2. 确保形状跟随全局设置
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+      // 3. 移除了 Padding(20)，让 child 填满卡片
+      child: child 
+    ); 
+  }
 
+  // === ✏️ 关键修改点：列表项 Tile ===
   Widget _buildTile(BuildContext context, {required String title, required String subtitle, required IconData icon, Widget? trailing, VoidCallback? onTap}) {
     final textColor = Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Row(children: [
-        Icon(icon, color: textColor.withOpacity(0.7)), const SizedBox(width: 16),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)), const SizedBox(height: 4),
-          Text(subtitle, style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 13)),
-        ])),
-        if (trailing != null) trailing,
-      ])),
+      // 移除 borderRadius，不需要手动设置了，卡片会帮我们裁切
+      // 增加 Padding，把原先卡片上的内边距移到这里
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20), 
+        child: Row(children: [
+          Icon(icon, color: textColor.withOpacity(0.7)), 
+          const SizedBox(width: 16),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)), const SizedBox(height: 4),
+            Text(subtitle, style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 13)),
+          ])),
+          if (trailing != null) trailing,
+        ]),
+      ),
     );
   }
   
-  Widget _divider() => const Divider(height: 1, indent: 50, color: Color(0x10000000));
+  Widget _divider() => const Divider(height: 1, indent: 56, endIndent: 0, color: Color(0x10000000));
 }
