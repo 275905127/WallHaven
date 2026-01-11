@@ -14,16 +14,14 @@ class FilterPage extends StatelessWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.pop(context), 
         ),
         title: const Text("筛选"),
         actions: [
-          // 统一重置按钮风格
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: TextButton(
               onPressed: () {
-                // 重置所有参数并返回首页立即刷新
                 for (var group in filters) {
                   if (group.type == 'bitmask') {
                     appState.updateParam(group.paramName, "1" * group.options.length);
@@ -33,9 +31,8 @@ class FilterPage extends StatelessWidget {
                 }
                 appState.updateParam('topRange', '1M');
                 appState.updateParam('page', 1);
-                Navigator.pop(context);
               },
-              child: const Text("重置", style: TextStyle(color: Color(0xFF4285F4))),
+              child: const Text("重置"),
             ),
           ),
         ],
@@ -69,32 +66,35 @@ class FilterPage extends StatelessWidget {
             bool isSelected = false;
             if (group.type == 'bitmask') {
               String mask = state.activeParams[group.paramName] ?? ("1" * group.options.length);
-              isSelected = mask[idx] == '1';
+              isSelected = mask.length > idx && mask[idx] == '1';
             } else {
-              isSelected = state.activeParams[group.paramName] == option.value;
+              isSelected = (state.activeParams[group.paramName] ?? '') == option.value;
             }
 
             return ChoiceChip(
-              label: Text(option.label, style: TextStyle(color: isSelected ? Colors.blue : Colors.black87, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+              label: Text(option.label),
               selected: isSelected,
               onSelected: (val) {
-                // 执行即时筛选
                 if (group.type == 'bitmask') {
                   String mask = state.activeParams[group.paramName] ?? ("1" * group.options.length);
                   List<String> chars = mask.split('');
                   chars[idx] = val ? '1' : '0';
                   state.updateParam(group.paramName, chars.join());
                 } else {
-                  state.updateParam(group.paramName, option.value);
+                  state.updateParam(group.paramName, isSelected ? '' : option.value);
                 }
-                
-                // 关键：选中即返回，不二次确定
                 state.updateParam('page', 1);
-                Navigator.pop(context);
               },
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.blue : Colors.black87,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
               selectedColor: Colors.blue.withOpacity(0.1),
               backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: isSelected ? Colors.blue : const Color(0xFFDADCE0))),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: isSelected ? Colors.blue : const Color(0xFFDADCE0)),
+              ),
               showCheckmark: false,
             );
           }).toList(),
