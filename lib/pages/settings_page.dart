@@ -727,14 +727,14 @@ class SettingsPage extends StatelessWidget {
           ),
         ),
         SizedBox(
-          height: 40, 
+          height: 48, 
           child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
               trackHeight: 12, 
               trackShape: const RoundedRectSliderTrackShape(),
               activeTrackColor: primaryColor,
               inactiveTrackColor: primaryColor.withOpacity(0.15),
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14.0, elevation: 4.0),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12.0, elevation: 2.0),
               thumbColor: Colors.white,
               overlayColor: Colors.white.withOpacity(0.3),
               tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 3.5),
