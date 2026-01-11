@@ -10,9 +10,8 @@ import 'pages/home_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final appState = AppState();
-  await appState.init(); // 等待本地配置读取完成
+  await appState.init();
 
-  // 设置沉浸式状态栏
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
   ));
@@ -36,25 +35,39 @@ class MyApp extends StatelessWidget {
 
     return DynamicColorBuilder(
       builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
-        // 构建配色方案
+        // 1. 定义核心颜色
+        // 浅色模式
+        const lightBg = Color(0xFFF1F1F3); // 全局背景：冷灰白
+        const lightSurface = Color(0xFFFFFDFD); // 卡片/弹窗：微暖白
+        
+        // 深色模式 (普通深灰 vs AMOLED纯黑)
+        final darkBg = appState.useAmoled ? Colors.black : const Color(0xFF121212);
+        final darkSurface = appState.useAmoled ? const Color(0xFF1A1A1A) : const Color(0xFF2C2C2C);
+
+        // 2. 生成配色方案 (混合动态取色)
         ColorScheme lightScheme;
         ColorScheme darkScheme;
 
         if (lightDynamic != null && appState.useMaterialYou) {
-          // 【修正点】这里必须用 harmonized()
           lightScheme = lightDynamic.harmonized();
+          // 强制覆盖动态取色里的背景和表面色，保持我们要的风格
+          lightScheme = lightScheme.copyWith(surface: lightSurface, surfaceContainerHighest: lightSurface);
+          
           darkScheme = darkDynamic?.harmonized() ?? const ColorScheme.dark();
+          darkScheme = darkScheme.copyWith(surface: darkSurface, surfaceContainerHighest: darkSurface);
         } else {
-          // 未开启或不支持，使用默认蓝色
-          lightScheme = ColorScheme.fromSeed(seedColor: Colors.blue);
-          darkScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark);
+          lightScheme = ColorScheme.fromSeed(seedColor: Colors.blue, surface: lightSurface);
+          darkScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark, surface: darkSurface);
         }
+
+        // 3. 定义统一的形状 (圆角 24)
+        const commonShape = RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(24)),
+        );
 
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'Wallhaven Client',
-          
-          // 语言支持
           locale: appState.locale,
           supportedLocales: const [Locale('zh'), Locale('en')],
           localizationsDelegates: const [
@@ -63,32 +76,73 @@ class MyApp extends StatelessWidget {
             GlobalCupertinoLocalizations.delegate,
           ],
 
-          // 浅色主题
+          // === 浅色主题配置 ===
           theme: ThemeData(
             useMaterial3: true,
             colorScheme: lightScheme,
-            scaffoldBackgroundColor: const Color(0xFFF1F1F3), // 经典灰白底
-            appBarTheme: const AppBarTheme(
-              backgroundColor: Color(0xFFF1F1F3),
+            scaffoldBackgroundColor: lightBg,
+            
+            // 顶部栏透明
+            appBarTheme: AppBarTheme(
+              backgroundColor: lightBg,
               scrolledUnderElevation: 0,
+            ),
+            
+            // 统一卡片样式
+            cardTheme: const CardTheme(
+              color: lightSurface,
+              elevation: 0,
+              margin: EdgeInsets.zero,
+              shape: commonShape,
+            ),
+            
+            // 统一 Dialog (中间弹窗) 样式
+            dialogTheme: const DialogTheme(
+              backgroundColor: lightSurface,
+              elevation: 4,
+              shape: commonShape,
+            ),
+            
+            // 统一 BottomSheet (底部弹窗) 样式
+            bottomSheetTheme: const BottomSheetThemeData(
+              backgroundColor: lightSurface,
+              modalBackgroundColor: lightSurface,
+              elevation: 4,
+              shape: commonShape,
             ),
           ),
 
-          // 深色主题
+          // === 深色主题配置 ===
           darkTheme: ThemeData(
             useMaterial3: true,
             colorScheme: darkScheme,
-            // 核心功能：如果是 AMOLED 模式，背景纯黑，否则用深灰
-            scaffoldBackgroundColor: appState.useAmoled ? Colors.black : const Color(0xFF121212),
+            scaffoldBackgroundColor: darkBg,
+            
             appBarTheme: AppBarTheme(
-              backgroundColor: appState.useAmoled ? Colors.black : const Color(0xFF121212),
+              backgroundColor: darkBg,
               scrolledUnderElevation: 0,
+            ),
+            
+            cardTheme: CardTheme(
+              color: darkSurface,
+              elevation: 0,
+              margin: EdgeInsets.zero,
+              shape: commonShape,
+            ),
+            
+            dialogTheme: DialogTheme(
+              backgroundColor: darkSurface,
+              shape: commonShape,
+            ),
+            
+            bottomSheetTheme: BottomSheetThemeData(
+              backgroundColor: darkSurface,
+              modalBackgroundColor: darkSurface,
+              shape: commonShape,
             ),
           ),
           
-          // 当前主题模式
           themeMode: appState.themeMode,
-          
           home: const HomePage(),
         );
       },
