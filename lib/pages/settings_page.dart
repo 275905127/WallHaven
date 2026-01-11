@@ -30,7 +30,6 @@ class SettingsPage extends StatelessWidget {
                     // === 1. 当前图源卡片 ===
                     _buildCard(
                       context,
-                      // 因为 Card 去掉了默认 Padding，这里需要手动加回去，否则内容贴边了
                       child: Padding(
                         padding: const EdgeInsets.all(20), 
                         child: Row(
@@ -110,9 +109,8 @@ class SettingsPage extends StatelessWidget {
     return mode;
   }
 
-  // --- 弹窗逻辑保持不变，为了节省篇幅略去 ---
-  // (这里的代码逻辑与之前完全一致，直接用上面的类包裹即可)
-  
+  // --- 弹窗逻辑 ---
+
   // 1. 图源管理
   void _showSourceManagerDialog(BuildContext context) {
     showDialog(
@@ -279,6 +277,7 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
+  // === 3. 外观设置 (重点修改) ===
   void _showThemeDialog(BuildContext context, AppState state) {
     showDialog(
       context: context,
@@ -290,42 +289,94 @@ class SettingsPage extends StatelessWidget {
         double tempHomeRadius = state.homeCornerRadius;
 
         return StatefulBuilder(
-          builder: (context, setState) => _buildBottomDialog(
-            context, title: "外观设置",
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  RadioListTile<ThemeMode>(title: const Text("跟随系统"), value: ThemeMode.system, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
-                  RadioListTile<ThemeMode>(title: const Text("浅色"), value: ThemeMode.light, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
-                  RadioListTile<ThemeMode>(title: const Text("深色"), value: ThemeMode.dark, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
-                  const Divider(),
-                  SwitchListTile(title: const Text("动态取色"), value: tempMaterialYou, onChanged: (v) => setState(() => tempMaterialYou = v)),
-                  SwitchListTile(title: const Text("纯黑背景 (AMOLED)"), value: tempAmoled, onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)),
-                  const Divider(),
-                  const SizedBox(height: 8),
-                  _buildSliderRow(
-                    label: "全局圆角", 
-                    value: tempGlobalRadius, 
-                    onChanged: (v) => setState(() => tempGlobalRadius = v)
-                  ),
-                  _buildSliderRow(
-                    label: "首页图片", 
-                    value: tempHomeRadius, 
-                    onChanged: (v) => setState(() => tempHomeRadius = v)
-                  ),
-                ],
+          builder: (context, setState) {
+            // ✨ 核心技巧：创建一个动态的形状，绑定到全局圆角
+            // 这样 Radio/Switch 的波纹就会完全贴合这个形状
+            final dynamicShape = RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(tempGlobalRadius),
+            );
+
+            return _buildBottomDialog(
+              context, title: "外观设置",
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 主题模式选项
+                    // 使用 shape: dynamicShape 让波纹圆角实时跟随设置
+                    RadioListTile<ThemeMode>(
+                      title: const Text("跟随系统"), 
+                      value: ThemeMode.system, 
+                      groupValue: tempMode, 
+                      shape: dynamicShape, 
+                      onChanged: (v) => setState(() => tempMode = v!)
+                    ),
+                    RadioListTile<ThemeMode>(
+                      title: const Text("浅色"), 
+                      value: ThemeMode.light, 
+                      groupValue: tempMode, 
+                      shape: dynamicShape,
+                      onChanged: (v) => setState(() => tempMode = v!)
+                    ),
+                    RadioListTile<ThemeMode>(
+                      title: const Text("深色"), 
+                      value: ThemeMode.dark, 
+                      groupValue: tempMode, 
+                      shape: dynamicShape,
+                      onChanged: (v) => setState(() => tempMode = v!)
+                    ),
+                    
+                    const Divider(height: 24),
+                    
+                    // 开关选项
+                    SwitchListTile(
+                      title: const Text("动态取色"), 
+                      value: tempMaterialYou, 
+                      shape: dynamicShape,
+                      onChanged: (v) => setState(() => tempMaterialYou = v)
+                    ),
+                    SwitchListTile(
+                      title: const Text("纯黑背景 (AMOLED)"), 
+                      value: tempAmoled, 
+                      shape: dynamicShape,
+                      onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)
+                    ),
+                    
+                    const Divider(height: 24),
+                    const SizedBox(height: 8),
+                    
+                    // 🎨 定制滑块：全局圆角
+                    _buildFancySlider(
+                      context,
+                      label: "全局圆角", 
+                      value: tempGlobalRadius, 
+                      max: 40.0,
+                      onChanged: (v) => setState(() => tempGlobalRadius = v)
+                    ),
+                    
+                    const SizedBox(height: 12),
+                    
+                    // 🎨 定制滑块：首页图片
+                    _buildFancySlider(
+                      context,
+                      label: "首页图片", 
+                      value: tempHomeRadius, 
+                      max: 40.0,
+                      onChanged: (v) => setState(() => tempHomeRadius = v)
+                    ),
+                  ],
+                ),
               ),
-            ),
-            onConfirm: () { 
-              state.setThemeMode(tempMode); 
-              state.setMaterialYou(tempMaterialYou); 
-              state.setAmoled(tempAmoled);
-              state.setCornerRadius(tempGlobalRadius);
-              state.setHomeCornerRadius(tempHomeRadius);
-              Navigator.pop(context); 
-            }
-          ),
+              onConfirm: () { 
+                state.setThemeMode(tempMode); 
+                state.setMaterialYou(tempMaterialYou); 
+                state.setAmoled(tempAmoled);
+                state.setCornerRadius(tempGlobalRadius);
+                state.setHomeCornerRadius(tempHomeRadius);
+                Navigator.pop(context); 
+              }
+            );
+          },
         );
       },
     );
@@ -364,13 +415,16 @@ class SettingsPage extends StatelessWidget {
     ));
   }
 
-  // === 3. 通用组件修改 ===
+  // === 组件 ===
 
   Widget _buildBottomDialog(BuildContext context, {required String title, required Widget content, required VoidCallback onConfirm, String confirmText = "确定", bool hideCancel = false}) {
+    // 读取最新的圆角设置，确保外框也同步
+    // 注意：如果是外观设置弹窗，这里的 context 读取的是旧值，
+    // 但是内容区我们已经手动处理了圆角，所以外框保持 24 或者旧值影响不大，或者也可以传入 tempValue
     return Dialog(
       alignment: Alignment.bottomCenter,
       insetPadding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      shape: Theme.of(context).dialogTheme.shape,
+      shape: Theme.of(context).dialogTheme.shape, // 使用全局形状
       backgroundColor: Theme.of(context).dialogTheme.backgroundColor,
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -396,48 +450,72 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSliderRow({required String label, required double value, required ValueChanged<double> onChanged}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(
-        children: [
-          SizedBox(width: 70, child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(
+  // ✨ 仿制图4的精美滑块样式
+  Widget _buildFancySlider(BuildContext context, {required String label, required double value, required double max, required ValueChanged<double> onChanged}) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(value.toInt().toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 40, // 增加高度以容纳大滑块
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 20, // 轨道高度加粗
+              // 轨道形状：圆角矩形
+              trackShape: const RoundedRectSliderTrackShape(),
+              // 激活颜色：主题色
+              activeTrackColor: primaryColor,
+              // 未激活颜色：淡化
+              inactiveTrackColor: primaryColor.withOpacity(0.15),
+              // 滑块形状：大白圆，带阴影
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14.0, elevation: 4.0),
+              // 滑块颜色：强制白色
+              thumbColor: Colors.white,
+              // 点击时的光晕：白色带透明度
+              overlayColor: Colors.white.withOpacity(0.3),
+              // 刻度点形状：小圆点
+              tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 3.5),
+              // 激活的刻度点颜色：白色 (在蓝色轨道上显示为白点)
+              activeTickMarkColor: Colors.white.withOpacity(0.5),
+              // 未激活的刻度点颜色：蓝色 (在浅色轨道上显示为蓝点)
+              inactiveTickMarkColor: primaryColor.withOpacity(0.5),
+            ),
             child: Slider(
               value: value,
               min: 0.0,
-              max: 50.0,
-              divisions: 25, 
-              label: value.toInt().toString(),
+              max: max,
+              divisions: 10, // 分段数，产生刻度点
               onChanged: onChanged,
             ),
           ),
-          SizedBox(width: 30, child: Text(value.toInt().toString(), textAlign: TextAlign.end)),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  // === ✏️ 关键修改点：卡片容器 ===
   Widget _buildCard(BuildContext context, {required Widget child}) { 
-    final radius = context.read<AppState>().cornerRadius; // 读取动态圆角
+    final radius = context.read<AppState>().cornerRadius; 
     return Card(
-      // 1. 开启抗锯齿裁切，这样子组件(波纹)溢出时会被自动切成圆角
       clipBehavior: Clip.antiAlias, 
-      // 2. 确保形状跟随全局设置
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
-      // 3. 移除了 Padding(20)，让 child 填满卡片
       child: child 
     ); 
   }
 
-  // === ✏️ 关键修改点：列表项 Tile ===
   Widget _buildTile(BuildContext context, {required String title, required String subtitle, required IconData icon, Widget? trailing, VoidCallback? onTap}) {
     final textColor = Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
     return InkWell(
       onTap: onTap,
-      // 移除 borderRadius，不需要手动设置了，卡片会帮我们裁切
-      // 增加 Padding，把原先卡片上的内边距移到这里
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20), 
         child: Row(children: [
