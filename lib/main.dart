@@ -36,21 +36,18 @@ class MyApp extends StatelessWidget {
     return DynamicColorBuilder(
       builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
         // 1. 定义核心颜色
-        // 浅色模式
-        const lightBg = Color(0xFFF1F1F3); // 全局背景：冷灰白
-        const lightSurface = Color(0xFFFFFDFD); // 卡片/弹窗：微暖白
+        const lightBg = Color(0xFFF1F1F3); // 全局背景
+        const lightSurface = Color(0xFFFFFDFD); // 卡片/弹窗颜色
         
-        // 深色模式 (普通深灰 vs AMOLED纯黑)
         final darkBg = appState.useAmoled ? Colors.black : const Color(0xFF121212);
         final darkSurface = appState.useAmoled ? const Color(0xFF1A1A1A) : const Color(0xFF2C2C2C);
 
-        // 2. 生成配色方案 (混合动态取色)
+        // 2. 生成配色
         ColorScheme lightScheme;
         ColorScheme darkScheme;
 
         if (lightDynamic != null && appState.useMaterialYou) {
           lightScheme = lightDynamic.harmonized();
-          // 强制覆盖动态取色里的背景和表面色，保持我们要的风格
           lightScheme = lightScheme.copyWith(surface: lightSurface, surfaceContainerHighest: lightSurface);
           
           darkScheme = darkDynamic?.harmonized() ?? const ColorScheme.dark();
@@ -60,9 +57,30 @@ class MyApp extends StatelessWidget {
           darkScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark, surface: darkSurface);
         }
 
-        // 3. 定义统一的形状 (圆角 24)
+        // 3. 统一形状：参考图的大圆角 (28px)
         const commonShape = RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(24)),
+          borderRadius: BorderRadius.all(Radius.circular(28)),
+        );
+
+        // 4. 统一 Dialog 主题 (关键！)
+        // 这会让所有 AlertDialog 自动变成参考图的样式
+        final dialogThemeLight = DialogTheme(
+          backgroundColor: lightSurface,
+          elevation: 0,
+          shape: commonShape,
+          titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
+          contentTextStyle: const TextStyle(fontSize: 16, color: Colors.black87),
+          // 按钮均匀分布
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        );
+        
+        final dialogThemeDark = DialogTheme(
+          backgroundColor: darkSurface,
+          elevation: 0,
+          shape: commonShape,
+          titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+          contentTextStyle: const TextStyle(fontSize: 16, color: Colors.white70),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         );
 
         return MaterialApp(
@@ -76,70 +94,26 @@ class MyApp extends StatelessWidget {
             GlobalCupertinoLocalizations.delegate,
           ],
 
-          // === 浅色主题配置 ===
+          // === 浅色主题 ===
           theme: ThemeData(
             useMaterial3: true,
             colorScheme: lightScheme,
             scaffoldBackgroundColor: lightBg,
-            
-            // 顶部栏透明
-            appBarTheme: AppBarTheme(
-              backgroundColor: lightBg,
-              scrolledUnderElevation: 0,
-            ),
-            
-            // 统一卡片样式
-            cardTheme: const CardTheme(
-              color: lightSurface,
-              elevation: 0,
-              margin: EdgeInsets.zero,
-              shape: commonShape,
-            ),
-            
-            // 统一 Dialog (中间弹窗) 样式
-            dialogTheme: const DialogTheme(
-              backgroundColor: lightSurface,
-              elevation: 4,
-              shape: commonShape,
-            ),
-            
-            // 统一 BottomSheet (底部弹窗) 样式
-            bottomSheetTheme: const BottomSheetThemeData(
-              backgroundColor: lightSurface,
-              modalBackgroundColor: lightSurface,
-              elevation: 4,
-              shape: commonShape,
-            ),
+            appBarTheme: AppBarTheme(backgroundColor: lightBg, scrolledUnderElevation: 0),
+            cardTheme: const CardTheme(color: lightSurface, elevation: 0, margin: EdgeInsets.zero, shape: commonShape),
+            dialogTheme: dialogThemeLight,
+            // 确保 AlertDialog 内部按钮对齐
+            timePickerTheme: TimePickerThemeData(shape: commonShape, backgroundColor: lightSurface),
           ),
 
-          // === 深色主题配置 ===
+          // === 深色主题 ===
           darkTheme: ThemeData(
             useMaterial3: true,
             colorScheme: darkScheme,
             scaffoldBackgroundColor: darkBg,
-            
-            appBarTheme: AppBarTheme(
-              backgroundColor: darkBg,
-              scrolledUnderElevation: 0,
-            ),
-            
-            cardTheme: CardTheme(
-              color: darkSurface,
-              elevation: 0,
-              margin: EdgeInsets.zero,
-              shape: commonShape,
-            ),
-            
-            dialogTheme: DialogTheme(
-              backgroundColor: darkSurface,
-              shape: commonShape,
-            ),
-            
-            bottomSheetTheme: BottomSheetThemeData(
-              backgroundColor: darkSurface,
-              modalBackgroundColor: darkSurface,
-              shape: commonShape,
-            ),
+            appBarTheme: AppBarTheme(backgroundColor: darkBg, scrolledUnderElevation: 0),
+            cardTheme: CardTheme(color: darkSurface, elevation: 0, margin: EdgeInsets.zero, shape: commonShape),
+            dialogTheme: dialogThemeDark,
           ),
           
           themeMode: appState.themeMode,
