@@ -28,6 +28,13 @@ void main() async {
   );
 }
 
+class AppScrollBehavior extends MaterialScrollBehavior {
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+  }
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -47,7 +54,6 @@ class MyApp extends StatelessWidget {
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue, surface: lightSurface),
             scaffoldBackgroundColor: lightBg,
             
-            // 筛选页右上角“重置”按钮风格统一
             appBarTheme: const AppBarTheme(
               backgroundColor: lightBg,
               elevation: 0,
@@ -56,7 +62,6 @@ class MyApp extends StatelessWidget {
               actionsIconTheme: IconThemeData(color: Color(0xFF5F6368)),
             ),
 
-            // 弹窗与通用圆角
             dialogTheme: DialogThemeData(
               backgroundColor: lightSurface,
               elevation: 0,
@@ -64,13 +69,12 @@ class MyApp extends StatelessWidget {
               alignment: Alignment.bottomCenter,
             ),
 
-            // 复刻 GIF 按压反馈效果
+            // 复刻 GIF 按压反馈
             splashColor: Colors.black.withOpacity(0.05),
             highlightColor: Colors.black.withOpacity(0.03),
             
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                // 右上角重置按钮的文字颜色
                 foregroundColor: const Color(0xFF4285F4), 
                 textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
