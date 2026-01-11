@@ -13,7 +13,7 @@ class SettingsPage extends StatelessWidget {
     // 动态计算容器颜色
     final cardColor = isDark 
         ? (appState.useAmoled ? const Color(0xFF1A1A1A) : const Color(0xFF2C2C2C)) 
-        : Colors.white;
+        : const Color(0xFFFFFDFD);
     final textColor = isDark ? Colors.white : Colors.black;
 
     return Scaffold(
