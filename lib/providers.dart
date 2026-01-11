@@ -26,17 +26,17 @@ class AppState extends ChangeNotifier {
         ]),
         // 3. 排序 (Sorting)
         FilterGroup(title: '排序 (Sorting)', paramName: 'sorting', type: 'radio', options: [
-            FilterOption(label: '最新 (Date Added)', value: 'date_added'),
-            FilterOption(label: '相关 (Relevance)', value: 'relevance'),
-            FilterOption(label: '随机 (Random)', value: 'random'),
-            FilterOption(label: '浏览 (Views)', value: 'views'),
-            FilterOption(label: '收藏 (Favorites)', value: 'favorites'),
-            FilterOption(label: '排行 (Toplist)', value: 'toplist'),
+            FilterOption(label: '最新', value: 'date_added'),
+            FilterOption(label: '相关', value: 'relevance'),
+            FilterOption(label: '随机', value: 'random'),
+            FilterOption(label: '浏览', value: 'views'),
+            FilterOption(label: '收藏', value: 'favorites'),
+            FilterOption(label: '排行', value: 'toplist'),
         ]),
         // 4. 顺序 (Order)
         FilterGroup(title: '顺序 (Order)', paramName: 'order', type: 'radio', options: [
-            FilterOption(label: '降序 (Desc)', value: 'desc'),
-            FilterOption(label: '升序 (Asc)', value: 'asc'),
+            FilterOption(label: '降序', value: 'desc'),
+            FilterOption(label: '升序', value: 'asc'),
         ]),
         // 5. 排行榜时间范围 (Toplist Range) - 仅在排序为 Toplist 时有效
         FilterGroup(title: '排行榜范围 (Top Range)', paramName: 'topRange', type: 'radio', options: [
@@ -49,7 +49,7 @@ class AppState extends ChangeNotifier {
             FilterOption(label: '1年', value: '1y'),
         ]),
         // 6. 分辨率 (Resolution)
-        FilterGroup(title: '最低分辨率 (At Least)', paramName: 'atleast', type: 'radio', options: [
+        FilterGroup(title: '分辨率 (At Least)', paramName: 'atleast', type: 'radio', options: [
             FilterOption(label: '任意', value: ''),
             FilterOption(label: '1920x1080', value: '1920x1080'),
             FilterOption(label: '2560x1440', value: '2560x1440'),
@@ -58,8 +58,8 @@ class AppState extends ChangeNotifier {
         // 7. 比例 (Ratios)
         FilterGroup(title: '比例 (Ratios)', paramName: 'ratios', type: 'radio', options: [
             FilterOption(label: '任意', value: ''),
-            FilterOption(label: '横屏 (Landscape)', value: 'landscape'),
-            FilterOption(label: '竖屏 (Portrait)', value: 'portrait'),
+            FilterOption(label: '横屏', value: 'landscape'),
+            FilterOption(label: '竖屏', value: 'portrait'),
             FilterOption(label: '16:9', value: '16x9'),
             FilterOption(label: '16:10', value: '16x10'),
             FilterOption(label: '21:9', value: '21x9'),
