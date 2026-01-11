@@ -67,7 +67,7 @@ class MyApp extends StatelessWidget {
           theme: ThemeData(
             useMaterial3: true,
             colorScheme: lightScheme,
-            scaffoldBackgroundColor: const Color(0xFFF2F2F2), // 经典灰白底
+            scaffoldBackgroundColor: const Color(0xFFF1F1F3), // 经典灰白底
             appBarTheme: const AppBarTheme(
               backgroundColor: Color(0xFFF2F2F2),
               scrolledUnderElevation: 0,
