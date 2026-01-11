@@ -83,7 +83,7 @@ class SettingsPage extends StatelessWidget {
                           _divider(),
                           _buildTile(
                             context,
-                            title: appState.locale.languageCode == 'zh' ? "图源管理" : "Source Manager",
+                            title: appState.locale.languageCode == 'zh' ? "图源" : "Source Manager",
                             subtitle: appState.locale.languageCode == 'zh' ? "添加、编辑或删除" : "Manage sources",
                             icon: Icons.source_outlined,
                             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
@@ -148,8 +148,11 @@ class SettingsPage extends StatelessWidget {
                                 _showSourceConfigDialog(context, state, existingSource: source, index: index);
                               },
                             ),
+                            // === 修改：选中状态改为 Radio 样式 ===
                             if (isSelected) 
-                              const Icon(Icons.check_circle, color: Colors.blue),
+                              const Icon(Icons.radio_button_checked, color: Colors.blue)
+                            else
+                              const Icon(Icons.radio_button_unchecked, color: Colors.grey),
                           ],
                         ),
                         onTap: () {
@@ -195,7 +198,12 @@ class SettingsPage extends StatelessWidget {
         title: const Text("确认删除"),
         content: const Text("确定要删除这个图源吗？此操作无法撤销。"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消", style: TextStyle(color: Colors.grey))),
+          // === 修改：统一按钮颜色 ===
+          TextButton(
+             onPressed: () => Navigator.pop(ctx), 
+             style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).textTheme.bodyLarge?.color),
+             child: const Text("取消")
+          ),
           TextButton(
             onPressed: () {
               state.removeSource(index);
@@ -237,6 +245,7 @@ class SettingsPage extends StatelessWidget {
                   const SizedBox(height: 10),
                   TextButton(
                     onPressed: () => setState(() => showAdvanced = !showAdvanced),
+                    style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.primary),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [Text(showAdvanced ? "收起高级配置" : "展开高级配置"), Icon(showAdvanced ? Icons.expand_less : Icons.expand_more)]
@@ -277,7 +286,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // === 3. 外观设置 (重点修改) ===
   void _showThemeDialog(BuildContext context, AppState state) {
     showDialog(
       context: context,
@@ -290,8 +298,6 @@ class SettingsPage extends StatelessWidget {
 
         return StatefulBuilder(
           builder: (context, setState) {
-            // ✨ 核心技巧：创建一个动态的形状，绑定到全局圆角
-            // 这样 Radio/Switch 的波纹就会完全贴合这个形状
             final dynamicShape = RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(tempGlobalRadius),
             );
@@ -302,68 +308,17 @@ class SettingsPage extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 主题模式选项
-                    // 使用 shape: dynamicShape 让波纹圆角实时跟随设置
-                    RadioListTile<ThemeMode>(
-                      title: const Text("跟随系统"), 
-                      value: ThemeMode.system, 
-                      groupValue: tempMode, 
-                      shape: dynamicShape, 
-                      onChanged: (v) => setState(() => tempMode = v!)
-                    ),
-                    RadioListTile<ThemeMode>(
-                      title: const Text("浅色"), 
-                      value: ThemeMode.light, 
-                      groupValue: tempMode, 
-                      shape: dynamicShape,
-                      onChanged: (v) => setState(() => tempMode = v!)
-                    ),
-                    RadioListTile<ThemeMode>(
-                      title: const Text("深色"), 
-                      value: ThemeMode.dark, 
-                      groupValue: tempMode, 
-                      shape: dynamicShape,
-                      onChanged: (v) => setState(() => tempMode = v!)
-                    ),
-                    
+                    RadioListTile<ThemeMode>(title: const Text("跟随系统"), value: ThemeMode.system, groupValue: tempMode, shape: dynamicShape, onChanged: (v) => setState(() => tempMode = v!)),
+                    RadioListTile<ThemeMode>(title: const Text("浅色"), value: ThemeMode.light, groupValue: tempMode, shape: dynamicShape, onChanged: (v) => setState(() => tempMode = v!)),
+                    RadioListTile<ThemeMode>(title: const Text("深色"), value: ThemeMode.dark, groupValue: tempMode, shape: dynamicShape, onChanged: (v) => setState(() => tempMode = v!)),
                     const Divider(height: 24),
-                    
-                    // 开关选项
-                    SwitchListTile(
-                      title: const Text("动态取色"), 
-                      value: tempMaterialYou, 
-                      shape: dynamicShape,
-                      onChanged: (v) => setState(() => tempMaterialYou = v)
-                    ),
-                    SwitchListTile(
-                      title: const Text("纯黑背景 (AMOLED)"), 
-                      value: tempAmoled, 
-                      shape: dynamicShape,
-                      onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)
-                    ),
-                    
+                    SwitchListTile(title: const Text("动态取色"), value: tempMaterialYou, shape: dynamicShape, onChanged: (v) => setState(() => tempMaterialYou = v)),
+                    SwitchListTile(title: const Text("纯黑背景 (AMOLED)"), value: tempAmoled, shape: dynamicShape, onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)),
                     const Divider(height: 24),
                     const SizedBox(height: 8),
-                    
-                    // 🎨 定制滑块：全局圆角
-                    _buildFancySlider(
-                      context,
-                      label: "全局圆角", 
-                      value: tempGlobalRadius, 
-                      max: 40.0,
-                      onChanged: (v) => setState(() => tempGlobalRadius = v)
-                    ),
-                    
+                    _buildFancySlider(context, label: "全局圆角", value: tempGlobalRadius, max: 40.0, onChanged: (v) => setState(() => tempGlobalRadius = v)),
                     const SizedBox(height: 12),
-                    
-                    // 🎨 定制滑块：首页图片
-                    _buildFancySlider(
-                      context,
-                      label: "首页图片", 
-                      value: tempHomeRadius, 
-                      max: 40.0,
-                      onChanged: (v) => setState(() => tempHomeRadius = v)
-                    ),
+                    _buildFancySlider(context, label: "首页图片", value: tempHomeRadius, max: 40.0, onChanged: (v) => setState(() => tempHomeRadius = v)),
                   ],
                 ),
               ),
@@ -418,13 +373,13 @@ class SettingsPage extends StatelessWidget {
   // === 组件 ===
 
   Widget _buildBottomDialog(BuildContext context, {required String title, required Widget content, required VoidCallback onConfirm, String confirmText = "确定", bool hideCancel = false}) {
-    // 读取最新的圆角设置，确保外框也同步
-    // 注意：如果是外观设置弹窗，这里的 context 读取的是旧值，
-    // 但是内容区我们已经手动处理了圆角，所以外框保持 24 或者旧值影响不大，或者也可以传入 tempValue
+    // 统一按钮颜色：跟随主题正文颜色
+    final buttonColor = Theme.of(context).textTheme.bodyLarge?.color;
+    
     return Dialog(
       alignment: Alignment.bottomCenter,
       insetPadding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      shape: Theme.of(context).dialogTheme.shape, // 使用全局形状
+      shape: Theme.of(context).dialogTheme.shape,
       backgroundColor: Theme.of(context).dialogTheme.backgroundColor,
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -434,9 +389,29 @@ class SettingsPage extends StatelessWidget {
           content,
           const SizedBox(height: 28),
           Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-            if (!hideCancel) Expanded(child: TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消", style: TextStyle(color: Colors.grey, fontSize: 16)))),
+            if (!hideCancel) Expanded(
+              child: TextButton(
+                onPressed: () => Navigator.pop(context), 
+                // === 修改：统一颜色 ===
+                style: TextButton.styleFrom(
+                  foregroundColor: buttonColor, // 字体 & 波纹颜色
+                  textStyle: const TextStyle(fontSize: 16),
+                ),
+                child: const Text("取消")
+              )
+            ),
             if (!hideCancel) const SizedBox(width: 16),
-            Expanded(child: TextButton(onPressed: onConfirm, child: Text(confirmText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
+            Expanded(
+              child: TextButton(
+                onPressed: onConfirm, 
+                // === 修改：统一颜色 ===
+                style: TextButton.styleFrom(
+                  foregroundColor: buttonColor, // 字体 & 波纹颜色
+                  textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                child: Text(confirmText)
+              )
+            ),
           ]),
         ]),
       ),
@@ -450,7 +425,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // ✨ 仿制图4的精美滑块样式
   Widget _buildFancySlider(BuildContext context, {required String label, required double value, required double max, required ValueChanged<double> onChanged}) {
     final primaryColor = Theme.of(context).colorScheme.primary;
     
@@ -467,34 +441,25 @@ class SettingsPage extends StatelessWidget {
           ),
         ),
         SizedBox(
-          height: 40, // 增加高度以容纳大滑块
+          height: 40, 
           child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              trackHeight: 20, // 轨道高度加粗
-              // 轨道形状：圆角矩形
+              trackHeight: 16, // === 修改：改为 16，变细一点 ===
               trackShape: const RoundedRectSliderTrackShape(),
-              // 激活颜色：主题色
               activeTrackColor: primaryColor,
-              // 未激活颜色：淡化
               inactiveTrackColor: primaryColor.withOpacity(0.15),
-              // 滑块形状：大白圆，带阴影
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14.0, elevation: 4.0),
-              // 滑块颜色：强制白色
               thumbColor: Colors.white,
-              // 点击时的光晕：白色带透明度
               overlayColor: Colors.white.withOpacity(0.3),
-              // 刻度点形状：小圆点
               tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 3.5),
-              // 激活的刻度点颜色：白色 (在蓝色轨道上显示为白点)
               activeTickMarkColor: Colors.white.withOpacity(0.5),
-              // 未激活的刻度点颜色：蓝色 (在浅色轨道上显示为蓝点)
               inactiveTickMarkColor: primaryColor.withOpacity(0.5),
             ),
             child: Slider(
               value: value,
               min: 0.0,
               max: max,
-              divisions: 10, // 分段数，产生刻度点
+              divisions: 10,
               onChanged: onChanged,
             ),
           ),
