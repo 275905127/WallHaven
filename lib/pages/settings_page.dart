@@ -81,10 +81,10 @@ class SettingsPage extends StatelessWidget {
                           _buildTile(
                             context,
                             title: appState.locale.languageCode == 'zh' ? "图源管理" : "Source Manager",
-                            subtitle: appState.locale.languageCode == 'zh' ? "添加、切换或编辑" : "Manage sources",
+                            subtitle: appState.locale.languageCode == 'zh' ? "添加、编辑或删除" : "Manage sources",
                             icon: Icons.source_outlined,
                             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-                            onTap: () => _showSourceManagerDialog(context, appState),
+                            onTap: () => _showSourceManagerDialog(context),
                           ),
                         ],
                       ),
@@ -108,85 +108,120 @@ class SettingsPage extends StatelessWidget {
 
   // --- 弹窗逻辑 ---
 
-  // 1. 图源管理 (增加编辑功能)
-  void _showSourceManagerDialog(BuildContext context, AppState state) {
+  // 1. 图源管理 (新增：删除功能 + Consumer 实时刷新)
+  void _showSourceManagerDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) {
-        return _buildBottomDialog(
-          context,
-          title: "图源管理",
-          content: Container(
-            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                ...List.generate(state.sources.length, (index) {
-                  final source = state.sources[index];
-                  final isSelected = state.currentSource == source;
-                  return ListTile(
-                    title: Text(source.name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                    subtitle: Text(source.baseUrl, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                    // 右侧增加编辑按钮
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, size: 20, color: Colors.grey),
-                          onPressed: () {
-                            Navigator.pop(context); // 关掉列表
-                            // 打开编辑弹窗
-                            _showSourceConfigDialog(context, state, existingSource: source, index: index);
-                          },
+        // 使用 Consumer 确保列表数据变化时（比如删除了一个），弹窗内容会立即刷新
+        return Consumer<AppState>(
+          builder: (context, state, child) {
+            return _buildBottomDialog(
+              context,
+              title: "图源管理",
+              content: Container(
+                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+                width: double.maxFinite,
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    ...List.generate(state.sources.length, (index) {
+                      final source = state.sources[index];
+                      final isSelected = state.currentSource == source;
+                      return ListTile(
+                        title: Text(source.name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                        subtitle: Text(source.baseUrl, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                        // 右侧操作栏：删除 + 编辑 + 选中状态
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // === 删除按钮 ===
+                            // 只有当图源大于1个时才显示删除，防止删光
+                            if (state.sources.length > 1)
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, size: 20, color: Colors.grey),
+                                onPressed: () => _confirmDelete(context, state, index),
+                              ),
+                              
+                            // === 编辑按钮 ===
+                            IconButton(
+                              icon: const Icon(Icons.edit, size: 20, color: Colors.grey),
+                              onPressed: () {
+                                Navigator.pop(context); // 先关列表
+                                _showSourceConfigDialog(context, state, existingSource: source, index: index);
+                              },
+                            ),
+                            
+                            // === 选中标记 ===
+                            if (isSelected) 
+                              const Icon(Icons.check_circle, color: Colors.blue),
+                          ],
                         ),
-                        if (isSelected) 
-                          const Icon(Icons.check_circle, color: Colors.blue),
-                      ],
+                        onTap: () {
+                          state.setSource(index);
+                          Navigator.pop(context);
+                        },
+                      );
+                    }),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.add),
+                      title: const Text("添加自定义图源"),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showSourceConfigDialog(context, state);
+                      },
                     ),
-                    onTap: () {
-                      state.setSource(index);
-                      Navigator.pop(context);
-                    },
-                  );
-                }),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.add),
-                  title: const Text("添加自定义图源"),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showSourceConfigDialog(context, state); // 打开新增弹窗 (无参数)
-                  },
+                    ListTile(
+                      leading: const Icon(Icons.file_download_outlined),
+                      title: const Text("导入配置"),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showImportDialog(context, state);
+                      },
+                    ),
+                  ],
                 ),
-                ListTile(
-                  leading: const Icon(Icons.file_download_outlined),
-                  title: const Text("导入配置"),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showImportDialog(context, state);
-                  },
-                ),
-              ],
-            ),
-          ),
-          onConfirm: () => Navigator.pop(context),
-          confirmText: "关闭",
-          hideCancel: true,
+              ),
+              onConfirm: () => Navigator.pop(context),
+              confirmText: "关闭",
+              hideCancel: true,
+            );
+          },
         );
       },
     );
   }
 
-  // 2. 添加/编辑图源 统一弹窗
+  // 确认删除弹窗
+  void _confirmDelete(BuildContext context, AppState state, int index) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("确认删除"),
+        content: const Text("确定要删除这个图源吗？此操作无法撤销。"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消", style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () {
+              state.removeSource(index); // 调用 Provider 的删除方法
+              Navigator.pop(ctx);
+            }, 
+            child: const Text("删除", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 2. 添加/编辑图源
   void _showSourceConfigDialog(BuildContext context, AppState state, {SourceConfig? existingSource, int? index}) {
     final isEditing = existingSource != null;
     
     final nameCtrl = TextEditingController(text: existingSource?.name);
     final urlCtrl = TextEditingController(text: existingSource?.baseUrl ?? "https://");
-    final apiKeyCtrl = TextEditingController(text: existingSource?.apiKey); // 新增 API Key 字段
+    final apiKeyCtrl = TextEditingController(text: existingSource?.apiKey);
     
-    // 高级字段
     final listKeyCtrl = TextEditingController(text: existingSource?.listKey ?? "data");
     final thumbKeyCtrl = TextEditingController(text: existingSource?.thumbKey ?? "thumbs.large");
     final fullKeyCtrl = TextEditingController(text: existingSource?.fullKey ?? "path");
@@ -208,7 +243,6 @@ class SettingsPage extends StatelessWidget {
                   const SizedBox(height: 10),
                   _buildInput(urlCtrl, "API 地址 (URL)"),
                   const SizedBox(height: 10),
-                  // === 这里可以填 Key ===
                   _buildInput(apiKeyCtrl, "API Key (可选)"),
                   const SizedBox(height: 10),
                   
@@ -231,16 +265,13 @@ class SettingsPage extends StatelessWidget {
             ),
             onConfirm: () {
               if (nameCtrl.text.isNotEmpty) {
-                // 构造新配置
                 final newConfig = SourceConfig(
                   name: nameCtrl.text,
                   baseUrl: urlCtrl.text,
-                  apiKey: apiKeyCtrl.text, // 保存 Key
+                  apiKey: apiKeyCtrl.text,
                   listKey: listKeyCtrl.text,
                   thumbKey: thumbKeyCtrl.text,
                   fullKey: fullKeyCtrl.text,
-                  // 【关键】如果是编辑，保留原有的 filters (SFW/NSFW 规则)
-                  // 如果是新增，filters 为空 (或者之后可以加 UI 配置)
                   filters: isEditing ? existingSource!.filters : [], 
                 );
 
@@ -258,7 +289,7 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // 3. 主题/语言/导入 其他弹窗保持不变...
+  // 3. 其他弹窗保持不变
   void _showThemeDialog(BuildContext context, AppState state) {
     showDialog(
       context: context,
