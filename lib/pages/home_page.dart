@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
-import 'dart:math';
 
 import '../models/wallpaper.dart';
 import '../providers.dart';
@@ -61,6 +60,7 @@ class _HomePageState extends State<HomePage> {
 
     final appState = context.read<AppState>();
     final currentSource = appState.currentSource;
+    // 【修复点】这里是 activeParams，不是 activeFilters
     final activeParams = appState.activeParams;
     
     String currentHash = "${currentSource.baseUrl}|${activeParams.toString()}";
@@ -75,60 +75,16 @@ class _HomePageState extends State<HomePage> {
 
     setState(() => _isLoading = true);
 
-    // === 直链模式 (Luvbree 等随机图) ===
-    if (currentSource.listKey == '@direct') {
-      int batchSize = 8; 
-      for (int i = 0; i < batchSize; i++) {
-        if (!mounted) return;
-
-        // 生成强力随机参数，防止缓存
-        final randomId = "${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000000)}";
-        final separator = currentSource.baseUrl.contains('?') ? '&' : '?';
-        // 拼接 _r 参数放在最后
-        final directUrl = "${currentSource.baseUrl}${separator}cache_buster=${_page}_${i}_$randomId";
-
-        double randomRatio = 0.6 + Random().nextDouble(); 
-
-        final newItem = Wallpaper(
-          id: "direct_${_page}_${i}_$randomId",
-          thumbUrl: directUrl,
-          fullSizeUrl: directUrl,
-          resolution: "Random",
-          views: 0,
-          favorites: 0,
-          aspectRatio: randomRatio,
-        );
-
-        if (mounted) {
-          setState(() {
-            _wallpapers.add(newItem);
-          });
-        }
-        await Future.delayed(const Duration(milliseconds: 600));
-      }
-
-      if (mounted) {
-        setState(() {
-          _page++;
-          _isLoading = false;
-        });
-      }
-      return; 
-    }
-
-    // === 普通 API 模式 (Wallhaven 等) ===
     try {
-      // 1. 先把筛选参数（可能包含 page:1）放进去
-      final Map<String, dynamic> queryParams = {};
-      queryParams.addAll(activeParams);
+      // 【修复点】明确指定类型为 Map<String, dynamic> 解决类型不兼容报错
+      final Map<String, dynamic> queryParams = {
+        'page': _page,
+        if (currentSource.apiKey.isNotEmpty) 
+          currentSource.apiKeyParam: currentSource.apiKey,
+      };
 
-      // 2. 【核心修复】必须在合并 activeParams 之后，再强制覆盖 page 参数！
-      // 这样才能确保使用的是当前滚动的真实页码 (_page)，而不是筛选器里写死的 page:1
-      queryParams['page'] = _page;
-      
-      if (currentSource.apiKey.isNotEmpty) {
-        queryParams[currentSource.apiKeyParam] = currentSource.apiKey;
-      }
+      // 合并动态筛选参数
+      queryParams.addAll(activeParams);
 
       var response = await Dio().get(
         currentSource.baseUrl,
@@ -136,33 +92,13 @@ class _HomePageState extends State<HomePage> {
       );
 
       if (response.statusCode == 200) {
-        var rawData = _getValueByPath(response.data, currentSource.listKey);
+        var rawList = _getValueByPath(response.data, currentSource.listKey);
         
-        List listData = [];
-        if (rawData is List) {
-          listData = rawData;
-        } else if (rawData is Map) {
-          listData = [rawData];
-        }
-
-        if (listData.isNotEmpty) {
-          List<Wallpaper> newWallpapers = listData.map((item) {
+        if (rawList is List) {
+          List<Wallpaper> newWallpapers = rawList.map((item) {
             String thumb = _getValueByPath(item, currentSource.thumbKey) ?? "";
             String full = _getValueByPath(item, currentSource.fullKey) ?? thumb;
-            String id = _getValueByPath(item, currentSource.idKey)?.toString() ?? full.hashCode.toString();
-            
-            double ratio = 1.0;
-            try {
-              var w = item['dimension_x'] ?? item['width'];
-              var h = item['dimension_y'] ?? item['height'];
-              if (w != null && h != null) {
-                ratio = (w as num) / (h as num);
-              } else if (item['ratio'] != null) {
-                ratio = double.tryParse(item['ratio'].toString()) ?? 1.0;
-              }
-            } catch (e) {
-              ratio = 1.0;
-            }
+            String id = _getValueByPath(item, currentSource.idKey).toString();
 
             return Wallpaper(
               id: id,
@@ -171,19 +107,16 @@ class _HomePageState extends State<HomePage> {
               resolution: "",
               views: 0,
               favorites: 0,
-              aspectRatio: ratio,
             );
           }).where((w) => w.thumbUrl.isNotEmpty).toList();
 
           if (mounted) {
             setState(() {
               _wallpapers.addAll(newWallpapers);
-              _page++; // 页面+1，下次请求就是下一页了
+              _page++;
               _isLoading = false;
             });
           }
-        } else {
-           if (mounted) setState(() => _isLoading = false);
         }
       }
     } catch (e) {
@@ -200,6 +133,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
 
+    // 【修复点】这里改为 activeParams
     if (_lastSourceHash != null && 
         _lastSourceHash != "${appState.currentSource.baseUrl}|${appState.activeParams.toString()}") {
        Future.microtask(() => _fetchWallpapers(refresh: true));
@@ -291,19 +225,12 @@ class _HomePageState extends State<HomePage> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: AspectRatio(
-            aspectRatio: wallpaper.aspectRatio,
-            child: Hero(
-              tag: wallpaper.id,
-              child: Image.network(
-                wallpaper.thumbUrl,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(color: Colors.transparent);
-                },
-                errorBuilder: (_,__,___) => const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
-              ),
+          child: Hero(
+            tag: wallpaper.id,
+            child: Image.network(
+              wallpaper.thumbUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_,__,___) => const SizedBox(height: 150, child: Icon(Icons.broken_image)),
             ),
           ),
         ),
