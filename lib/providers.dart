@@ -9,7 +9,7 @@ class AppState extends ChangeNotifier {
   // 默认图源
   List<SourceConfig> _sources = [
     SourceConfig(
-      name: 'Wallhaven (默认)', 
+      name: 'Wallhaven', // <--- 修改 1: 去掉 "(默认)"
       baseUrl: 'https://wallhaven.cc/api/v1/search',
       filters: [
         FilterGroup(title: '排序', paramName: 'sorting', type: 'radio', options: [
@@ -19,14 +19,14 @@ class AppState extends ChangeNotifier {
             FilterOption(label: '排行榜', value: 'toplist'),
         ]),
         FilterGroup(title: '分类', paramName: 'categories', type: 'bitmask', options: [
-            FilterOption(label: '常规', value: 'General'),
-            FilterOption(label: '动漫', value: 'Anime'),
-            FilterOption(label: '人物', value: 'People'),
+            FilterOption(label: 'General', value: 'General'), // 改为英文更通用
+            FilterOption(label: 'Anime', value: 'Anime'),
+            FilterOption(label: 'People', value: 'People'),
         ]),
         FilterGroup(title: '分级', paramName: 'purity', type: 'bitmask', options: [
-            FilterOption(label: '安全', value: 'SFW'),
-            FilterOption(label: '擦边', value: 'Sketchy'),
-            FilterOption(label: '限制级', value: 'NSFW'),
+            FilterOption(label: 'SFW', value: 'SFW'),         // <--- 修改 2: 改为英文
+            FilterOption(label: 'Sketchy', value: 'Sketchy'),
+            FilterOption(label: 'NSFW', value: 'NSFW'),       // <--- 修改 3: 改为英文
         ]),
       ]
     ),
@@ -34,12 +34,10 @@ class AppState extends ChangeNotifier {
   int _currentSourceIndex = 0;
   Map<String, dynamic> _activeParams = {};
 
-  // Getters
   List<SourceConfig> get sources => _sources;
   SourceConfig get currentSource => _sources[_currentSourceIndex];
   Map<String, dynamic> get activeParams => _activeParams;
   
-  // Theme State
   ThemeMode _themeMode = ThemeMode.system;
   bool _useMaterialYou = true;
   bool _useAmoled = false;
@@ -49,11 +47,9 @@ class AppState extends ChangeNotifier {
   bool get useAmoled => _useAmoled;
   Locale get locale => _locale;
 
-  // Init
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     
-    // Theme & Locale
     String? mode = _prefs?.getString('themeMode');
     if (mode == 'light') _themeMode = ThemeMode.light;
     if (mode == 'dark') _themeMode = ThemeMode.dark;
@@ -62,7 +58,6 @@ class AppState extends ChangeNotifier {
     String? lang = _prefs?.getString('language');
     if (lang != null) _locale = Locale(lang);
 
-    // Sources
     String? savedSources = _prefs?.getString('generic_sources_v2');
     if (savedSources != null) {
       try {
@@ -81,12 +76,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- Source Methods ---
-
   void setSource(int index) {
     _currentSourceIndex = index;
     _prefs?.setInt('current_source_index', index);
-    _activeParams.clear(); // 切换时清空筛选
+    _activeParams.clear();
     notifyListeners();
   }
 
@@ -96,13 +89,11 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
   
-  // === 新增：导入配置 ===
-  // 返回 true 表示成功，false 表示失败
   bool importSourceConfig(String jsonString) {
     try {
       final Map<String, dynamic> map = jsonDecode(jsonString);
       final config = SourceConfig.fromJson(map);
-      addSource(config); // 复用添加逻辑
+      addSource(config);
       return true;
     } catch (e) {
       debugPrint("导入失败: $e");
@@ -115,7 +106,6 @@ class AppState extends ChangeNotifier {
     _prefs?.setString('generic_sources_v2', jsonString);
   }
 
-  // --- Filter Methods ---
   void updateParam(String key, dynamic value) {
     _activeParams[key] = value;
     notifyListeners();
@@ -125,7 +115,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- Theme Methods ---
   void setThemeMode(ThemeMode mode) { _themeMode = mode; _prefs?.setString('themeMode', mode.name); notifyListeners(); }
   void setMaterialYou(bool v) { _useMaterialYou = v; _prefs?.setBool('useMaterialYou', v); notifyListeners(); }
   void setAmoled(bool v) { _useAmoled = v; _prefs?.setBool('useAmoled', v); notifyListeners(); }
