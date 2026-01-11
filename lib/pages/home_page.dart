@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'settings_page.dart'; // 导入设置页用于跳转
+import 'filter_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -57,12 +58,16 @@ class _HomePageState extends State<HomePage> {
                   ),
                   // 2. 中间：筛选图标 (搭配合适的图标 filter_list 或 tune)
                   IconButton(
-                    icon: const Icon(Icons.filter_list_alt, size: 26),
-                    tooltip: '筛选',
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("点击了筛选")));
-                    },
-                  ),
+  icon: const Icon(Icons.filter_list_alt, size: 26),
+  tooltip: '筛选',
+  onPressed: () {
+    // 跳转到筛选页
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const FilterPage()),
+    );
+  },
+),
                   // 3. 最右：设置图标
                   IconButton(
                     icon: const Icon(Icons.settings_outlined, size: 26),
