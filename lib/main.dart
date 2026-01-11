@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:dynamic_color/dynamic_color.dart';
-import 'package:flutter_localizations/flutter_localizations.dart'; // 如果报错，请运行 flutter pub add flutter_localizations
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'providers.dart';
 import 'pages/home_page.dart';
@@ -41,9 +41,9 @@ class MyApp extends StatelessWidget {
         ColorScheme darkScheme;
 
         if (lightDynamic != null && appState.useMaterialYou) {
-          // 开启了动态取色
-          lightScheme = lightDynamic.harmony();
-          darkScheme = darkDynamic?.harmony() ?? const ColorScheme.dark();
+          // 【修正点】这里必须用 harmonized()
+          lightScheme = lightDynamic.harmonized();
+          darkScheme = darkDynamic?.harmonized() ?? const ColorScheme.dark();
         } else {
           // 未开启或不支持，使用默认蓝色
           lightScheme = ColorScheme.fromSeed(seedColor: Colors.blue);
