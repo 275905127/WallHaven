@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'settings_page.dart'; // 导入设置页用于跳转
-import 'filter_page.dart';
-import 'image_detail_page.dart';
+import 'settings_page.dart'; // 导入设置页
+import 'filter_page.dart';   // 导入筛选页
+import 'image_detail_page.dart'; // 导入图片详情页
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -14,9 +14,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   // 模拟下拉刷新的逻辑
   Future<void> _handleRefresh() async {
-    // 这里模拟网络请求延迟2秒
     await Future.delayed(const Duration(seconds: 2));
-    // 刷新完成后，通常在这里更新数据并 setState
     if (mounted) {
       setState(() {
         // 数据更新逻辑...
@@ -30,26 +28,20 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // 【改动点1：移除了底部的 bottomNavigationBar】
-
       body: SafeArea(
-        // 【改动点2：新增 RefreshIndicator 实现下拉刷新】
-        // 它必须包裹住支持滚动的组件（这里是 CustomScrollView）
         child: RefreshIndicator(
           onRefresh: _handleRefresh,
-          color: Colors.blue, // 刷新圈的颜色（配合主题色）
-          backgroundColor: Colors.white, // 刷新圈背景
-          edgeOffset: kToolbarHeight, // 让刷新圈出现在标题栏下方，体验更好
-
+          color: Colors.blue,
+          backgroundColor: Colors.white,
+          edgeOffset: kToolbarHeight,
           child: CustomScrollView(
             slivers: [
               SliverAppBar(
                 pinned: false,
                 floating: true,
                 title: const Text("Wallhaven"),
-                // 【改动点3：全新的顶部右侧图标组】
                 actions: [
-                  // 1. 左边：搜索图标
+                  // 1. 搜索
                   IconButton(
                     icon: const Icon(Icons.search, size: 26),
                     tooltip: '搜索',
@@ -57,36 +49,33 @@ class _HomePageState extends State<HomePage> {
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("点击了搜索")));
                     },
                   ),
-                  // 2. 中间：筛选图标 (搭配合适的图标 filter_list 或 tune)
+                  // 2. 筛选
                   IconButton(
-  icon: const Icon(Icons.filter_list_alt, size: 26),
-  tooltip: '筛选',
-  onPressed: () {
-    // 跳转到筛选页
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const FilterPage()),
-    );
-  },
-),
-                  // 3. 最右：设置图标
+                    icon: const Icon(Icons.filter_list_alt, size: 26),
+                    tooltip: '筛选',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const FilterPage()),
+                      );
+                    },
+                  ),
+                  // 3. 设置
                   IconButton(
                     icon: const Icon(Icons.settings_outlined, size: 26),
                     tooltip: '设置',
                     onPressed: () {
-                      // 【改动点4：点击跳转到设置页】
-                      // 使用 push 跳转，设置页会自动出现返回按钮
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const SettingsPage()),
                       );
                     },
                   ),
-                  const SizedBox(width: 12), // 右侧留点边距
+                  const SizedBox(width: 12),
                 ],
               ),
 
-              // 下面是原来的顶部大卡片和瀑布流，保持不变
+              // 顶部大卡片
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -117,6 +106,8 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
+
+              // 瀑布流列表
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverMasonryGrid.count(
@@ -137,7 +128,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // (后面的辅助构建方法 _buildHeaderCard 和 _buildWallpaperItem 保持不变，这里省略，请保留原文件中的这些代码)
+  // 辅助组件：顶部卡片
   Widget _buildHeaderCard({
     required String title,
     required String subtitle,
@@ -191,19 +182,22 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // 辅助组件：壁纸单项 (包含点击跳转和 Hero 动画)
   Widget _buildWallpaperItem(int index) {
+    // 构造图片地址
     final String imageUrl = 'https://picsum.photos/400/${(index % 3 + 2) * 100}?random=$index';
-    final String heroTag = 'wallpaper_$index'; // 唯一的 tag
+    // 构造唯一的 Hero 标签
+    final String heroTag = 'wallpaper_$index';
 
     return GestureDetector(
-      // 点击跳转到详情页
+      // 点击跳转逻辑
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => ImageDetailPage(
-              imageUrl: imageUrl, // 把图片链接传过去
-              heroTag: heroTag,   // 把动画标签传过去
+              imageUrl: imageUrl,
+              heroTag: heroTag,
             ),
           ),
         );
@@ -217,7 +211,7 @@ class _HomePageState extends State<HomePage> {
           borderRadius: BorderRadius.circular(16),
           child: Column(
             children: [
-              // 给图片加上 Hero 组件，实现转场动画
+              // Hero 动画组件
               Hero(
                 tag: heroTag,
                 child: Image.network(
@@ -229,7 +223,6 @@ class _HomePageState extends State<HomePage> {
                 padding: const EdgeInsets.all(8.0),
                 child: Row(
                   children: [
-                    // 首页列表上的小收藏按钮（简单的视觉反馈）
                     const Icon(Icons.favorite_border, size: 14, color: Colors.grey),
                     const SizedBox(width: 4),
                     Text("${index * 99}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
@@ -242,4 +235,4 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-}
+} // <--- 之前可能就是少了这一个大括号！
