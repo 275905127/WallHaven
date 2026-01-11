@@ -25,6 +25,11 @@ class _HomePageState extends State<HomePage> {
   
   String? _lastSourceHash;
 
+  // === 定义通用的伪装头 (浏览器 User-Agent) ===
+  final Map<String, String> _headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  };
+
   @override
   void initState() {
     super.initState();
@@ -118,21 +123,20 @@ class _HomePageState extends State<HomePage> {
 
     // === 普通 API 模式 (Wallhaven 等) ===
     try {
-      // 1. 先把筛选参数（可能包含 page:1）放进去
       final Map<String, dynamic> queryParams = {};
       queryParams.addAll(activeParams);
 
-      // 2. 【核心修复】必须在合并 activeParams 之后，再强制覆盖 page 参数！
-      // 这样才能确保使用的是当前滚动的真实页码 (_page)，而不是筛选器里写死的 page:1
       queryParams['page'] = _page;
       
       if (currentSource.apiKey.isNotEmpty) {
         queryParams[currentSource.apiKeyParam] = currentSource.apiKey;
       }
 
+      // 修复：给 API 请求也加上 Headers
       var response = await Dio().get(
         currentSource.baseUrl,
         queryParameters: queryParams,
+        options: Options(headers: _headers), 
       );
 
       if (response.statusCode == 200) {
@@ -178,7 +182,7 @@ class _HomePageState extends State<HomePage> {
           if (mounted) {
             setState(() {
               _wallpapers.addAll(newWallpapers);
-              _page++; // 页面+1，下次请求就是下一页了
+              _page++; 
               _isLoading = false;
             });
           }
@@ -298,11 +302,18 @@ class _HomePageState extends State<HomePage> {
               child: Image.network(
                 wallpaper.thumbUrl,
                 fit: BoxFit.cover,
+                // === 核心修复：添加 Headers 伪装成浏览器 ===
+                headers: _headers, 
+                // ===================================
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
                   return Container(color: Colors.transparent);
                 },
-                errorBuilder: (_,__,___) => const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                errorBuilder: (_, error, stack) {
+                   // 方便调试，打印错误
+                   debugPrint("Img Error: $error");
+                   return const Center(child: Icon(Icons.broken_image, color: Colors.grey));
+                },
               ),
             ),
           ),
