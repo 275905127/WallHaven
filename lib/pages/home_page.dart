@@ -147,14 +147,33 @@ class _HomePageState extends State<HomePage> {
                 title: Text(appState.currentSource.name),
                 actions: [
                   IconButton(
-                    icon: const Icon(Icons.search, size: 26),
-                    tooltip: isZh ? '搜索' : 'Search',
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                         SnackBar(content: Text(isZh ? "搜索功能开发中..." : "Search coming soon...")),
-                      );
-                    },
-                  ),
+  icon: const Icon(Icons.search, size: 26),
+  onPressed: () async {
+    // 简单的搜索弹窗
+    final query = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final ctrl = TextEditingController();
+        return AlertDialog(
+          content: TextField(
+            controller: ctrl, 
+            autofocus: true,
+            decoration: const InputDecoration(hintText: "输入关键词...")
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text("搜索"))
+          ],
+        );
+      }
+    );
+    
+    if (query != null && query.isNotEmpty) {
+      // 更新全局搜索词 -> 自动触发首页刷新
+      context.read<AppState>().updateSearchQuery(query);
+    }
+  },
+),
+
                   IconButton(
                     icon: const Icon(Icons.filter_list_alt, size: 26),
                     tooltip: isZh ? '筛选' : 'Filter',
