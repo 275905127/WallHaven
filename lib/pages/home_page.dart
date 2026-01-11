@@ -25,7 +25,7 @@ class _HomePageState extends State<HomePage> {
   
   String? _lastSourceHash;
   
-  // === 🛡️ 新增：防抖动时间锁 (防止滑动过快触发大量请求) ===
+  // === 🛡️ 防抖动时间锁 (防止滑动过快触发大量请求) ===
   DateTime _lastFetchTime = DateTime.fromMillisecondsSinceEpoch(0);
 
   // === 🎭 定义通用的伪装头 (浏览器 User-Agent) ===
@@ -68,7 +68,6 @@ class _HomePageState extends State<HomePage> {
     if (_isLoading) return;
 
     // === 🛡️ 安全检查：如果距离上次请求不足 2 秒，且不是强制刷新，则忽略 ===
-    // 这能有效防止因惯性滑动导致的重复触发
     if (!refresh && DateTime.now().difference(_lastFetchTime).inSeconds < 2) {
       return;
     }
@@ -92,16 +91,13 @@ class _HomePageState extends State<HomePage> {
 
     // === 直链模式 (Luvbree 等随机图) ===
     if (currentSource.listKey == '@direct') {
-      // 🛡️ 修改点1：减少单次批量，由 8 改为 5
-      int batchSize = 5; 
+      int batchSize = 5; // 限制单次加载数量
       
       for (int i = 0; i < batchSize; i++) {
         if (!mounted) return;
 
-        // 生成强力随机参数，防止缓存
         final randomId = "${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000000)}";
         final separator = currentSource.baseUrl.contains('?') ? '&' : '?';
-        // 拼接 _r 参数放在最后
         final directUrl = "${currentSource.baseUrl}${separator}cache_buster=${_page}_${i}_$randomId";
 
         double randomRatio = 0.6 + Random().nextDouble(); 
@@ -122,8 +118,7 @@ class _HomePageState extends State<HomePage> {
           });
         }
         
-        // 🛡️ 修改点2：增加延时，由 600ms 改为 1000ms (1秒)
-        // 慢一点，但更安全，不容易被 API 判定为攻击
+        // 延时加载，防止封IP
         await Future.delayed(const Duration(milliseconds: 1000));
       }
 
@@ -147,7 +142,6 @@ class _HomePageState extends State<HomePage> {
         queryParams[currentSource.apiKeyParam] = currentSource.apiKey;
       }
 
-      // 给 API 请求也加上 Headers
       var response = await Dio().get(
         currentSource.baseUrl,
         queryParameters: queryParams,
@@ -299,17 +293,20 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildWallpaperItem(Wallpaper wallpaper) {
+    // 动态获取设置里的圆角
+    final double radius = context.read<AppState>().homeCornerRadius;
+
     return GestureDetector(
       onTap: () {
         Navigator.push(context, MaterialPageRoute(builder: (context) => ImageDetailPage(imageUrl: wallpaper.fullSizeUrl, heroTag: wallpaper.id)));
       },
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(radius), // 使用动态圆角
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(radius), // 使用动态圆角
           child: AspectRatio(
             aspectRatio: wallpaper.aspectRatio,
             child: Hero(
@@ -317,9 +314,7 @@ class _HomePageState extends State<HomePage> {
               child: Image.network(
                 wallpaper.thumbUrl,
                 fit: BoxFit.cover,
-                // === 核心：添加 Headers 伪装成浏览器 ===
-                headers: _headers, 
-                // ===================================
+                headers: _headers, // 伪装头
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
                   return Container(color: Colors.transparent);
