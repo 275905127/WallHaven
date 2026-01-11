@@ -253,25 +253,38 @@ class SettingsPage extends StatelessWidget {
   // 添加图源弹窗
   void _showAddSourceDialog(BuildContext context, AppState state) {
     final nameCtrl = TextEditingController();
-    final urlCtrl = TextEditingController(text: "https://wallhaven.cc/api/v1/search");
+    final keyCtrl = TextEditingController();
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("添加图源"),
+        title: const Text("添加 API 配置"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "名称 (例如: 赛博朋克风)")),
-            TextField(controller: urlCtrl, decoration: const InputDecoration(labelText: "API 地址")),
+            const Text("配置名称", style: TextStyle(fontSize: 12, color: Colors.grey)),
+            TextField(
+              controller: nameCtrl, 
+              decoration: const InputDecoration(hintText: "例如: 我的 NSFW 账号")
+            ),
+            const SizedBox(height: 16),
+            const Text("API Key (可选)", style: TextStyle(fontSize: 12, color: Colors.grey)),
+            TextField(
+              controller: keyCtrl, 
+              decoration: const InputDecoration(hintText: "在此粘贴 Wallhaven API Key")
+            ),
+            const SizedBox(height: 8),
+            const Text("配置了 Key 后，你可以在筛选页开启【限制级】内容。", style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
           ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消")),
           TextButton(
             onPressed: () {
-              if (nameCtrl.text.isNotEmpty && urlCtrl.text.isNotEmpty) {
-                state.addSource(nameCtrl.text, urlCtrl.text);
+              if (nameCtrl.text.isNotEmpty) {
+                // 调用新的 addSource (只传名字和Key)
+                state.addSource(nameCtrl.text, keyCtrl.text);
                 Navigator.pop(context);
               }
             }, 
