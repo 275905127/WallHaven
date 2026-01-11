@@ -25,12 +25,14 @@ class _HomePageState extends State<HomePage> {
   
   String? _lastSourceHash;
   
-  // === 🛡️ 防抖动时间锁 (防止滑动过快触发大量请求) ===
+  // 防抖动时间锁
   DateTime _lastFetchTime = DateTime.fromMillisecondsSinceEpoch(0);
 
-  // === 🎭 定义通用的伪装头 (浏览器 User-Agent) ===
+  // === 🛡️ 更新：更现代的 User-Agent，尝试绕过 VPN 拦截 ===
   final Map<String, String> _headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
   };
 
   @override
@@ -67,7 +69,6 @@ class _HomePageState extends State<HomePage> {
   Future<void> _fetchWallpapers({bool refresh = false}) async {
     if (_isLoading) return;
 
-    // === 🛡️ 安全检查：如果距离上次请求不足 2 秒，且不是强制刷新，则忽略 ===
     if (!refresh && DateTime.now().difference(_lastFetchTime).inSeconds < 2) {
       return;
     }
@@ -91,7 +92,7 @@ class _HomePageState extends State<HomePage> {
 
     // === 直链模式 (Luvbree 等随机图) ===
     if (currentSource.listKey == '@direct') {
-      int batchSize = 5; // 限制单次加载数量
+      int batchSize = 5; 
       
       for (int i = 0; i < batchSize; i++) {
         if (!mounted) return;
@@ -118,7 +119,6 @@ class _HomePageState extends State<HomePage> {
           });
         }
         
-        // 延时加载，防止封IP
         await Future.delayed(const Duration(milliseconds: 1000));
       }
 
@@ -240,7 +240,13 @@ class _HomePageState extends State<HomePage> {
                           final ctrl = TextEditingController();
                           return AlertDialog(
                             content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: "Search...")),
-                            actions: [TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text("Go"))],
+                            actions: [
+                                TextButton(
+                                    onPressed: () => Navigator.pop(ctx, ctrl.text), 
+                                    style: TextButton.styleFrom(foregroundColor: Colors.black),
+                                    child: const Text("Go")
+                                )
+                            ],
                           );
                         }
                       );
@@ -293,7 +299,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildWallpaperItem(Wallpaper wallpaper) {
-    // 动态获取设置里的圆角
     final double radius = context.read<AppState>().homeCornerRadius;
 
     return GestureDetector(
@@ -302,11 +307,11 @@ class _HomePageState extends State<HomePage> {
       },
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(radius), // 使用动态圆角
+          borderRadius: BorderRadius.circular(radius), 
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(radius), // 使用动态圆角
+          borderRadius: BorderRadius.circular(radius), 
           child: AspectRatio(
             aspectRatio: wallpaper.aspectRatio,
             child: Hero(
@@ -314,7 +319,7 @@ class _HomePageState extends State<HomePage> {
               child: Image.network(
                 wallpaper.thumbUrl,
                 fit: BoxFit.cover,
-                headers: _headers, // 伪装头
+                headers: _headers, 
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
                   return Container(color: Colors.transparent);
