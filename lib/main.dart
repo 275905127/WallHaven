@@ -12,10 +12,10 @@ void main() async {
   final appState = AppState();
   await appState.init();
 
-  // 统一状态栏样式：透明沉浸式
+  // 统一状态栏样式
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    systemNavigationBarColor: Colors.transparent, // 底部导航条也透明 (Android 10+)
+    systemNavigationBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,
   ));
 
@@ -29,8 +29,7 @@ void main() async {
   );
 }
 
-// === 1. 自定义全局滚动行为 (统一手感) ===
-// 所有的 ListView/GridView 默认都拥有“阻尼回弹”效果，不用每个页面单独写
+// === 1. 自定义全局滚动行为 ===
 class AppScrollBehavior extends MaterialScrollBehavior {
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) {
@@ -48,13 +47,12 @@ class MyApp extends StatelessWidget {
     return DynamicColorBuilder(
       builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
         // === 2. 统一颜色定义 ===
-        const lightBg = Color(0xFFF1F1F3);     // 全局背景：冷灰白
-        const lightSurface = Color(0xFFFFFDFD); // 卡片/弹窗：微暖白
+        const lightBg = Color(0xFFF1F1F3);
+        const lightSurface = Color(0xFFFFFDFD);
         
         final darkBg = appState.useAmoled ? Colors.black : const Color(0xFF121212);
         final darkSurface = appState.useAmoled ? const Color(0xFF1A1A1A) : const Color(0xFF2C2C2C);
 
-        // 生成配色方案
         ColorScheme lightScheme;
         ColorScheme darkScheme;
 
@@ -68,24 +66,20 @@ class MyApp extends StatelessWidget {
           darkScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark, surface: darkSurface);
         }
 
-        // === 3. 统一形状 (圆角系统) ===
-        // 改这里，全App所有卡片和弹窗的圆角都会变
+        // === 3. 统一形状 ===
         const commonShape = RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(28)), 
         );
         
         // === 4. 统一转场动画 ===
-        // 类似 Android 10+ 的缩放淡入淡出，或者 iOS 的侧滑
         const pageTransitions = PageTransitionsTheme(
           builders: {
-            TargetPlatform.android: ZoomPageTransitionsBuilder(), // 现代安卓风格
-            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(), // 经典 iOS 侧滑
+            TargetPlatform.android: ZoomPageTransitionsBuilder(),
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
           },
         );
 
-        // === 5. 统一字体样式 (TextTheme) ===
-        // 预设好标题和正文样式，页面里直接用 Theme.of(context).textTheme.titleLarge
-        // 这样以后想换字体或改大小，改这里就行
+        // === 5. 统一字体样式 ===
         final textThemeBase = Theme.of(context).textTheme;
         final appTextTheme = textThemeBase.copyWith(
           titleLarge: textThemeBase.titleLarge?.copyWith(fontWeight: FontWeight.bold, fontSize: 20),
@@ -93,13 +87,29 @@ class MyApp extends StatelessWidget {
           bodyMedium: textThemeBase.bodyMedium?.copyWith(fontSize: 14),
         );
 
+        // 【修复点】：使用 DialogThemeData 替代 DialogTheme
+        final dialogThemeLight = DialogThemeData(
+          backgroundColor: lightSurface,
+          elevation: 0,
+          shape: commonShape,
+          titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
+          contentTextStyle: const TextStyle(fontSize: 16, color: Colors.black87),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        );
+        
+        final dialogThemeDark = DialogThemeData(
+          backgroundColor: darkSurface,
+          elevation: 0,
+          shape: commonShape,
+          titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+          contentTextStyle: const TextStyle(fontSize: 16, color: Colors.white70),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        );
+
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'Wallhaven Client',
-          
-          // 注入全局滚动行为
           scrollBehavior: AppScrollBehavior(),
-
           locale: appState.locale,
           supportedLocales: const [Locale('zh'), Locale('en')],
           localizationsDelegates: const [
@@ -113,32 +123,26 @@ class MyApp extends StatelessWidget {
             useMaterial3: true,
             colorScheme: lightScheme,
             scaffoldBackgroundColor: lightBg,
-            textTheme: appTextTheme, // 应用统一字体
-            pageTransitionsTheme: pageTransitions, // 应用统一转场
+            textTheme: appTextTheme,
+            pageTransitionsTheme: pageTransitions,
 
             appBarTheme: AppBarTheme(
               backgroundColor: lightBg,
               scrolledUnderElevation: 0,
-              titleTextStyle: TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
+              titleTextStyle: const TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
               iconTheme: const IconThemeData(color: Colors.black),
             ),
             
-            cardTheme: const CardTheme(
+            // 【修复点】：使用 CardThemeData
+            cardTheme: CardThemeData(
               color: lightSurface, 
               elevation: 0, 
               margin: EdgeInsets.zero, 
               shape: commonShape
             ),
             
-            dialogTheme: const DialogTheme(
-              backgroundColor: lightSurface,
-              elevation: 4,
-              shape: commonShape,
-              titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
-              actionsPadding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-            ),
+            dialogTheme: dialogThemeLight,
 
-            // 按钮样式统一
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
                 textStyle: const TextStyle(fontWeight: FontWeight.bold),
@@ -158,29 +162,25 @@ class MyApp extends StatelessWidget {
             useMaterial3: true,
             colorScheme: darkScheme,
             scaffoldBackgroundColor: darkBg,
-            textTheme: appTextTheme.apply(bodyColor: Colors.white, displayColor: Colors.white), // 字体自动变白
+            textTheme: appTextTheme.apply(bodyColor: Colors.white, displayColor: Colors.white),
             pageTransitionsTheme: pageTransitions,
 
             appBarTheme: AppBarTheme(
               backgroundColor: darkBg,
               scrolledUnderElevation: 0,
-              titleTextStyle: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              titleTextStyle: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
               iconTheme: const IconThemeData(color: Colors.white),
             ),
             
-            cardTheme: CardTheme(
+            // 【修复点】：使用 CardThemeData
+            cardTheme: CardThemeData(
               color: darkSurface, 
               elevation: 0, 
               margin: EdgeInsets.zero, 
               shape: commonShape
             ),
             
-            dialogTheme: DialogTheme(
-              backgroundColor: darkSurface,
-              shape: commonShape,
-              titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            ),
+            dialogTheme: dialogThemeDark,
 
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
