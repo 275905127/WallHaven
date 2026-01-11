@@ -1,4 +1,4 @@
-name: Build Android App
+name: Build Android App (ARM64 Only)
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # 开启缓存，加速构建
+      # 开启缓存
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -31,13 +31,19 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
 
-      # 核心修改：改为 release 模式，并拆分架构
-      - name: Build Release APK
-        run: flutter build apk --release --split-per-abi
+      # ========================================================
+      # 修改点 1：指定只打 android-arm64 的包
+      # 去掉了 --split-per-abi，改用 --target-platform
+      # ========================================================
+      - name: Build Release APK (ARM64)
+        run: flutter build apk --release --target-platform android-arm64
 
-      # 上传 release 包
+      # ========================================================
+      # 修改点 2：文件名变了
+      # 指定平台后，生成的文件名通常是 app-release.apk
+      # ========================================================
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: WallHaven-Release-App
-          path: build/app/outputs/flutter-apk/app-*-release.apk
+          name: WallHaven-App-ARM64
+          path: build/app/outputs/flutter-apk/app-release.apk
