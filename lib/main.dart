@@ -1,17 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-// 确保你的目录下有 pages 文件夹，并且里面有 home_page.dart
-import 'pages/home_page.dart'; 
+import 'package:provider/provider.dart';
+import 'package:dynamic_color/dynamic_color.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // 如果报错，请运行 flutter pub add flutter_localizations
 
-void main() {
-  // 设置沉浸式状态栏（透明背景，黑色图标）
+import 'providers.dart';
+import 'pages/home_page.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final appState = AppState();
+  await appState.init(); // 等待本地配置读取完成
+
+  // 设置沉浸式状态栏
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent, // 顶部状态栏透明
-    statusBarIconBrightness: Brightness.dark, // 顶部图标变黑
-    systemNavigationBarColor: Colors.transparent, // 底部导航栏透明
-    systemNavigationBarIconBrightness: Brightness.dark, // 底部图标变黑
+    statusBarColor: Colors.transparent,
   ));
-  runApp(const MyApp());
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: appState),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -19,63 +32,66 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false, // 去掉右上角那个 debug 标签
-      title: 'Wallhaven',
-      
-      // ====================================================
-      // 全局主题配置 (复刻 CheckFirm 风格)
-      // ====================================================
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.light,
-        
-        // 核心背景色：温暖的浅灰色 (精准吸色结果)
-        scaffoldBackgroundColor: const Color(0xFFF2F2F2),
-        
-        // 颜色方案
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue, // 全局主色调为蓝色
-          background: const Color(0xFFF2F2F2), // 背景一致
-          surface: Colors.white, // 卡片表面为纯白
-        ),
+    final appState = context.watch<AppState>();
 
-        // 顶部导航栏主题 (统一去掉阴影，背景与页面融合)
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFF2F2F2), 
-          elevation: 0,
-          scrolledUnderElevation: 0, // 滚动时不要改变颜色
-          centerTitle: false, // 标题靠左
-          titleTextStyle: TextStyle(
-            color: Colors.black,
-            fontSize: 24, // 大标题字号
-            fontWeight: FontWeight.bold, // 加粗
-            fontFamily: 'Roboto', 
+    return DynamicColorBuilder(
+      builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+        // 构建配色方案
+        ColorScheme lightScheme;
+        ColorScheme darkScheme;
+
+        if (lightDynamic != null && appState.useMaterialYou) {
+          // 开启了动态取色
+          lightScheme = lightDynamic.harmony();
+          darkScheme = darkDynamic?.harmony() ?? const ColorScheme.dark();
+        } else {
+          // 未开启或不支持，使用默认蓝色
+          lightScheme = ColorScheme.fromSeed(seedColor: Colors.blue);
+          darkScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark);
+        }
+
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Wallhaven Client',
+          
+          // 语言支持
+          locale: appState.locale,
+          supportedLocales: const [Locale('zh'), Locale('en')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+
+          // 浅色主题
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: lightScheme,
+            scaffoldBackgroundColor: const Color(0xFFF2F2F2), // 经典灰白底
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Color(0xFFF2F2F2),
+              scrolledUnderElevation: 0,
+            ),
           ),
-          iconTheme: IconThemeData(color: Colors.black), // 图标黑色
-        ),
 
-        // 开关组件主题 (全局蓝色风格)
-        switchTheme: SwitchThemeData(
-          // 选中时的轨道颜色：蓝色
-          trackColor: MaterialStateProperty.resolveWith((states) {
-            if (states.contains(MaterialState.selected)) {
-              return Colors.blue;
-            }
-            return null;
-          }),
-          // 选中时的滑块颜色：白色
-          thumbColor: MaterialStateProperty.resolveWith((states) {
-            if (states.contains(MaterialState.selected)) {
-              return Colors.white;
-            }
-            return null;
-          }),
-        ),
-      ),
-      
-      // 启动页指向 HomePage
-      home: const HomePage(),
+          // 深色主题
+          darkTheme: ThemeData(
+            useMaterial3: true,
+            colorScheme: darkScheme,
+            // 核心功能：如果是 AMOLED 模式，背景纯黑，否则用深灰
+            scaffoldBackgroundColor: appState.useAmoled ? Colors.black : const Color(0xFF121212),
+            appBarTheme: AppBarTheme(
+              backgroundColor: appState.useAmoled ? Colors.black : const Color(0xFF121212),
+              scrolledUnderElevation: 0,
+            ),
+          ),
+          
+          // 当前主题模式
+          themeMode: appState.themeMode,
+          
+          home: const HomePage(),
+        );
+      },
     );
   }
 }
