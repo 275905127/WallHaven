@@ -14,9 +14,9 @@ class AppState extends ChangeNotifier {
       filters: [
         // 1. 分类 (Categories)
         FilterGroup(title: '分类 (Categories)', paramName: 'categories', type: 'bitmask', options: [
-            FilterOption(label: 'General', value: 'General'),
-            FilterOption(label: 'Anime', value: 'Anime'),
-            FilterOption(label: 'People', value: 'People'),
+            FilterOption(label: '常规', value: 'General'),
+            FilterOption(label: '动漫', value: 'Anime'),
+            FilterOption(label: '人物', value: 'People'),
         ]),
         // 2. 分级 (Purity)
         FilterGroup(title: '分级 (Purity)', paramName: 'purity', type: 'bitmask', options: [
