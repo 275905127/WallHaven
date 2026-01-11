@@ -148,7 +148,6 @@ class SettingsPage extends StatelessWidget {
                                 _showSourceConfigDialog(context, state, existingSource: source, index: index);
                               },
                             ),
-                            // === 🎨 修复点：使用主题色 (Primary) 代替 Colors.blue ===
                             if (isSelected) 
                               Icon(Icons.radio_button_checked, color: Theme.of(context).colorScheme.primary)
                             else
@@ -215,7 +214,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // === 图源配置弹窗 ===
   void _showSourceConfigDialog(BuildContext context, AppState state, {SourceConfig? existingSource, int? index}) {
     final isEditing = existingSource != null;
     final nameCtrl = TextEditingController(text: existingSource?.name);
@@ -224,10 +222,7 @@ class SettingsPage extends StatelessWidget {
     final listKeyCtrl = TextEditingController(text: existingSource?.listKey ?? "data");
     final thumbKeyCtrl = TextEditingController(text: existingSource?.thumbKey ?? "thumbs.large");
     final fullKeyCtrl = TextEditingController(text: existingSource?.fullKey ?? "path");
-    
-    // 临时存储筛选器列表
     List<FilterGroup> tempFilters = existingSource?.filters.toList() ?? [];
-
     bool showAdvanced = false;
 
     showDialog(
@@ -246,7 +241,6 @@ class SettingsPage extends StatelessWidget {
                   _buildInput(urlCtrl, "API 地址 (URL)"),
                   const SizedBox(height: 10),
                   
-                  // 可视化筛选规则编辑器入口
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.symmetric(vertical: 8),
@@ -256,7 +250,6 @@ class SettingsPage extends StatelessWidget {
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.all(16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        // 按钮颜色也跟随主题
                         foregroundColor: Theme.of(context).colorScheme.primary, 
                       ),
                       onPressed: () async {
@@ -272,7 +265,6 @@ class SettingsPage extends StatelessWidget {
 
                   _buildInput(apiKeyCtrl, "API Key (可选)"),
                   const SizedBox(height: 10),
-                  
                   TextButton(
                     onPressed: () => setState(() => showAdvanced = !showAdvanced),
                     style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.primary),
@@ -316,7 +308,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // === 筛选规则编辑器 (二级页面) ===
   Future<List<FilterGroup>?> _openFilterEditor(BuildContext context, List<FilterGroup> currentFilters) {
     return showDialog<List<FilterGroup>>(
       context: context,
@@ -416,7 +407,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // === 单个筛选组编辑器 (三级页面) ===
   Future<FilterGroup?> _openGroupEditor(BuildContext context, FilterGroup? group) {
     final titleCtrl = TextEditingController(text: group?.title);
     final paramCtrl = TextEditingController(text: group?.paramName);
@@ -511,7 +501,7 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // --- 外观设置 ---
+  // === 3. 外观设置 (重点修改：主题横向排列) ===
   void _showThemeDialog(BuildContext context, AppState state) {
     showDialog(
       context: context,
@@ -534,9 +524,19 @@ class SettingsPage extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    RadioListTile<ThemeMode>(title: const Text("跟随系统"), value: ThemeMode.system, groupValue: tempMode, shape: dynamicShape, onChanged: (v) => setState(() => tempMode = v!)),
-                    RadioListTile<ThemeMode>(title: const Text("浅色"), value: ThemeMode.light, groupValue: tempMode, shape: dynamicShape, onChanged: (v) => setState(() => tempMode = v!)),
-                    RadioListTile<ThemeMode>(title: const Text("深色"), value: ThemeMode.dark, groupValue: tempMode, shape: dynamicShape, onChanged: (v) => setState(() => tempMode = v!)),
+                    // === ✨ 修改点：横向排列的主题选择 ===
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildThemeRadio(context, "跟随系统", ThemeMode.system, tempMode, (v) => setState(() => tempMode = v)),
+                          _buildThemeRadio(context, "浅色", ThemeMode.light, tempMode, (v) => setState(() => tempMode = v)),
+                          _buildThemeRadio(context, "深色", ThemeMode.dark, tempMode, (v) => setState(() => tempMode = v)),
+                        ],
+                      ),
+                    ),
+
                     const Divider(height: 24),
                     SwitchListTile(title: const Text("动态取色"), value: tempMaterialYou, shape: dynamicShape, onChanged: (v) => setState(() => tempMaterialYou = v)),
                     SwitchListTile(title: const Text("纯黑背景 (AMOLED)"), value: tempAmoled, shape: dynamicShape, onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)),
@@ -560,6 +560,32 @@ class SettingsPage extends StatelessWidget {
           },
         );
       },
+    );
+  }
+  
+  // === ✨ 新增小组件：横向单选按钮 ===
+  Widget _buildThemeRadio(BuildContext context, String label, ThemeMode value, ThemeMode groupValue, ValueChanged<ThemeMode> onChanged) {
+    return InkWell(
+      onTap: () => onChanged(value),
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Radio<ThemeMode>(
+              value: value,
+              groupValue: groupValue,
+              onChanged: (v) => onChanged(v!),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+              activeColor: Theme.of(context).colorScheme.primary, // 跟随主题色
+            ),
+            const SizedBox(width: 4),
+            Text(label),
+          ],
+        ),
+      ),
     );
   }
 
@@ -666,7 +692,7 @@ class SettingsPage extends StatelessWidget {
           height: 40, 
           child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              trackHeight: 12, 
+              trackHeight: 12, // 轨道高度 12
               trackShape: const RoundedRectSliderTrackShape(),
               activeTrackColor: primaryColor,
               inactiveTrackColor: primaryColor.withOpacity(0.15),
