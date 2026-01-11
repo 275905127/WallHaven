@@ -65,9 +65,9 @@ class MyApp extends StatelessWidget {
           darkScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark, surface: darkSurface);
         }
 
-        // === 2. 统一形状 ===
-        const commonShape = RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(28)), 
+        // === 2. 统一形状 (动态读取设置) ===
+        final commonShape = RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(appState.cornerRadius)), 
         );
         
         // === 3. 统一转场动画 ===
@@ -87,13 +87,11 @@ class MyApp extends StatelessWidget {
         );
 
         // === 5. 统一弹窗样式 ===
-        // 修复：删除了 actionsAlignment，解决报错
         final dialogThemeLight = DialogThemeData(
           backgroundColor: lightSurface,
           elevation: 0,
           shape: commonShape,
-          alignment: Alignment.bottomCenter, // 保持底部悬浮
-          // actionsAlignment: MainAxisAlignment.spaceEvenly, // <--- 已删除，解决报错
+          alignment: Alignment.bottomCenter, 
           titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
           contentTextStyle: const TextStyle(fontSize: 16, color: Colors.black87),
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 24), 
@@ -103,8 +101,7 @@ class MyApp extends StatelessWidget {
           backgroundColor: darkSurface,
           elevation: 0,
           shape: commonShape,
-          alignment: Alignment.bottomCenter, // 保持底部悬浮
-          // actionsAlignment: MainAxisAlignment.spaceEvenly, // <--- 已删除，解决报错
+          alignment: Alignment.bottomCenter, 
           titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
           contentTextStyle: const TextStyle(fontSize: 16, color: Colors.white70),
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
