@@ -64,10 +64,11 @@ class _HomePageState extends State<HomePage> {
 
     final appState = context.read<AppState>();
     final currentSource = appState.currentSource;
-    final filters = appState.activeFilters;
+    // 获取所有动态参数
+    final activeParams = appState.activeParams;
     
-    // 生成一个简单的 hash 来判断源是否改变
-    String currentHash = "${currentSource.baseUrl}|${filters['q']}";
+    // Hash 判断逻辑，防止重复请求
+    String currentHash = "${currentSource.baseUrl}|${activeParams.toString()}";
 
     if (refresh || _lastSourceHash != currentHash) {
       setState(() {
@@ -80,22 +81,24 @@ class _HomePageState extends State<HomePage> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. 构建通用参数
+      // 1. 基础参数
       final queryParams = {
-        'page': _page, // 绝大多数 API 都用 page
-        // 如果有 Key，根据配置的参数名传进去
+        'page': _page,
         if (currentSource.apiKey.isNotEmpty) 
           currentSource.apiKeyParam: currentSource.apiKey,
-        // 搜索词
-        if (filters['q'] != null && filters['q'].toString().isNotEmpty) 
-          'q': filters['q'],
       };
 
-      // 2. 发起请求
+      // 2. 【关键】合并动态筛选参数
+      // 这里的 activeParams 里面现在包含了 "sorting", "categories" 等由 FilterPage 动态生成的值
+      queryParams.addAll(activeParams);
+
+      // 3. 发起请求
       var response = await Dio().get(
         currentSource.baseUrl,
         queryParameters: queryParams,
       );
+      
+      // ... (后续解析代码保持不变) ...
 
       // 3. 通用解析
       if (response.statusCode == 200) {
