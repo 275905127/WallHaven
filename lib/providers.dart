@@ -1,30 +1,32 @@
-import 'dart:convert'; // 新增：用于 JSON 转换
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // =======================
-// 1. 图源模型 (新增 JSON 转换能力)
+// 1. 图源模型 (只存地址和 Key，不再存筛选条件)
 // =======================
 class ImageSource {
   final String name;
   final String baseUrl;
-  final Map<String, dynamic> params;
+  final String apiKey; // 新增：API Key 单独存
 
-  ImageSource({required this.name, required this.baseUrl, this.params = const {}});
+  ImageSource({
+    required this.name, 
+    required this.baseUrl, 
+    this.apiKey = '',
+  });
 
-  // 把对象转成 JSON 字符串 (存)
   Map<String, dynamic> toJson() => {
     'name': name,
     'baseUrl': baseUrl,
-    'params': params,
+    'apiKey': apiKey,
   };
 
-  // 把 JSON 字符串转成对象 (取)
   factory ImageSource.fromJson(Map<String, dynamic> json) {
     return ImageSource(
       name: json['name'],
       baseUrl: json['baseUrl'],
-      params: json['params'] ?? {},
+      apiKey: json['apiKey'] ?? '',
     );
   }
 }
@@ -32,19 +34,28 @@ class ImageSource {
 class AppState extends ChangeNotifier {
   SharedPreferences? _prefs;
 
-  // 默认图源列表
+  // --- 图源列表 ---
   List<ImageSource> _sources = [
-    ImageSource(name: 'Wallhaven (官方源)', baseUrl: 'https://wallhaven.cc/api/v1/search'),
-    ImageSource(name: 'Wallhaven (动漫专区)', baseUrl: 'https://wallhaven.cc/api/v1/search', params: {'categories': '010'}), // 010 代表 Anime
-    ImageSource(name: 'Wallhaven (三次元)', baseUrl: 'https://wallhaven.cc/api/v1/search', params: {'categories': '001'}), // 001 代表 People
+    ImageSource(name: 'Wallhaven (默认)', baseUrl: 'https://wallhaven.cc/api/v1/search'),
   ];
-  
   int _currentSourceIndex = 0;
+
+  // --- 全局筛选状态 (像官网一样，随时可变) ---
+  // 默认：全分类(111)、全分级(111 - 需Key)、最新排序
+  Map<String, dynamic> _activeFilters = {
+    'categories': '111', // General/Anime/People
+    'purity': '100',     // SFW (默认安全)
+    'sorting': 'date_added',
+    'order': 'desc',
+    'topRange': '1M',
+    'q': '',             // 搜索关键词
+  };
 
   List<ImageSource> get sources => _sources;
   ImageSource get currentSource => _sources[_currentSourceIndex];
+  Map<String, dynamic> get activeFilters => _activeFilters;
 
-  // --- 主题与语言状态 ---
+  // --- 主题与语言 ---
   ThemeMode _themeMode = ThemeMode.system;
   bool _useMaterialYou = true;
   bool _useAmoled = false;
@@ -55,82 +66,73 @@ class AppState extends ChangeNotifier {
   bool get useAmoled => _useAmoled;
   Locale get locale => _locale;
 
-  // 初始化：读取本地所有配置
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     
-    // 1. 读取主题
+    // 读取主题/语言
     String? mode = _prefs?.getString('themeMode');
     if (mode == 'light') _themeMode = ThemeMode.light;
     if (mode == 'dark') _themeMode = ThemeMode.dark;
     _useMaterialYou = _prefs?.getBool('useMaterialYou') ?? true;
     _useAmoled = _prefs?.getBool('useAmoled') ?? false;
-    
-    // 2. 读取语言
     String? lang = _prefs?.getString('language');
     if (lang != null) _locale = Locale(lang);
 
-    // 3. 读取自定义图源 (核心逻辑)
+    // 读取自定义图源
     String? savedSources = _prefs?.getString('custom_sources');
     if (savedSources != null) {
       try {
         List<dynamic> jsonList = jsonDecode(savedSources);
-        // 合并默认源 + 保存的源 (或者直接覆盖，这里选择覆盖以支持用户删除默认源的情况，但为了简单我们先覆盖)
         _sources = jsonList.map((e) => ImageSource.fromJson(e)).toList();
       } catch (e) {
         debugPrint("读取图源失败: $e");
       }
     }
-
-    // 4. 读取上次选中的索引
     _currentSourceIndex = _prefs?.getInt('current_source_index') ?? 0;
-    // 防止越界（比如删除了源导致索引失效）
     if (_currentSourceIndex >= _sources.length) _currentSourceIndex = 0;
     
     notifyListeners();
   }
 
-  // --- 操作并保存 ---
+  // --- 核心：更新筛选条件 ---
+  void updateFilters(Map<String, dynamic> newFilters) {
+    _activeFilters.addAll(newFilters);
+    notifyListeners(); // 通知首页刷新
+  }
 
+  // --- 核心：更新搜索关键词 ---
+  void updateSearchQuery(String query) {
+    _activeFilters['q'] = query;
+    notifyListeners(); // 通知首页刷新
+  }
+
+  // --- 图源操作 ---
   void setSource(int index) {
     _currentSourceIndex = index;
-    _prefs?.setInt('current_source_index', index); // 保存选中项
+    _prefs?.setInt('current_source_index', index);
     notifyListeners();
   }
 
-  void addSource(String name, String url) {
-    _sources.add(ImageSource(name: name, baseUrl: url));
-    _saveSourcesToDisk(); // 保存列表
+  void addSource(String name, String apiKey) {
+    // 默认都用官网 API，区别只是 API Key 不同
+    const String defaultBaseUrl = 'https://wallhaven.cc/api/v1/search';
+    _sources.add(ImageSource(name: name, baseUrl: defaultBaseUrl, apiKey: apiKey));
+    _saveSourcesToDisk();
     notifyListeners();
   }
   
-  // 内部方法：把整个图源列表存到本地
   void _saveSourcesToDisk() {
     String jsonString = jsonEncode(_sources.map((e) => e.toJson()).toList());
     _prefs?.setString('custom_sources', jsonString);
   }
 
+  // --- 外观操作 ---
   void setThemeMode(ThemeMode mode) {
     _themeMode = mode;
     _prefs?.setString('themeMode', mode.name);
     notifyListeners();
   }
-
-  void setMaterialYou(bool value) {
-    _useMaterialYou = value;
-    _prefs?.setBool('useMaterialYou', value);
-    notifyListeners();
-  }
-
-  void setAmoled(bool value) {
-    _useAmoled = value;
-    _prefs?.setBool('useAmoled', value);
-    notifyListeners();
-  }
-
-  void setLanguage(String code) {
-    _locale = Locale(code);
-    _prefs?.setString('language', code);
-    notifyListeners();
-  }
+  void setMaterialYou(bool v) { _useMaterialYou = v; _prefs?.setBool('useMaterialYou', v); notifyListeners(); }
+  void setAmoled(bool v) { _useAmoled = v; _prefs?.setBool('useAmoled', v); notifyListeners(); }
+  void setLanguage(String v) { _locale = Locale(v); _prefs?.setString('language', v); notifyListeners(); }
 }
