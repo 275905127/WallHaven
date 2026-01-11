@@ -14,7 +14,6 @@ class SettingsPage extends StatelessWidget {
 
     return Scaffold(
       body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
         slivers: [
           SliverAppBar(
             pinned: true,
