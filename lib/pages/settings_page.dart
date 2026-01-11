@@ -148,8 +148,9 @@ class SettingsPage extends StatelessWidget {
                                 _showSourceConfigDialog(context, state, existingSource: source, index: index);
                               },
                             ),
+                            // === 🎨 修复点：使用主题色 (Primary) 代替 Colors.blue ===
                             if (isSelected) 
-                              const Icon(Icons.radio_button_checked, color: Colors.blue)
+                              Icon(Icons.radio_button_checked, color: Theme.of(context).colorScheme.primary)
                             else
                               const Icon(Icons.radio_button_unchecked, color: Colors.grey),
                           ],
@@ -214,7 +215,7 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // === 🚀 核心修改：图源配置弹窗 (加入筛选器编辑器入口) ===
+  // === 图源配置弹窗 ===
   void _showSourceConfigDialog(BuildContext context, AppState state, {SourceConfig? existingSource, int? index}) {
     final isEditing = existingSource != null;
     final nameCtrl = TextEditingController(text: existingSource?.name);
@@ -245,7 +246,7 @@ class SettingsPage extends StatelessWidget {
                   _buildInput(urlCtrl, "API 地址 (URL)"),
                   const SizedBox(height: 10),
                   
-                  // === ✨ 新增：可视化筛选规则编辑器入口 ===
+                  // 可视化筛选规则编辑器入口
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.symmetric(vertical: 8),
@@ -255,9 +256,10 @@ class SettingsPage extends StatelessWidget {
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.all(16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        // 按钮颜色也跟随主题
+                        foregroundColor: Theme.of(context).colorScheme.primary, 
                       ),
                       onPressed: () async {
-                        // 打开二级编辑器
                         final result = await _openFilterEditor(context, List.from(tempFilters));
                         if (result != null) {
                           setState(() {
@@ -298,7 +300,7 @@ class SettingsPage extends StatelessWidget {
                   listKey: listKeyCtrl.text,
                   thumbKey: thumbKeyCtrl.text,
                   fullKey: fullKeyCtrl.text,
-                  filters: tempFilters, // 保存编辑后的 filters
+                  filters: tempFilters, 
                 );
                 if (isEditing) {
                   state.updateSource(index!, newConfig);
@@ -314,7 +316,7 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // === 🛠️ 筛选规则编辑器 (二级页面) ===
+  // === 筛选规则编辑器 (二级页面) ===
   Future<List<FilterGroup>?> _openFilterEditor(BuildContext context, List<FilterGroup> currentFilters) {
     return showDialog<List<FilterGroup>>(
       context: context,
@@ -383,6 +385,11 @@ class SettingsPage extends StatelessWidget {
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.add),
                       label: const Text("添加筛选组"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        foregroundColor: Theme.of(context).colorScheme.onSurface,
+                        elevation: 0,
+                      ),
                       onPressed: () async {
                         final newGroup = await _openGroupEditor(context, null);
                         if (newGroup != null) {
@@ -409,7 +416,7 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // === 🛠️ 单个筛选组编辑器 (三级页面) ===
+  // === 单个筛选组编辑器 (三级页面) ===
   Future<FilterGroup?> _openGroupEditor(BuildContext context, FilterGroup? group) {
     final titleCtrl = TextEditingController(text: group?.title);
     final paramCtrl = TextEditingController(text: group?.paramName);
@@ -426,7 +433,6 @@ class SettingsPage extends StatelessWidget {
             insetPadding: const EdgeInsets.all(16),
             child: Container(
               padding: const EdgeInsets.all(20),
-              // 高度自适应，防止溢出
               constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
               child: SingleChildScrollView(
                 child: Column(
@@ -482,6 +488,7 @@ class SettingsPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 20),
                     ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, foregroundColor: Colors.white),
                       onPressed: () {
                         if (titleCtrl.text.isNotEmpty && paramCtrl.text.isNotEmpty) {
                            Navigator.pop(ctx, FilterGroup(
@@ -504,7 +511,7 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // --- 其他原有弹窗保持不变 ---
+  // --- 外观设置 ---
   void _showThemeDialog(BuildContext context, AppState state) {
     showDialog(
       context: context,
