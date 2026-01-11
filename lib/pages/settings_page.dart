@@ -20,37 +20,39 @@ class _SettingsPageState extends State<SettingsPage> {
       backgroundColor: const Color(0xFFF2F2F2),
       
       body: CustomScrollView(
-        // 【关键点1】必须用 BouncingScrollPhysics 才能有下拉回弹的物理效果
-        // AlwaysScrollableScrollPhysics 确保即使内容少也能下拉
+        // 依然保留 BouncingScrollPhysics，保证列表滚动时的回弹手感
         physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
         
         slivers: [
-          // 【关键点2】使用 SliverAppBar.large 实现大标题交互
-          SliverAppBar.large(
-            stretch: true, // 【核心】开启下拉拉伸效果（放大）
-            pinned: true,  // 上滑时标题栏固定在顶部
+          // 【核心修改】：回归最标准的 AppBar
+          // 不再有 stretch (拉伸)、flexibleSpace (弹性空间) 和 expandedHeight (展开高度)
+          const SliverAppBar(
+            pinned: true, // 标题栏固定在顶部，不随滑动消失
+            floating: false,
             
-            // 标题文本
-            title: const Text("设置"),
+            // 标题直接写在这里
+            title: Text(
+              "设置",
+              style: TextStyle(
+                color: Colors.black, 
+                fontWeight: FontWeight.bold,
+                fontSize: 20, // 标准标题大小
+              ),
+            ),
             
-            // 【关键点3】控制标题位置
-            // centerTitle: false 表示标题平时靠左（在返回键旁边）
-            // 如果你希望能“下拉时居中”，这是原生组件很难做到的动态动画，
-            // 但开启 stretch 后，背景和文字的放大回弹会非常有质感。
+            // 明确靠左显示
             centerTitle: false, 
 
-            // 颜色配置
-            backgroundColor: const Color(0xFFF2F2F2),
+            // 背景色与页面一致
+            backgroundColor: Color(0xFFF2F2F2),
             surfaceTintColor: Colors.transparent, // 滚动时不改变颜色
+            elevation: 0,
             
-            // 展开高度，120-140 是比较舒适的大标题高度
-            expandedHeight: 140.0,
-            
-            // 自动处理返回键颜色
-            iconTheme: const IconThemeData(color: Colors.black),
+            // 返回键颜色
+            iconTheme: IconThemeData(color: Colors.black),
           ),
 
-          // 内容列表
+          // 下面的内容列表保持不变
           SliverList(
             delegate: SliverChildListDelegate([
               Padding(
@@ -166,6 +168,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // 样式：白色圆角卡片
   BoxDecoration _boxDecoration() {
     return BoxDecoration(
       color: Colors.white,
@@ -176,6 +179,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // 组件：纯文字列表项
   Widget _buildTile({required String title, required String subtitle}) {
     return InkWell(
       onTap: () {},
@@ -200,6 +204,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
   
+  // 组件：开关列表项
   Widget _buildSwitchTile({
     required String title, 
     required String subtitle, 
@@ -217,6 +222,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // 组件：分割线
   Widget _divider() {
     return const Divider(height: 1, indent: 20, endIndent: 20, color: Color(0xFFF0F0F0));
   }
