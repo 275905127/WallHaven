@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:dio/dio.dart';
-import 'package:provider/provider.dart'; // 引入 Provider
+import 'package:provider/provider.dart';
 
-// 引入你的内部文件
-import '../models/wallpaper.dart';
-import '../providers.dart'; // 引入刚才写的全局状态管理
+import '../models/wallpaper.dart'; // 我们依然用这个模型来承载最终显示的图片
+import '../models/source_config.dart'; // 新的配置模型
+import '../providers.dart';
 import 'settings_page.dart';
 import 'filter_page.dart';
 import 'image_detail_page.dart';
@@ -18,25 +18,18 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // 数据源
   final List<Wallpaper> _wallpapers = [];
-  
-  // 状态控制
   bool _isLoading = false;
   int _page = 1; 
   final ScrollController _scrollController = ScrollController();
   
-  // 用来记录当前加载的是哪个图源，以便检测变化
-  String? _lastSourceUrl;
+  // 记录上次请求的 URL 以检测变化
+  String? _lastSourceHash;
 
   @override
   void initState() {
     super.initState();
-    // 初始加载
-    // 注意：initState 里不能直接用 context.read，需要加一个延时
     Future.microtask(() => _fetchWallpapers());
-    
-    // 监听滚动，触底加载更多
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
         _fetchWallpapers();
@@ -50,65 +43,96 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  // 核心：请求 Wallhaven API (支持多图源)
-  // 修改 _fetchWallpapers 方法
+  // --- 通用 JSON 解析器 ---
+  // 比如传入 obj, "thumbs.large" -> 返回 obj['thumbs']['large']
+  dynamic _getValueByPath(dynamic json, String path) {
+    if (path.isEmpty) return json;
+    List<String> keys = path.split('.');
+    dynamic current = json;
+    for (String key in keys) {
+      if (current is Map && current.containsKey(key)) {
+        current = current[key];
+      } else {
+        return null;
+      }
+    }
+    return current;
+  }
+
   Future<void> _fetchWallpapers({bool refresh = false}) async {
     if (_isLoading) return;
 
     final appState = context.read<AppState>();
     final currentSource = appState.currentSource;
-    final filters = appState.activeFilters; // 获取刚才筛选页设置的参数
+    final filters = appState.activeFilters;
+    
+    // 生成一个简单的 hash 来判断源是否改变
+    String currentHash = "${currentSource.baseUrl}|${filters['q']}";
 
-    if (refresh) {
+    if (refresh || _lastSourceHash != currentHash) {
       setState(() {
         _page = 1;
         _wallpapers.clear();
+        _lastSourceHash = currentHash;
       });
     }
 
     setState(() => _isLoading = true);
 
     try {
-      // 1. 基础参数
+      // 1. 构建通用参数
       final queryParams = {
-        'page': _page,
-        'apikey': currentSource.apiKey, // 从图源拿 Key
-        // 从全局筛选拿参数
-        'categories': filters['categories'],
-        'purity': filters['purity'],
-        'sorting': filters['sorting'],
-        'order': filters['order'],
-        'topRange': filters['topRange'],
-        'q': filters['q'], // 搜索词
+        'page': _page, // 绝大多数 API 都用 page
+        // 如果有 Key，根据配置的参数名传进去
+        if (currentSource.apiKey.isNotEmpty) 
+          currentSource.apiKeyParam: currentSource.apiKey,
+        // 搜索词
+        if (filters['q'] != null && filters['q'].toString().isNotEmpty) 
+          'q': filters['q'],
       };
 
-      // 2. 请求
+      // 2. 发起请求
       var response = await Dio().get(
         currentSource.baseUrl,
         queryParameters: queryParams,
       );
 
-      // 3. 处理数据... (同之前)
+      // 3. 通用解析
       if (response.statusCode == 200) {
-        var dataList = response.data['data'] as List;
-        List<Wallpaper> newWallpapers = dataList
-            .map((json) => Wallpaper.fromJson(json))
-            .toList();
+        // 根据配置的 listKey 找到数组 (例如 'data' 或 'hits')
+        var rawList = _getValueByPath(response.data, currentSource.listKey);
+        
+        if (rawList is List) {
+          List<Wallpaper> newWallpapers = rawList.map((item) {
+            // 根据配置的 key 动态取值
+            String thumb = _getValueByPath(item, currentSource.thumbKey) ?? "";
+            String full = _getValueByPath(item, currentSource.fullKey) ?? thumb;
+            String id = _getValueByPath(item, currentSource.idKey).toString();
 
-        if (mounted) {
-          setState(() {
-            _wallpapers.addAll(newWallpapers);
-            _page++;
-            _isLoading = false;
-          });
+            return Wallpaper(
+              id: id,
+              thumbUrl: thumb,
+              fullSizeUrl: full,
+              resolution: "", // 可选
+              views: 0,       // 可选
+              favorites: 0,   // 可选
+            );
+          }).where((w) => w.thumbUrl.isNotEmpty).toList(); // 过滤掉无效数据
+
+          if (mounted) {
+            setState(() {
+              _wallpapers.addAll(newWallpapers);
+              _page++;
+              _isLoading = false;
+            });
+          }
         }
       }
     } catch (e) {
-      // ... 错误处理
+      debugPrint("Load Error: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
 
   Future<void> _handleRefresh() async {
     await _fetchWallpapers(refresh: true);
@@ -116,89 +140,53 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // 监听全局状态：如果语言变了，或者主题变了，这里会重绘
     final appState = context.watch<AppState>();
 
-    // 检测：如果从设置页回来，发现图源变了，但列表还没空，自动刷新一下
-    if (_lastSourceUrl != null && _lastSourceUrl != appState.currentSource.baseUrl) {
-       // 这里做一个延迟刷新，避免构建时setState报错
+    // 自动刷新逻辑
+    if (_lastSourceHash != null && 
+        _lastSourceHash != "${appState.currentSource.baseUrl}|${appState.activeFilters['q']}") {
        Future.microtask(() => _fetchWallpapers(refresh: true));
     }
-
-    // 根据语言显示不同的提示
-    final isZh = appState.locale.languageCode == 'zh';
 
     return Scaffold(
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _handleRefresh,
-          // 使用主题色作为刷新指示器颜色
           color: Theme.of(context).colorScheme.primary,
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          edgeOffset: kToolbarHeight,
-          
           child: CustomScrollView(
             controller: _scrollController,
             slivers: [
               SliverAppBar(
-                pinned: false, // 跟随滑动隐藏
-                floating: true, // 下拉即出现
-                // 标题显示当前图源名称，不仅好看，还能让用户知道自己在看哪里
+                pinned: false,
+                floating: true,
                 title: Text(appState.currentSource.name),
                 actions: [
                   IconButton(
-  icon: const Icon(Icons.search, size: 26),
-  onPressed: () async {
-    // 简单的搜索弹窗
-    final query = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        final ctrl = TextEditingController();
-        return AlertDialog(
-          content: TextField(
-            controller: ctrl, 
-            autofocus: true,
-            decoration: const InputDecoration(hintText: "输入关键词...")
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text("搜索"))
-          ],
-        );
-      }
-    );
-    
-    if (query != null && query.isNotEmpty) {
-      // 更新全局搜索词 -> 自动触发首页刷新
-      context.read<AppState>().updateSearchQuery(query);
-    }
-  },
-),
-
-                  IconButton(
-                    icon: const Icon(Icons.filter_list_alt, size: 26),
-                    tooltip: isZh ? '筛选' : 'Filter',
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const FilterPage()),
+                    icon: const Icon(Icons.search, size: 26),
+                    onPressed: () async {
+                      final query = await showDialog<String>(
+                        context: context,
+                        builder: (ctx) {
+                          final ctrl = TextEditingController();
+                          return AlertDialog(
+                            content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: "Search...")),
+                            actions: [TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text("Go"))],
+                          );
+                        }
                       );
+                      if (query != null) context.read<AppState>().updateSearchQuery(query);
                     },
                   ),
                   IconButton(
                     icon: const Icon(Icons.settings_outlined, size: 26),
-                    tooltip: isZh ? '设置' : 'Settings',
                     onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const SettingsPage()),
-                      );
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPage()));
                     },
                   ),
                   const SizedBox(width: 12),
                 ],
               ),
 
-              // 瀑布流列表
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverMasonryGrid.count(
@@ -212,7 +200,6 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               
-              // 底部加载 Loading
               if (_isLoading)
                 const SliverToBoxAdapter(
                   child: Padding(
@@ -220,9 +207,8 @@ class _HomePageState extends State<HomePage> {
                     child: Center(child: CircularProgressIndicator()),
                   ),
                 ),
-              
-              // 底部安全留白
-              const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                
+              const SliverToBoxAdapter(child: SizedBox(height: 50)),
             ],
           ),
         ),
@@ -230,24 +216,14 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // 辅助组件：单张壁纸卡片 (纯净版 - 无底栏)
   Widget _buildWallpaperItem(Wallpaper wallpaper) {
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ImageDetailPage(
-              imageUrl: wallpaper.fullSizeUrl, // 传入原图地址
-              heroTag: wallpaper.id,
-            ),
-          ),
-        );
+        Navigator.push(context, MaterialPageRoute(builder: (context) => ImageDetailPage(imageUrl: wallpaper.fullSizeUrl, heroTag: wallpaper.id)));
       },
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          // 占位色：使用当前主题的 surfaceContainerHighest 颜色，适配深色模式
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
         ),
         child: ClipRRect(
@@ -255,33 +231,9 @@ class _HomePageState extends State<HomePage> {
           child: Hero(
             tag: wallpaper.id,
             child: Image.network(
-              wallpaper.thumbUrl, // 列表只显示缩略图
+              wallpaper.thumbUrl,
               fit: BoxFit.cover,
-              // 加载过程优化
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return AspectRatio(
-                  aspectRatio: 0.7, // 预设比例，防止图片跳动
-                  child: Container(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                    child: const Center(
-                      child: SizedBox(
-                        width: 20, height: 20, 
-                        child: CircularProgressIndicator(strokeWidth: 2)
-                      )
-                    ),
-                  ),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) {
-                return AspectRatio(
-                  aspectRatio: 1,
-                  child: Container(
-                    color: Colors.grey[800],
-                    child: const Icon(Icons.broken_image, color: Colors.white54),
-                  ),
-                );
-              },
+              errorBuilder: (_,__,___) => const SizedBox(height: 150, child: Icon(Icons.broken_image)),
             ),
           ),
         ),
