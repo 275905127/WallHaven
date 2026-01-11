@@ -29,7 +29,7 @@ void main() async {
   );
 }
 
-// === 1. 自定义全局滚动行为 ===
+// === 全局滚动行为：统一回弹手感 ===
 class AppScrollBehavior extends MaterialScrollBehavior {
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) {
@@ -46,7 +46,7 @@ class MyApp extends StatelessWidget {
 
     return DynamicColorBuilder(
       builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
-        // === 2. 统一颜色定义 ===
+        // === 1. 统一颜色 ===
         const lightBg = Color(0xFFF1F1F3);
         const lightSurface = Color(0xFFFFFDFD);
         
@@ -66,12 +66,12 @@ class MyApp extends StatelessWidget {
           darkScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark, surface: darkSurface);
         }
 
-        // === 3. 统一形状 ===
+        // === 2. 统一形状 (28px 大圆角) ===
         const commonShape = RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(28)), 
         );
         
-        // === 4. 统一转场动画 ===
+        // === 3. 统一转场动画 ===
         const pageTransitions = PageTransitionsTheme(
           builders: {
             TargetPlatform.android: ZoomPageTransitionsBuilder(),
@@ -79,7 +79,7 @@ class MyApp extends StatelessWidget {
           },
         );
 
-        // === 5. 统一字体样式 ===
+        // === 4. 统一字体 ===
         final textThemeBase = Theme.of(context).textTheme;
         final appTextTheme = textThemeBase.copyWith(
           titleLarge: textThemeBase.titleLarge?.copyWith(fontWeight: FontWeight.bold, fontSize: 20),
@@ -87,23 +87,29 @@ class MyApp extends StatelessWidget {
           bodyMedium: textThemeBase.bodyMedium?.copyWith(fontSize: 14),
         );
 
-        // 【修复点】：使用 DialogThemeData 替代 DialogTheme
+        // === 5. 统一弹窗样式 (核心修改) ===
+        // 这里定义后，全 App 的 AlertDialog 都会变成“底部悬浮”样式
         final dialogThemeLight = DialogThemeData(
           backgroundColor: lightSurface,
           elevation: 0,
           shape: commonShape,
+          alignment: Alignment.bottomCenter, // <--- 关键：全局下沉
+          actionsAlignment: MainAxisAlignment.spaceEvenly, // <--- 关键：按钮均匀分布
           titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
           contentTextStyle: const TextStyle(fontSize: 16, color: Colors.black87),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          // 定义内边距，模拟悬浮感
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 24), 
         );
         
         final dialogThemeDark = DialogThemeData(
           backgroundColor: darkSurface,
           elevation: 0,
           shape: commonShape,
+          alignment: Alignment.bottomCenter, // <--- 关键
+          actionsAlignment: MainAxisAlignment.spaceEvenly, // <--- 关键
           titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
           contentTextStyle: const TextStyle(fontSize: 16, color: Colors.white70),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         );
 
         return MaterialApp(
@@ -133,7 +139,6 @@ class MyApp extends StatelessWidget {
               iconTheme: const IconThemeData(color: Colors.black),
             ),
             
-            // 【修复点】：使用 CardThemeData
             cardTheme: CardThemeData(
               color: lightSurface, 
               elevation: 0, 
@@ -141,12 +146,14 @@ class MyApp extends StatelessWidget {
               shape: commonShape
             ),
             
+            // 应用弹窗主题
             dialogTheme: dialogThemeLight,
 
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
               )
             ),
             
@@ -154,6 +161,14 @@ class MyApp extends StatelessWidget {
               backgroundColor: lightSurface,
               modalBackgroundColor: lightSurface,
               shape: commonShape,
+            ),
+            
+            // 输入框样式统一
+            inputDecorationTheme: const InputDecorationTheme(
+              filled: true,
+              fillColor: Colors.black12,
+              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide.none),
+              isDense: true,
             ),
           ),
 
@@ -172,7 +187,6 @@ class MyApp extends StatelessWidget {
               iconTheme: const IconThemeData(color: Colors.white),
             ),
             
-            // 【修复点】：使用 CardThemeData
             cardTheme: CardThemeData(
               color: darkSurface, 
               elevation: 0, 
@@ -180,12 +194,14 @@ class MyApp extends StatelessWidget {
               shape: commonShape
             ),
             
+            // 应用弹窗主题
             dialogTheme: dialogThemeDark,
 
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
               )
             ),
             
@@ -193,6 +209,13 @@ class MyApp extends StatelessWidget {
               backgroundColor: darkSurface,
               modalBackgroundColor: darkSurface,
               shape: commonShape,
+            ),
+            
+            inputDecorationTheme: const InputDecorationTheme(
+              filled: true,
+              fillColor: Colors.white10,
+              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide.none),
+              isDense: true,
             ),
           ),
           
