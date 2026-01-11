@@ -36,7 +36,7 @@ class SettingsPage extends StatelessWidget {
                           _divider(),
                           _buildTile(context, title: "语言", subtitle: appState.locale.languageCode == 'zh' ? "简体中文" : "English", icon: Icons.language, onTap: () => _showLanguageDialog(context, appState)),
                           _divider(),
-                          _buildTile(context, title: "图源管理", subtitle: "切换、编辑或删除", icon: Icons.source_outlined, trailing: const Icon(Icons.chevron_right, color: Colors.grey), onTap: () => _showSourceManagerDialog(context)),
+                          _buildTile(context, title: "图源管理", subtitle: "切换、编辑或删除图源", icon: Icons.source_outlined, trailing: const Icon(Icons.chevron_right, color: Colors.grey), onTap: () => _showSourceManagerDialog(context)),
                         ],
                       ),
                     ),
@@ -50,6 +50,88 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
+  // --- 核心：图源管理弹窗 ---
+  void _showSourceManagerDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Consumer<AppState>(
+          builder: (context, state, child) {
+            return _buildBottomDialog(
+              context,
+              title: "图源管理",
+              confirmText: "关闭",
+              hideCancel: true,
+              onConfirm: () => Navigator.pop(context),
+              content: SizedBox(
+                // 限制高度，防止图源多了以后撑爆屏幕
+                height: MediaQuery.of(context).size.height * 0.4,
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: state.sources.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final source = state.sources[index];
+                    final isSelected = state.currentSource.name == source.name;
+
+                    return InkWell(
+                      onTap: () => state.setSource(index),
+                      borderRadius: BorderRadius.circular(16),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected ? Colors.blue : const Color(0xFFEEEEEE),
+                            width: 1.5,
+                          ),
+                          color: isSelected ? Colors.blue.withOpacity(0.05) : Colors.transparent,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              source.name == 'Wallhaven' ? Icons.verified_user : Icons.hub_outlined,
+                              color: isSelected ? Colors.blue : Colors.grey,
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    source.name,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: isSelected ? Colors.blue : Colors.black,
+                                    ),
+                                  ),
+                                  Text(
+                                    source.baseUrl,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (isSelected)
+                              const Icon(Icons.check_circle, color: Colors.blue, size: 20),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // --- 通用底部弹窗框架 (复刻 UI 点) ---
   Widget _buildBottomDialog(BuildContext context, {
     required String title,
     required Widget content,
@@ -59,49 +141,54 @@ class SettingsPage extends StatelessWidget {
   }) {
     return Dialog(
       alignment: Alignment.bottomCenter,
-      insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      insetPadding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black)),
+                    if (title == "图源管理") // 可以在这里加个快速添加按钮
+                       IconButton(onPressed: (){}, icon: const Icon(Icons.add_circle_outline, color: Colors.blue))
+                  ],
+                ),
+                const SizedBox(height: 16),
                 content,
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFFF1F3F4)),
-          IntrinsicHeight(
+          Container(
+            height: 64,
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: Color(0xFFEEEEEE), width: 0.8)),
+            ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (!hideCancel)
                   Expanded(
                     child: InkWell(
                       onTap: () => Navigator.pop(context),
                       borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(32)),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
-                        alignment: Alignment.center,
-                        child: const Text("取消", style: TextStyle(color: Color(0xFF5F6368), fontSize: 16, fontWeight: FontWeight.bold)),
+                      child: const Center(
+                        child: Text("取消", style: TextStyle(color: Color(0xFF666666), fontSize: 16, fontWeight: FontWeight.w500)),
                       ),
                     ),
                   ),
                 if (!hideCancel)
-                  const VerticalDivider(width: 1, thickness: 1, color: Color(0xFFF1F3F4), indent: 15, endIndent: 15),
+                  Container(width: 0.8, height: 28, color: const Color(0xFFEEEEEE)),
                 Expanded(
                   child: InkWell(
                     onTap: onConfirm,
                     borderRadius: hideCancel 
                         ? const BorderRadius.vertical(bottom: Radius.circular(32)) 
                         : const BorderRadius.only(bottomRight: Radius.circular(32)),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      alignment: Alignment.center,
+                    child: Center(
                       child: Text(confirmText, style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ),
@@ -114,16 +201,27 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // --- 其他方法逻辑省略，确保代码完整可运行 ---
+  // --- 其他辅助组件 ---
   Widget _buildCurrentSourceInfo(AppState appState, Color textColor) {
-    return Row(children: [
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text("当前图源", style: TextStyle(color: Colors.grey, fontSize: 13)),
-        const SizedBox(height: 6),
-        Text(appState.currentSource.name, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
-      ])),
-      CircleAvatar(radius: 26, backgroundColor: Colors.blue.withOpacity(0.1), child: const Icon(Icons.hub, color: Colors.blue)),
-    ]);
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("当前图源", style: TextStyle(color: Colors.grey, fontSize: 13)),
+              const SizedBox(height: 6),
+              Text(appState.currentSource.name, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
+            ],
+          ),
+        ),
+        CircleAvatar(
+          radius: 26,
+          backgroundColor: Colors.blue.withOpacity(0.1),
+          child: const Icon(Icons.hub, color: Colors.blue),
+        ),
+      ],
+    );
   }
 
   void _showThemeDialog(BuildContext context, AppState state) {
@@ -132,9 +230,9 @@ class SettingsPage extends StatelessWidget {
       return StatefulBuilder(builder: (context, setState) => _buildBottomDialog(
         context, title: "外观设置",
         content: Column(children: [
-          RadioListTile(title: const Text("跟随系统"), value: ThemeMode.system, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
-          RadioListTile(title: const Text("浅色"), value: ThemeMode.light, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
-          RadioListTile(title: const Text("深色"), value: ThemeMode.dark, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
+          _buildRadio(title: "跟随系统", value: ThemeMode.system, group: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
+          _buildRadio(title: "浅色", value: ThemeMode.light, group: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
+          _buildRadio(title: "深色", value: ThemeMode.dark, group: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
         ]),
         onConfirm: () { state.setThemeMode(tempMode); Navigator.pop(context); },
       ));
@@ -147,22 +245,21 @@ class SettingsPage extends StatelessWidget {
       return StatefulBuilder(builder: (context, setState) => _buildBottomDialog(
         context, title: "选择语言",
         content: Column(children: [
-          RadioListTile(title: const Text("简体中文"), value: 'zh', groupValue: tempLang, onChanged: (v) => setState(() => tempLang = v!)),
-          RadioListTile(title: const Text("English"), value: 'en', groupValue: tempLang, onChanged: (v) => setState(() => tempLang = v!)),
+          _buildRadio(title: "简体中文", value: 'zh', group: tempLang, onChanged: (v) => setState(() => tempLang = v!)),
+          _buildRadio(title: "English", value: 'en', group: tempLang, onChanged: (v) => setState(() => tempLang = v!)),
         ]),
         onConfirm: () { state.setLanguage(tempLang); Navigator.pop(context); },
       ));
     });
   }
 
-  void _showSourceManagerDialog(BuildContext context) {
-    final state = context.read<AppState>();
-    showDialog(context: context, builder: (context) => _buildBottomDialog(
-      context, title: "图源管理",
-      content: const Text("这里可以自由切换 Wallhaven 或其他源"),
-      onConfirm: () => Navigator.pop(context),
-      confirmText: "关闭", hideCancel: true,
-    ));
+  Widget _buildRadio<T>({required String title, required T value, required T group, required ValueChanged<T?> onChanged}) {
+    return RadioListTile<T>(
+      title: Text(title, style: const TextStyle(fontSize: 16)),
+      value: value, groupValue: group, onChanged: onChanged,
+      contentPadding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+    );
   }
 
   Widget _buildCard(BuildContext context, {required Widget child}) => Card(child: Padding(padding: const EdgeInsets.all(20), child: child));
