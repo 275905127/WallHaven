@@ -9,9 +9,7 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
-    // 直接从全局 Theme 获取统一的颜色，无需手动计算！
-    final cardColor = Theme.of(context).cardTheme.color;
-    // 文本颜色根据背景自动适配
+    // 自动获取主题色
     final textColor = Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
 
     return Scaffold(
@@ -31,7 +29,7 @@ class SettingsPage extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Column(
                   children: [
-                    // 卡片 1：当前图源信息
+                    // 当前图源卡片
                     _buildCard(
                       context,
                       child: Row(
@@ -61,7 +59,7 @@ class SettingsPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
 
-                    // 卡片 2：外观与功能
+                    // 设置项卡片
                     _buildCard(
                       context,
                       child: Column(
@@ -82,14 +80,13 @@ class SettingsPage extends StatelessWidget {
                             onTap: () => _showLanguageDialog(context, appState),
                           ),
                           _divider(),
-                          // 图源管理入口
                           _buildTile(
                             context,
                             title: appState.locale.languageCode == 'zh' ? "图源管理" : "Source Manager",
                             subtitle: appState.locale.languageCode == 'zh' ? "添加、切换或导入配置" : "Manage sources",
                             icon: Icons.source_outlined,
                             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-                            onTap: () => _showSourceDialog(context, appState),
+                            onTap: () => _showSourceManagerDialog(context, appState),
                           ),
                         ],
                       ),
@@ -110,176 +107,219 @@ class SettingsPage extends StatelessWidget {
     String mode = "跟随系统";
     if (state.themeMode == ThemeMode.light) mode = "浅色";
     if (state.themeMode == ThemeMode.dark) mode = "深色";
-    if (state.useMaterialYou) mode += " + 动态";
-    if (state.useAmoled && state.themeMode != ThemeMode.light) mode += " (AMOLED)";
     return mode;
   }
 
-  // 1. 主题设置弹窗
+  // ==========================================
+  // 核心升级：所有弹窗统一改为 AlertDialog
+  // 样式：圆角28px，背景色跟随卡片，按钮底部均匀分布
+  // ==========================================
+
+  // 1. 主题设置 (复刻参考图的单选列表样式)
   void _showThemeDialog(BuildContext context, AppState state) {
-    showModalBottomSheet(
-      context: context,
-      // 样式已经在 main.dart 统一配置了，这里不需要再写
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text("外观设置", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 20),
-              const Text("深色模式", style: TextStyle(fontSize: 14, color: Colors.grey)),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildThemeOption(context, state, "跟随系统", ThemeMode.system),
-                  _buildThemeOption(context, state, "浅色", ThemeMode.light),
-                  _buildThemeOption(context, state, "深色", ThemeMode.dark),
-                ],
-              ),
-              const SizedBox(height: 20),
-              SwitchListTile(
-                title: const Text("动态取色 (Material You)"),
-                value: state.useMaterialYou,
-                onChanged: (v) => state.setMaterialYou(v),
-                contentPadding: EdgeInsets.zero,
-              ),
-              SwitchListTile(
-                title: const Text("纯黑背景 (AMOLED)"),
-                subtitle: const Text("仅在深色模式下生效"),
-                value: state.useAmoled,
-                onChanged: state.themeMode == ThemeMode.light ? null : (v) => state.setAmoled(v),
-                contentPadding: EdgeInsets.zero,
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildThemeOption(BuildContext context, AppState state, String label, ThemeMode mode) {
-    final isSelected = state.themeMode == mode;
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (v) { if (v) state.setThemeMode(mode); },
-    );
-  }
-
-  // 2. 语言设置弹窗
-  void _showLanguageDialog(BuildContext context, AppState state) {
     showDialog(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text("选择语言 / Language"),
-        children: [
-          SimpleDialogOption(
-            onPressed: () { state.setLanguage('zh'); Navigator.pop(context); },
-            child: const Padding(padding: EdgeInsets.all(12), child: Text("简体中文")),
-          ),
-          SimpleDialogOption(
-            onPressed: () { state.setLanguage('en'); Navigator.pop(context); },
-            child: const Padding(padding: EdgeInsets.all(12), child: Text("English")),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 3. 图源列表弹窗 (含导入功能)
-  void _showSourceDialog(BuildContext context, AppState state) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
       builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.6,
-          maxChildSize: 0.9,
-          expand: false,
-          builder: (_, controller) => Column(
-            children: [
-              // 顶部把手
-              Container(
-                margin: const EdgeInsets.only(top: 12, bottom: 12),
-                width: 40, height: 4,
-                decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
-              ),
-              Expanded(
-                child: ListView(
-                  controller: controller,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+        // 使用 StatefulBuilder 处理弹窗内的临时状态变化
+        ThemeMode tempMode = state.themeMode;
+        bool tempMaterialYou = state.useMaterialYou;
+        bool tempAmoled = state.useAmoled;
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("外观设置"),
+              // 使用 SpaceEvenly 让按钮分布在两侧 (类似参考图的 取消 | 确定)
+              actionsAlignment: MainAxisAlignment.spaceEvenly,
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text("选择图源", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 10),
-                    ...List.generate(state.sources.length, (index) {
-                      final source = state.sources[index];
-                      final isSelected = state.currentSource == source;
-                      return ListTile(
-                        title: Text(source.name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                        subtitle: Text(source.baseUrl, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.blue) : null,
-                        contentPadding: EdgeInsets.zero,
-                        onTap: () {
-                          state.setSource(index);
-                          Navigator.pop(context);
-                        },
-                      );
-                    }),
-                    const Divider(),
-                    
-                    // 手动添加
-                    ListTile(
-                      leading: const Icon(Icons.add),
-                      title: const Text("添加自定义图源"),
-                      subtitle: const Text("手动填写 API 和参数"),
-                      contentPadding: EdgeInsets.zero,
-                      onTap: () {
-                        Navigator.pop(context);
-                        _showAddSourceDialog(context, state);
-                      },
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text("深色模式", style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold)),
                     ),
-                    
-                    // === 新增：导入配置 ===
-                    ListTile(
-                      leading: const Icon(Icons.file_download_outlined),
-                      title: const Text("导入配置"),
-                      subtitle: const Text("从剪贴板导入 JSON 配置"),
+                    RadioListTile<ThemeMode>(
+                      title: const Text("跟随系统"),
+                      value: ThemeMode.system,
+                      groupValue: tempMode,
+                      onChanged: (v) => setState(() => tempMode = v!),
                       contentPadding: EdgeInsets.zero,
-                      onTap: () {
-                        Navigator.pop(context);
-                        _showImportDialog(context, state);
-                      },
+                    ),
+                    RadioListTile<ThemeMode>(
+                      title: const Text("浅色"),
+                      value: ThemeMode.light,
+                      groupValue: tempMode,
+                      onChanged: (v) => setState(() => tempMode = v!),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    RadioListTile<ThemeMode>(
+                      title: const Text("深色"),
+                      value: ThemeMode.dark,
+                      groupValue: tempMode,
+                      onChanged: (v) => setState(() => tempMode = v!),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    const Divider(),
+                    SwitchListTile(
+                      title: const Text("动态取色 (Material You)"),
+                      value: tempMaterialYou,
+                      onChanged: (v) => setState(() => tempMaterialYou = v),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    SwitchListTile(
+                      title: const Text("纯黑背景 (AMOLED)"),
+                      subtitle: const Text("仅在深色模式下生效"),
+                      value: tempAmoled,
+                      onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v),
+                      contentPadding: EdgeInsets.zero,
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("取消", style: TextStyle(color: Colors.grey)),
+                ),
+                TextButton(
+                  onPressed: () {
+                    // 确认时统一保存
+                    state.setThemeMode(tempMode);
+                    state.setMaterialYou(tempMaterialYou);
+                    state.setAmoled(tempAmoled);
+                    Navigator.pop(context);
+                  },
+                  child: const Text("确定", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
 
-  // 4. 导入配置弹窗
+  // 2. 语言设置 (复刻参考图)
+  void _showLanguageDialog(BuildContext context, AppState state) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        String tempLang = state.locale.languageCode;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("选择语言 / Language"),
+              actionsAlignment: MainAxisAlignment.spaceEvenly,
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RadioListTile<String>(
+                    title: const Text("简体中文"),
+                    value: 'zh',
+                    groupValue: tempLang,
+                    onChanged: (v) => setState(() => tempLang = v!),
+                  ),
+                  RadioListTile<String>(
+                    title: const Text("English"),
+                    value: 'en',
+                    groupValue: tempLang,
+                    onChanged: (v) => setState(() => tempLang = v!),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消", style: TextStyle(color: Colors.grey))),
+                TextButton(
+                  onPressed: () {
+                    state.setLanguage(tempLang);
+                    Navigator.pop(context);
+                  },
+                  child: const Text("确定", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // 3. 图源管理 (居中列表弹窗)
+  void _showSourceManagerDialog(BuildContext context, AppState state) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("图源管理"),
+          contentPadding: const EdgeInsets.only(top: 20), // 调整内容间距
+          actionsAlignment: MainAxisAlignment.spaceEvenly,
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                ...List.generate(state.sources.length, (index) {
+                  final source = state.sources[index];
+                  final isSelected = state.currentSource == source;
+                  return ListTile(
+                    title: Text(source.name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                    subtitle: Text(source.baseUrl, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                    trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.blue) : null,
+                    onTap: () {
+                      state.setSource(index);
+                      Navigator.pop(context); // 选完即关，体验顺滑
+                    },
+                  );
+                }),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.add),
+                  title: const Text("添加自定义图源"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showAddSourceDialog(context, state);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.file_download_outlined),
+                  title: const Text("导入配置"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showImportDialog(context, state);
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+             TextButton(onPressed: () => Navigator.pop(context), child: const Text("关闭")),
+          ],
+        );
+      },
+    );
+  }
+
+  // 4. 导入配置 (统一风格)
   void _showImportDialog(BuildContext context, AppState state) {
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("导入配置"),
+        actionsAlignment: MainAxisAlignment.spaceEvenly,
         content: TextField(
           controller: controller,
           maxLines: 5,
           decoration: const InputDecoration(
             hintText: "在此粘贴 JSON 配置代码...",
-            border: OutlineInputBorder(),
+            filled: true,
+            fillColor: Colors.black12, // 微微的背景色区分输入框
+            border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide.none),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消")),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消", style: TextStyle(color: Colors.grey))),
           TextButton(
             onPressed: () {
               bool success = state.importSourceConfig(controller.text);
@@ -288,17 +328,19 @@ class SettingsPage extends StatelessWidget {
                 SnackBar(
                   content: Text(success ? "导入成功！" : "导入失败，请检查 JSON 格式"),
                   backgroundColor: success ? Colors.green : Colors.red,
+                  behavior: SnackBarBehavior.floating, // 悬浮样式更现代
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
               );
             }, 
-            child: const Text("导入"),
+            child: const Text("导入", style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  // 5. 手动添加弹窗 (保持逻辑不变，UI 自动适配)
+  // 5. 手动添加 (统一风格)
   void _showAddSourceDialog(BuildContext context, AppState state) {
     final nameCtrl = TextEditingController();
     final urlCtrl = TextEditingController(text: "https://");
@@ -314,27 +356,34 @@ class SettingsPage extends StatelessWidget {
         builder: (context, setState) {
           return AlertDialog(
             title: const Text("添加图源"),
+            actionsAlignment: MainAxisAlignment.spaceEvenly,
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "名称")),
-                  TextField(controller: urlCtrl, decoration: const InputDecoration(labelText: "API 地址")),
+                  _buildInput(nameCtrl, "名称 (Name)"),
+                  const SizedBox(height: 10),
+                  _buildInput(urlCtrl, "API 地址 (URL)"),
+                  const SizedBox(height: 10),
                   TextButton(
                     onPressed: () => setState(() => showAdvanced = !showAdvanced),
-                    child: Row(children: [Text(showAdvanced ? "收起高级配置" : "展开高级配置"), Icon(showAdvanced ? Icons.expand_less : Icons.expand_more)]),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [Text(showAdvanced ? "收起高级配置" : "展开高级配置"), Icon(showAdvanced ? Icons.expand_less : Icons.expand_more)]
+                    ),
                   ),
                   if (showAdvanced) ...[
-                     TextField(controller: listKeyCtrl, decoration: const InputDecoration(labelText: "List Key")),
-                     TextField(controller: thumbKeyCtrl, decoration: const InputDecoration(labelText: "Thumb Key")),
-                     TextField(controller: fullKeyCtrl, decoration: const InputDecoration(labelText: "Full Key")),
+                     _buildInput(listKeyCtrl, "List Key"),
+                     const SizedBox(height: 8),
+                     _buildInput(thumbKeyCtrl, "Thumb Key"),
+                     const SizedBox(height: 8),
+                     _buildInput(fullKeyCtrl, "Full Key"),
                   ]
                 ],
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消")),
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消", style: TextStyle(color: Colors.grey))),
               TextButton(
                 onPressed: () {
                   if (nameCtrl.text.isNotEmpty) {
@@ -349,7 +398,7 @@ class SettingsPage extends StatelessWidget {
                     Navigator.pop(context);
                   }
                 }, 
-                child: const Text("添加"),
+                child: const Text("添加", style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           );
@@ -358,16 +407,21 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // --- UI 组件封装 ---
-
-  Widget _buildCard(BuildContext context, {required Widget child}) {
-    // 颜色和形状由 main.dart 中的 CardTheme 统一接管，这里只需要结构
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: child,
+  // 辅助输入框组件
+  Widget _buildInput(TextEditingController ctrl, String label) {
+    return TextField(
+      controller: ctrl,
+      decoration: InputDecoration(
+        labelText: label,
+        isDense: true,
+        border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
       ),
     );
+  }
+
+  // --- UI 组件封装 ---
+  Widget _buildCard(BuildContext context, {required Widget child}) {
+    return Card(child: Padding(padding: const EdgeInsets.all(20), child: child));
   }
 
   Widget _buildTile(BuildContext context, {
