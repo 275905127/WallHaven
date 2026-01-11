@@ -270,11 +270,11 @@ class _HomePageState extends State<HomePage> {
               ),
 
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
                 sliver: SliverMasonryGrid.count(
                   crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
                   childCount: _wallpapers.length,
                   itemBuilder: (context, index) {
                     return _buildWallpaperItem(_wallpapers[index]);
