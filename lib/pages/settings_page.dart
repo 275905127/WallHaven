@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers.dart';
+import '../models/source_config.dart'; // 引入图源配置模型
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -10,10 +11,13 @@ class SettingsPage extends StatelessWidget {
     // 获取全局状态
     final appState = context.watch<AppState>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // 动态计算容器颜色
+
+    // 动态计算卡片颜色 (保持之前的配色逻辑)
+    // 浅色模式下使用 #FFFDFD (微暖白)
     final cardColor = isDark 
         ? (appState.useAmoled ? const Color(0xFF1A1A1A) : const Color(0xFF2C2C2C)) 
         : const Color(0xFFFFFDFD);
+
     final textColor = isDark ? Colors.white : Colors.black;
 
     return Scaffold(
@@ -34,7 +38,7 @@ class SettingsPage extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Column(
                   children: [
-                    // 用户信息卡片 (保持 UI 不变)
+                    // 卡片 1：当前图源信息
                     _buildCard(
                       color: cardColor,
                       child: Row(
@@ -48,6 +52,9 @@ class SettingsPage extends StatelessWidget {
                                 const SizedBox(height: 6),
                                 Text(appState.currentSource.name, 
                                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
+                                const SizedBox(height: 4),
+                                Text(appState.currentSource.baseUrl, 
+                                  style: TextStyle(fontSize: 10, color: Colors.grey, overflow: TextOverflow.ellipsis), maxLines: 1),
                               ],
                             ),
                           ),
@@ -61,7 +68,7 @@ class SettingsPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
 
-                    // 第一组：外观设置 (核心功能升级)
+                    // 卡片 2：外观与功能
                     _buildCard(
                       color: cardColor,
                       child: Column(
@@ -72,7 +79,7 @@ class SettingsPage extends StatelessWidget {
                             subtitle: _getThemeSubtitle(appState),
                             icon: Icons.palette_outlined,
                             textColor: textColor,
-                            onTap: () => _showThemeDialog(context, appState), // 弹出高级主题设置
+                            onTap: () => _showThemeDialog(context, appState),
                           ),
                           _divider(),
                           _buildTile(
@@ -84,15 +91,14 @@ class SettingsPage extends StatelessWidget {
                             onTap: () => _showLanguageDialog(context, appState),
                           ),
                           _divider(),
-                          // 【改为图源设置入口】
+                          // 图源管理入口
                           _buildTile(
                             context,
-                            title: appState.locale.languageCode == 'zh' ? "图源管理" : "Image Sources",
-                            subtitle: appState.locale.languageCode == 'zh' ? "切换或添加新的图片来源" : "Switch or add new sources",
+                            title: appState.locale.languageCode == 'zh' ? "图源管理" : "Source Manager",
+                            subtitle: appState.locale.languageCode == 'zh' ? "添加或切换第三方图源" : "Switch or add custom sources",
                             icon: Icons.source_outlined,
                             textColor: textColor,
-                            // 这里可以加一个 Switch 或 Chevron，保持风格
-                            trailing: Icon(Icons.chevron_right, color: Colors.grey),
+                            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
                             onTap: () => _showSourceDialog(context, appState),
                           ),
                         ],
@@ -119,7 +125,7 @@ class SettingsPage extends StatelessWidget {
     return mode;
   }
 
-  // 1. 高级主题设置弹窗 (复刻参考图功能，保持 App 风格)
+  // 1. 主题设置弹窗
   void _showThemeDialog(BuildContext context, AppState state) {
     showModalBottomSheet(
       context: context,
@@ -135,7 +141,6 @@ class SettingsPage extends StatelessWidget {
               const Text("外观设置", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 20),
               
-              // 深色模式 (单选)
               const Text("深色模式", style: TextStyle(fontSize: 14, color: Colors.grey)),
               const SizedBox(height: 10),
               Row(
@@ -148,7 +153,6 @@ class SettingsPage extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               
-              // 动态取色 (开关)
               SwitchListTile(
                 title: const Text("动态取色 (Material You)"),
                 value: state.useMaterialYou,
@@ -156,7 +160,6 @@ class SettingsPage extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
               ),
               
-              // 纯黑背景 (开关)
               SwitchListTile(
                 title: const Text("纯黑背景 (AMOLED)"),
                 subtitle: const Text("仅在深色模式下生效"),
@@ -177,10 +180,7 @@ class SettingsPage extends StatelessWidget {
       label: Text(label),
       selected: isSelected,
       onSelected: (v) {
-        if (v) {
-          state.setThemeMode(mode);
-          // Navigator.pop(context); // 保持弹窗不关闭，方便继续设置
-        }
+        if (v) state.setThemeMode(mode);
       },
     );
   }
@@ -205,7 +205,7 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // 3. 图源管理弹窗
+  // 3. 图源列表弹窗
   void _showSourceDialog(BuildContext context, AppState state) {
     showModalBottomSheet(
       context: context,
@@ -214,6 +214,7 @@ class SettingsPage extends StatelessWidget {
       builder: (context) {
         return DraggableScrollableSheet(
           initialChildSize: 0.6,
+          maxChildSize: 0.9,
           expand: false,
           builder: (_, controller) => ListView(
             controller: controller,
@@ -226,7 +227,7 @@ class SettingsPage extends StatelessWidget {
                 final isSelected = state.currentSource == source;
                 return ListTile(
                   title: Text(source.name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                  subtitle: Text(source.baseUrl),
+                  subtitle: Text(source.baseUrl, maxLines: 1, overflow: TextOverflow.ellipsis),
                   trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.blue) : null,
                   onTap: () {
                     state.setSource(index);
@@ -237,10 +238,11 @@ class SettingsPage extends StatelessWidget {
               const Divider(),
               ListTile(
                 leading: const Icon(Icons.add),
-                title: const Text("添加自定义 Wallhaven API"),
+                title: const Text("添加自定义图源"),
+                subtitle: const Text("支持 Wallhaven, Pixabay 等任意 API"),
                 onTap: () {
-                  Navigator.pop(context);
-                  _showAddSourceDialog(context, state);
+                  Navigator.pop(context); // 关闭列表
+                  _showAddSourceDialog(context, state); // 打开添加弹窗
                 },
               ),
             ],
@@ -250,52 +252,110 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // 添加图源弹窗
+  // 4. 添加图源弹窗 (支持自定义 API 和 JSON 映射)
   void _showAddSourceDialog(BuildContext context, AppState state) {
     final nameCtrl = TextEditingController();
-    final keyCtrl = TextEditingController();
+    final urlCtrl = TextEditingController(text: "https://");
     
+    // 默认预设为 Wallhaven 的结构，方便用户参考
+    final listKeyCtrl = TextEditingController(text: "data");
+    final thumbKeyCtrl = TextEditingController(text: "thumbs.large");
+    final fullKeyCtrl = TextEditingController(text: "path");
+    
+    bool showAdvanced = false;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("添加 API 配置"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("配置名称", style: TextStyle(fontSize: 12, color: Colors.grey)),
-            TextField(
-              controller: nameCtrl, 
-              decoration: const InputDecoration(hintText: "例如: 我的 NSFW 账号")
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text("添加图源"),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: nameCtrl, 
+                    decoration: const InputDecoration(labelText: "名称 (例如: Pixabay)", hintText: "给图源起个名字")
+                  ),
+                  TextField(
+                    controller: urlCtrl, 
+                    decoration: const InputDecoration(labelText: "API 地址", hintText: "https://api.example.com/search")
+                  ),
+                  
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: () => setState(() => showAdvanced = !showAdvanced),
+                    child: Row(
+                      children: [
+                        Text(showAdvanced ? "收起高级解析配置" : "展开高级解析配置"),
+                        Icon(showAdvanced ? Icons.expand_less : Icons.expand_more)
+                      ],
+                    ),
+                  ),
+                  
+                  if (showAdvanced) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8)
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("JSON 字段映射", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: listKeyCtrl, 
+                            decoration: const InputDecoration(labelText: "列表字段 (List Key)", hintText: "data", isDense: true)
+                          ),
+                          TextField(
+                            controller: thumbKeyCtrl, 
+                            decoration: const InputDecoration(labelText: "缩略图路径", hintText: "thumbs.large", isDense: true)
+                          ),
+                          TextField(
+                            controller: fullKeyCtrl, 
+                            decoration: const InputDecoration(labelText: "原图路径", hintText: "path", isDense: true)
+                          ),
+                          const SizedBox(height: 8),
+                          const Text("提示：使用点号 . 访问嵌套对象", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                        ],
+                      ),
+                    ),
+                  ]
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-            const Text("API Key (可选)", style: TextStyle(fontSize: 12, color: Colors.grey)),
-            TextField(
-              controller: keyCtrl, 
-              decoration: const InputDecoration(hintText: "在此粘贴 Wallhaven API Key")
-            ),
-            const SizedBox(height: 8),
-            const Text("配置了 Key 后，你可以在筛选页开启【限制级】内容。", style: TextStyle(fontSize: 11, color: Colors.blueGrey)),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消")),
-          TextButton(
-            onPressed: () {
-              if (nameCtrl.text.isNotEmpty) {
-                // 调用新的 addSource (只传名字和Key)
-                state.addSource(nameCtrl.text, keyCtrl.text);
-                Navigator.pop(context);
-              }
-            }, 
-            child: const Text("添加"),
-          ),
-        ],
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消")),
+              TextButton(
+                onPressed: () {
+                  if (nameCtrl.text.isNotEmpty && urlCtrl.text.isNotEmpty) {
+                    // 创建配置
+                    final config = SourceConfig(
+                      name: nameCtrl.text,
+                      baseUrl: urlCtrl.text,
+                      listKey: listKeyCtrl.text.isEmpty ? 'data' : listKeyCtrl.text,
+                      thumbKey: thumbKeyCtrl.text.isEmpty ? 'thumbs.large' : thumbKeyCtrl.text,
+                      fullKey: fullKeyCtrl.text.isEmpty ? 'path' : fullKeyCtrl.text,
+                    );
+                    state.addSource(config);
+                    Navigator.pop(context);
+                  }
+                }, 
+                child: const Text("添加"),
+              ),
+            ],
+          );
+        }
       ),
     );
   }
 
-  // UI 样式封装
+  // --- UI 组件封装 ---
+
   Widget _buildCard({required Widget child, required Color color}) {
     return Container(
       padding: const EdgeInsets.all(20),
