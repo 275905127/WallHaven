@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
-import 'dart:math'; // 引入随机数库
+import 'dart:math';
 
 import '../models/wallpaper.dart';
 import '../providers.dart';
@@ -75,37 +75,44 @@ class _HomePageState extends State<HomePage> {
 
     setState(() => _isLoading = true);
 
-    // === 核心修改：检测是否为直链模式 (@direct) ===
+    // === 核心修改：安全版直链模式 (防止被封) ===
     if (currentSource.listKey == '@direct') {
-      // 模拟延迟，假装在加载
-      await Future.delayed(const Duration(milliseconds: 300));
+      int batchSize = 8; 
 
-      // 生成 12 张“虚拟”图片，URL 都是 API 地址，但加上随机数防止缓存
-      final List<Wallpaper> newItems = List.generate(12, (index) {
+      for (int i = 0; i < batchSize; i++) {
+        if (!mounted) return;
+
         final randomId = Random().nextInt(1000000);
-        // 判断原 URL 是否已有参数 (?)
         final separator = currentSource.baseUrl.contains('?') ? '&' : '?';
-        // 拼接随机参数，骗过 Flutter 的图片缓存，强制每次去服务器拿新图
-        final directUrl = "${currentSource.baseUrl}${separator}_r=${_page}_$index$randomId";
-        
-        return Wallpaper(
-          id: "direct_${_page}_$index\_$randomId",
+        // 【修复点】这里把 $index 改回了 $i
+        final directUrl = "${currentSource.baseUrl}${separator}_r=${_page}_${i}_$randomId";
+
+        final newItem = Wallpaper(
+          id: "direct_${_page}_${i}_$randomId",
           thumbUrl: directUrl,
           fullSizeUrl: directUrl,
           resolution: "Random",
           views: 0,
           favorites: 0,
         );
-      });
+
+        if (mounted) {
+          setState(() {
+            _wallpapers.add(newItem);
+          });
+        }
+
+        // 延时防封
+        await Future.delayed(const Duration(milliseconds: 600));
+      }
 
       if (mounted) {
         setState(() {
-          _wallpapers.addAll(newItems);
           _page++;
           _isLoading = false;
         });
       }
-      return; // 直接结束，不发 Dio 请求
+      return; 
     }
     // ============================================
 
