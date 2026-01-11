@@ -28,13 +28,6 @@ void main() async {
   );
 }
 
-class AppScrollBehavior extends MaterialScrollBehavior {
-  @override
-  ScrollPhysics getScrollPhysics(BuildContext context) {
-    return const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
-  }
-}
-
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -45,57 +38,43 @@ class MyApp extends StatelessWidget {
     return DynamicColorBuilder(
       builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
         const lightBg = Color(0xFFF1F1F3);
-        const lightSurface = Colors.white; // 弹窗保持纯白
-
-        // 统一圆角（复刻图中大圆角）
-        const commonRadius = Radius.circular(32);
-        const commonShape = RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(commonRadius),
-        );
+        const lightSurface = Colors.white;
 
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          scrollBehavior: AppScrollBehavior(),
-          locale: appState.locale,
-          supportedLocales: const [Locale('zh'), Locale('en')],
-          localizationsDelegates: const [
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
           theme: ThemeData(
             useMaterial3: true,
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue, surface: lightSurface),
             scaffoldBackgroundColor: lightBg,
             
-            // 弹窗主题：底部悬浮
+            // 筛选页右上角“重置”按钮风格统一
+            appBarTheme: const AppBarTheme(
+              backgroundColor: lightBg,
+              elevation: 0,
+              centerTitle: true,
+              titleTextStyle: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
+              actionsIconTheme: IconThemeData(color: Color(0xFF5F6368)),
+            ),
+
+            // 弹窗与通用圆角
             dialogTheme: DialogThemeData(
               backgroundColor: lightSurface,
               elevation: 0,
-              shape: commonShape,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
               alignment: Alignment.bottomCenter,
-              actionsPadding: EdgeInsets.zero, // 我们在子组件里自定义 padding
             ),
 
-            // 复刻 GIF 里的按钮按压效果
+            // 复刻 GIF 按压反馈效果
+            splashColor: Colors.black.withOpacity(0.05),
+            highlightColor: Colors.black.withOpacity(0.03),
+            
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                foregroundColor: Colors.black,
-                // 按压时的灰色水波纹
-                backgroundColor: Colors.transparent,
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                // 关键：复刻 GIF 中按压时那种带圆角的反馈形状
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(16)),
-                ),
-                textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                // 右上角重置按钮的文字颜色
+                foregroundColor: const Color(0xFF4285F4), 
+                textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-            ),
-            
-            cardTheme: const CardTheme(
-              color: lightSurface,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(24))),
             ),
           ),
           themeMode: appState.themeMode,
