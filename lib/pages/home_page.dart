@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'settings_page.dart'; // 导入设置页用于跳转
 import 'filter_page.dart';
+import 'image_detail_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -191,32 +192,53 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildWallpaperItem(int index) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: Colors.white,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          children: [
-            Image.network(
-              'https://picsum.photos/400/${(index % 3 + 2) * 100}?random=$index',
-              fit: BoxFit.cover,
+    final String imageUrl = 'https://picsum.photos/400/${(index % 3 + 2) * 100}?random=$index';
+    final String heroTag = 'wallpaper_$index'; // 唯一的 tag
+
+    return GestureDetector(
+      // 点击跳转到详情页
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ImageDetailPage(
+              imageUrl: imageUrl, // 把图片链接传过去
+              heroTag: heroTag,   // 把动画标签传过去
             ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                children: [
-                  const Icon(Icons.favorite_border, size: 14, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text("${index * 99}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                ],
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Column(
+            children: [
+              // 给图片加上 Hero 组件，实现转场动画
+              Hero(
+                tag: heroTag,
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                ),
               ),
-            )
-          ],
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  children: [
+                    // 首页列表上的小收藏按钮（简单的视觉反馈）
+                    const Icon(Icons.favorite_border, size: 14, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text("${index * 99}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  ],
+                ),
+              )
+            ],
+          ),
         ),
       ),
     );
   }
-}
