@@ -108,12 +108,11 @@ class SettingsPage extends StatelessWidget {
 
   // --- 弹窗逻辑 ---
 
-  // 1. 图源管理 (新增：删除功能 + Consumer 实时刷新)
+  // 1. 图源管理
   void _showSourceManagerDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) {
-        // 使用 Consumer 确保列表数据变化时（比如删除了一个），弹窗内容会立即刷新
         return Consumer<AppState>(
           builder: (context, state, child) {
             return _buildBottomDialog(
@@ -131,28 +130,21 @@ class SettingsPage extends StatelessWidget {
                       return ListTile(
                         title: Text(source.name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
                         subtitle: Text(source.baseUrl, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                        // 右侧操作栏：删除 + 编辑 + 选中状态
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // === 删除按钮 ===
-                            // 只有当图源大于1个时才显示删除，防止删光
                             if (state.sources.length > 1)
                               IconButton(
                                 icon: const Icon(Icons.delete_outline, size: 20, color: Colors.grey),
                                 onPressed: () => _confirmDelete(context, state, index),
                               ),
-                              
-                            // === 编辑按钮 ===
                             IconButton(
                               icon: const Icon(Icons.edit, size: 20, color: Colors.grey),
                               onPressed: () {
-                                Navigator.pop(context); // 先关列表
+                                Navigator.pop(context); 
                                 _showSourceConfigDialog(context, state, existingSource: source, index: index);
                               },
                             ),
-                            
-                            // === 选中标记 ===
                             if (isSelected) 
                               const Icon(Icons.check_circle, color: Colors.blue),
                           ],
@@ -193,7 +185,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // 确认删除弹窗
   void _confirmDelete(BuildContext context, AppState state, int index) {
     showDialog(
       context: context,
@@ -204,7 +195,7 @@ class SettingsPage extends StatelessWidget {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消", style: TextStyle(color: Colors.grey))),
           TextButton(
             onPressed: () {
-              state.removeSource(index); // 调用 Provider 的删除方法
+              state.removeSource(index);
               Navigator.pop(ctx);
             }, 
             child: const Text("删除", style: TextStyle(color: Colors.red)),
@@ -214,7 +205,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // 2. 添加/编辑图源
   void _showSourceConfigDialog(BuildContext context, AppState state, {SourceConfig? existingSource, int? index}) {
     final isEditing = existingSource != null;
     
@@ -289,7 +279,7 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // 3. 其他弹窗保持不变
+  // 3. 外观设置 (含圆角滑块)
   void _showThemeDialog(BuildContext context, AppState state) {
     showDialog(
       context: context,
@@ -297,18 +287,49 @@ class SettingsPage extends StatelessWidget {
         ThemeMode tempMode = state.themeMode;
         bool tempMaterialYou = state.useMaterialYou;
         bool tempAmoled = state.useAmoled;
+        
+        // 临时圆角变量
+        double tempGlobalRadius = state.cornerRadius;
+        double tempHomeRadius = state.homeCornerRadius;
+
         return StatefulBuilder(
           builder: (context, setState) => _buildBottomDialog(
             context, title: "外观设置",
-            content: Column(children: [
-              RadioListTile<ThemeMode>(title: const Text("跟随系统"), value: ThemeMode.system, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
-              RadioListTile<ThemeMode>(title: const Text("浅色"), value: ThemeMode.light, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
-              RadioListTile<ThemeMode>(title: const Text("深色"), value: ThemeMode.dark, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
-              const Divider(),
-              SwitchListTile(title: const Text("动态取色"), value: tempMaterialYou, onChanged: (v) => setState(() => tempMaterialYou = v)),
-              SwitchListTile(title: const Text("纯黑背景"), value: tempAmoled, onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)),
-            ]),
-            onConfirm: () { state.setThemeMode(tempMode); state.setMaterialYou(tempMaterialYou); state.setAmoled(tempAmoled); Navigator.pop(context); }
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RadioListTile<ThemeMode>(title: const Text("跟随系统"), value: ThemeMode.system, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
+                  RadioListTile<ThemeMode>(title: const Text("浅色"), value: ThemeMode.light, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
+                  RadioListTile<ThemeMode>(title: const Text("深色"), value: ThemeMode.dark, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
+                  const Divider(),
+                  SwitchListTile(title: const Text("动态取色"), value: tempMaterialYou, onChanged: (v) => setState(() => tempMaterialYou = v)),
+                  SwitchListTile(title: const Text("纯黑背景 (AMOLED)"), value: tempAmoled, onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  
+                  // 圆角滑块
+                  _buildSliderRow(
+                    label: "全局圆角", 
+                    value: tempGlobalRadius, 
+                    onChanged: (v) => setState(() => tempGlobalRadius = v)
+                  ),
+                  _buildSliderRow(
+                    label: "首页图片", 
+                    value: tempHomeRadius, 
+                    onChanged: (v) => setState(() => tempHomeRadius = v)
+                  ),
+                ],
+              ),
+            ),
+            onConfirm: () { 
+              state.setThemeMode(tempMode); 
+              state.setMaterialYou(tempMaterialYou); 
+              state.setAmoled(tempAmoled);
+              state.setCornerRadius(tempGlobalRadius);
+              state.setHomeCornerRadius(tempHomeRadius);
+              Navigator.pop(context); 
+            }
           ),
         );
       },
@@ -377,6 +398,29 @@ class SettingsPage extends StatelessWidget {
     return TextField(
       controller: ctrl,
       decoration: InputDecoration(labelText: label, isDense: true, border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)))),
+    );
+  }
+  
+  // 辅助方法：构建滑块行
+  Widget _buildSliderRow({required String label, required double value, required ValueChanged<double> onChanged}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(width: 70, child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(
+            child: Slider(
+              value: value,
+              min: 0.0,
+              max: 50.0,
+              divisions: 25, 
+              label: value.toInt().toString(),
+              onChanged: onChanged,
+            ),
+          ),
+          SizedBox(width: 30, child: Text(value.toInt().toString(), textAlign: TextAlign.end)),
+        ],
+      ),
     );
   }
 
