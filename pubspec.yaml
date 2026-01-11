@@ -9,21 +9,34 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  
+  # 多语言支持 (main.dart 需要用到)
+  flutter_localizations:
+    sdk: flutter
 
-  # 注意：YAML 注释要用 # 号，不能用 //
-  flutter_staggered_grid_view: ^0.7.0
-  cupertino_icons: ^1.0.8
-  dio: ^5.4.0
-  gal: ^2.3.0
-  permission_handler: ^11.3.0
-  provider: ^6.1.1
-  shared_preferences: ^2.2.2
-  dynamic_color: ^1.6.9
   # 默认图标
   cupertino_icons: ^1.0.6
   
-  # 保留这个较新的版本
-  http: ^1.6.0
+  # 瀑布流布局
+  flutter_staggered_grid_view: ^0.7.0
+  
+  # 网络请求
+  dio: ^5.4.0
+  
+  # 权限处理
+  permission_handler: ^11.3.0
+  
+  # 保存图片
+  gal: ^2.3.0
+  
+  # 状态管理
+  provider: ^6.1.1
+  
+  # 本地存储
+  shared_preferences: ^2.2.2
+  
+  # 动态取色 (Material You)
+  dynamic_color: ^1.6.9
 
 
 dev_dependencies:
