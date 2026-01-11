@@ -8,55 +8,47 @@ class FilterPage extends StatefulWidget {
 }
 
 class _FilterPageState extends State<FilterPage> {
-  // ==========================
-  // 筛选状态 (模拟 Wallhaven 参数)
-  // ==========================
-  
-  // 1. Categories (多选) - [General, Anime, People]
-  // 对应 Wallhaven 代码 100, 010, 001
+  // 分类: General, Anime, People
   final Map<String, bool> _categories = {
-    'General': true,
-    'Anime': true,
-    'People': false,
+    '常规': true,
+    '动漫': true,
+    '人物': false,
   };
 
-  // 2. Purity (多选) - [SFW, Sketchy, NSFW]
-  // 注意：NSFW 通常需要 API Key，这里先做 UI
+  // 纯净度: SFW, Sketchy, NSFW
   final Map<String, bool> _purity = {
-    'SFW': true,
-    'Sketchy': false,
-    'NSFW': false,
+    '安全': true,
+    '擦边': false,
+    '限制级': false,
   };
 
-  // 3. Sorting (单选)
-  String _selectedSort = 'Date Added';
+  // 排序方式
+  String _selectedSort = '最新添加';
   final List<String> _sortOptions = [
-    'Date Added', 'Relevance', 'Random', 'Views', 'Favorites', 'Toplist'
+    '最新添加', '相关度', '随机', '浏览量', '收藏量', '排行榜'
   ];
 
-  // 4. Toplist Range (单选 - 只有选 Toplist 时才显示)
-  String _selectedTopRange = '1M';
-  final List<String> _topRangeOptions = ['1d', '3d', '1w', '1M', '3M', '6M', '1y'];
+  // 排行榜时间范围
+  String _selectedTopRange = '1个月';
+  final List<String> _topRangeOptions = ['1天', '3天', '1周', '1个月', '3个月', '6个月', '1年'];
 
-  // 5. Resolution (单选/多选) - 简化版
-  String _selectedResolution = 'Any';
-  final List<String> _resolutions = ['Any', '1920x1080', '2560x1440', '4K+'];
+  // 分辨率
+  String _selectedResolution = '任意';
+  final List<String> _resolutions = ['任意', '1920x1080', '2560x1440', '4K+'];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F2), // 全局背景色
+      backgroundColor: const Color(0xFFF2F2F2),
       appBar: AppBar(
         title: const Text("筛选", style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFFF2F2F2),
         elevation: 0,
         centerTitle: false,
         actions: [
-          // 重置按钮
           TextButton(
             onPressed: () {
-              // 这里写重置逻辑
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("重置筛选")));
+              // 重置逻辑
             },
             child: const Text("重置"),
           ),
@@ -68,9 +60,7 @@ class _FilterPageState extends State<FilterPage> {
         physics: const BouncingScrollPhysics(),
         child: Column(
           children: [
-            // =========================
-            // 第一组：基础筛选 (分类 & 等级)
-            // =========================
+            // 第一组：分类与分级
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -78,7 +68,7 @@ class _FilterPageState extends State<FilterPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSectionTitle("分类 (Categories)"),
+                  _buildTitle("分类 (Categories)"),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
@@ -91,7 +81,6 @@ class _FilterPageState extends State<FilterPage> {
                             _categories[key] = selected;
                           });
                         },
-                        // 选中时的颜色配置
                         selectedColor: Colors.blue.withOpacity(0.1),
                         checkmarkColor: Colors.blue,
                         labelStyle: TextStyle(
@@ -107,17 +96,15 @@ class _FilterPageState extends State<FilterPage> {
                   
                   const SizedBox(height: 24),
                   
-                  _buildSectionTitle("等级 (Purity)"),
+                  _buildTitle("分级 (Purity)"),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
                     children: _purity.keys.map((key) {
                       Color activeColor = Colors.blue;
-                      // Wallhaven 经典色：SFW(绿) Sketchy(黄) NSFW(红)
-                      // 但为了保持你的 App 风格统一，我们先用蓝色，或者你可以解开下面的注释
-                      if (key == 'SFW') activeColor = Colors.green;
-                      if (key == 'Sketchy') activeColor = Colors.orange;
-                      if (key == 'NSFW') activeColor = Colors.red;
+                      if (key == '安全') activeColor = Colors.green;
+                      if (key == '擦边') activeColor = Colors.orange;
+                      if (key == '限制级') activeColor = Colors.red;
 
                       return FilterChip(
                         label: Text(key),
@@ -145,9 +132,7 @@ class _FilterPageState extends State<FilterPage> {
             
             const SizedBox(height: 16),
 
-            // =========================
-            // 第二组：排序方式
-            // =========================
+            // 第二组：排序
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -155,7 +140,7 @@ class _FilterPageState extends State<FilterPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSectionTitle("排序 (Sorting)"),
+                  _buildTitle("排序 (Sorting)"),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
@@ -172,26 +157,24 @@ class _FilterPageState extends State<FilterPage> {
                             });
                           }
                         },
-                        selectedColor: Colors.black, // 选中变黑 (Material 3 风格)
+                        selectedColor: Colors.black,
                         labelStyle: TextStyle(
                           color: isSelected ? Colors.white : Colors.black87,
                           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                         ),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                         backgroundColor: Colors.white,
-                        // 去掉选中时的勾选图标，只变色，更像 iOS/CheckFirm
                         showCheckmark: false, 
                       );
                     }).toList(),
                   ),
 
-                  // 动态显示：只有选了 Toplist 才显示时间范围
-                  if (_selectedSort == 'Toplist') ...[
+                  if (_selectedSort == '排行榜') ...[
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
                       child: Divider(height: 1),
                     ),
-                    _buildSectionTitle("时间范围 (Toplist Range)"),
+                    _buildTitle("时间范围"),
                     const SizedBox(height: 12),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
@@ -225,9 +208,7 @@ class _FilterPageState extends State<FilterPage> {
 
             const SizedBox(height: 16),
             
-            // =========================
-            // 第三组：分辨率 & 比例
-            // =========================
+            // 第三组：分辨率
              Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -235,7 +216,7 @@ class _FilterPageState extends State<FilterPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                   _buildSectionTitle("分辨率 (Resolution)"),
+                   _buildTitle("分辨率 (Resolution)"),
                    const SizedBox(height: 12),
                    Wrap(
                     spacing: 8,
@@ -257,25 +238,22 @@ class _FilterPageState extends State<FilterPage> {
               ),
              ),
 
-             // 底部留白，给 FAB 按钮留位置
              const SizedBox(height: 80),
           ],
         ),
       ),
       
-      // 底部悬浮确认按钮
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: SizedBox(
-          width: MediaQuery.of(context).size.width * 0.9, // 宽度占 90%
+          width: MediaQuery.of(context).size.width * 0.9,
           height: 56,
           child: FloatingActionButton.extended(
             onPressed: () {
-               Navigator.pop(context); // 关闭页面
-               // 这里以后可以返回筛选结果
+               Navigator.pop(context);
             },
-            backgroundColor: Colors.black, // 黑色按钮
-            foregroundColor: Colors.white, // 白色文字
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
             elevation: 4,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
             label: const Text("应用筛选", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
@@ -287,7 +265,6 @@ class _FilterPageState extends State<FilterPage> {
     );
   }
 
-  // 样式封装：卡片背景
   BoxDecoration _boxDecoration() {
     return BoxDecoration(
       color: Colors.white,
@@ -298,8 +275,7 @@ class _FilterPageState extends State<FilterPage> {
     );
   }
 
-  // 样式封装：小标题
-  Widget _buildSectionTitle(String title) {
+  Widget _buildTitle(String title) {
     return Text(
       title,
       style: TextStyle(
