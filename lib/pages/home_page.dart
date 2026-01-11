@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
+import 'dart:math'; // 引入随机数库
 
 import '../models/wallpaper.dart';
 import '../providers.dart';
@@ -41,7 +42,6 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  // 递归获取 JSON 值
   dynamic _getValueByPath(dynamic json, String path) {
     if (path.isEmpty) return json;
     List<String> keys = path.split('.');
@@ -63,7 +63,6 @@ class _HomePageState extends State<HomePage> {
     final currentSource = appState.currentSource;
     final activeParams = appState.activeParams;
     
-    // 生成 Hash 检测变化
     String currentHash = "${currentSource.baseUrl}|${activeParams.toString()}";
 
     if (refresh || _lastSourceHash != currentHash) {
@@ -75,6 +74,40 @@ class _HomePageState extends State<HomePage> {
     }
 
     setState(() => _isLoading = true);
+
+    // === 核心修改：检测是否为直链模式 (@direct) ===
+    if (currentSource.listKey == '@direct') {
+      // 模拟延迟，假装在加载
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // 生成 12 张“虚拟”图片，URL 都是 API 地址，但加上随机数防止缓存
+      final List<Wallpaper> newItems = List.generate(12, (index) {
+        final randomId = Random().nextInt(1000000);
+        // 判断原 URL 是否已有参数 (?)
+        final separator = currentSource.baseUrl.contains('?') ? '&' : '?';
+        // 拼接随机参数，骗过 Flutter 的图片缓存，强制每次去服务器拿新图
+        final directUrl = "${currentSource.baseUrl}${separator}_r=${_page}_$index$randomId";
+        
+        return Wallpaper(
+          id: "direct_${_page}_$index\_$randomId",
+          thumbUrl: directUrl,
+          fullSizeUrl: directUrl,
+          resolution: "Random",
+          views: 0,
+          favorites: 0,
+        );
+      });
+
+      if (mounted) {
+        setState(() {
+          _wallpapers.addAll(newItems);
+          _page++;
+          _isLoading = false;
+        });
+      }
+      return; // 直接结束，不发 Dio 请求
+    }
+    // ============================================
 
     try {
       final Map<String, dynamic> queryParams = {
@@ -91,15 +124,12 @@ class _HomePageState extends State<HomePage> {
       );
 
       if (response.statusCode == 200) {
-        // 1. 获取原始数据
         var rawData = _getValueByPath(response.data, currentSource.listKey);
         
-        // 2. 智能兼容：不管是 List 还是 Map (单对象)，都转为 List
         List listData = [];
         if (rawData is List) {
           listData = rawData;
         } else if (rawData is Map) {
-          // 如果是单张图，把它包装进数组，这样也能显示！
           listData = [rawData];
         }
 
@@ -107,7 +137,6 @@ class _HomePageState extends State<HomePage> {
           List<Wallpaper> newWallpapers = listData.map((item) {
             String thumb = _getValueByPath(item, currentSource.thumbKey) ?? "";
             String full = _getValueByPath(item, currentSource.fullKey) ?? thumb;
-            // 如果没有 ID，用 URL 做 ID 防止报错
             String id = _getValueByPath(item, currentSource.idKey)?.toString() ?? full.hashCode.toString();
 
             return Wallpaper(
@@ -123,7 +152,7 @@ class _HomePageState extends State<HomePage> {
           if (mounted) {
             setState(() {
               _wallpapers.addAll(newWallpapers);
-              _page++; // 即使是随机图，也要假装翻页来触发下一次加载
+              _page++;
               _isLoading = false;
             });
           }
@@ -145,7 +174,6 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
 
-    // 自动刷新检测
     if (_lastSourceHash != null && 
         _lastSourceHash != "${appState.currentSource.baseUrl}|${appState.activeParams.toString()}") {
        Future.microtask(() => _fetchWallpapers(refresh: true));
