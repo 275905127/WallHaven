@@ -11,7 +11,10 @@ class FilterPage extends StatefulWidget {
 }
 
 class _FilterPageState extends State<FilterPage> {
+  // 临时存储筛选状态，key = paramName, value = 实际值
   final Map<String, dynamic> _tempParams = {};
+  
+  // 专门用于 bitmask 类型的临时存储 (List<bool>)
   final Map<String, List<bool>> _tempBitmasks = {};
 
   @override
@@ -21,25 +24,27 @@ class _FilterPageState extends State<FilterPage> {
     final currentFilters = appState.activeParams;
     final sourceConfig = appState.currentSource;
 
+    // 初始化临时状态
+    // 1. 复制已有的简单参数
     _tempParams.addAll(currentFilters);
 
+    // 2. 初始化 bitmask (比如 Wallhaven 的 categories: "100")
     for (var group in sourceConfig.filters) {
       if (group.type == 'bitmask') {
         String currentVal = currentFilters[group.paramName]?.toString() ?? "";
+        // 如果没值，默认全选 (例如 "111")
         if (currentVal.length != group.options.length) {
           currentVal = "1" * group.options.length; 
         }
+        
+        // 转换成 bool 数组
         _tempBitmasks[group.paramName] = currentVal.split('').map((e) => e == '1').toList();
       } else if (group.type == 'radio') {
-        if (!_tempParams.containsKey(group.paramName)) {
-          _tempParams[group.paramName] = currentFilters[group.paramName] ?? '';
+        // 如果是单选，确保有个默认值
+        if (!_tempParams.containsKey(group.paramName) && group.options.isNotEmpty) {
+          _tempParams[group.paramName] = group.options.first.value;
         }
       }
-    }
-    
-    // 初始化 Wallhaven 特有的 toplist 时间跨度
-    if (!_tempParams.containsKey('topRange')) {
-      _tempParams['topRange'] = currentFilters['topRange'] ?? '1M';
     }
   }
 
@@ -54,37 +59,34 @@ class _FilterPageState extends State<FilterPage> {
         actions: [
           TextButton(
             onPressed: () {
+              // 重置逻辑：简单粗暴，清空所有
               setState(() {
                 _tempParams.clear();
                 for (var group in filters) {
                    if (group.type == 'bitmask') {
+                     // 重置为全 1
                      _tempBitmasks[group.paramName] = List.filled(group.options.length, true);
-                   } else {
-                     _tempParams[group.paramName] = '';
+                   } else if (group.options.isNotEmpty) {
+                     _tempParams[group.paramName] = group.options.first.value;
                    }
                 }
-                _tempParams['topRange'] = '1M';
               });
             },
             child: const Text("重置"),
           )
         ],
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: filters.length,
-        itemBuilder: (context, index) {
-          final group = filters[index];
-          return Column(
-            children: [
-              _buildFilterGroup(group),
-              // 如果选了“榜单”，下方自动滑出“时间跨度”
-              if (group.paramName == 'sorting' && _tempParams['sorting'] == 'toplist')
-                _buildTopRangeSelector(),
-            ],
-          );
-        },
-      ),
+      // 动态构建列表
+      body: filters.isEmpty 
+          ? const Center(child: Text("此图源没有配置筛选规则")) 
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: filters.length,
+              itemBuilder: (context, index) {
+                final group = filters[index];
+                return _buildFilterGroup(group);
+              },
+            ),
       floatingActionButton: FloatingActionButton.extended(
         label: const Text("应用筛选"),
         icon: const Icon(Icons.check),
@@ -93,32 +95,8 @@ class _FilterPageState extends State<FilterPage> {
     );
   }
 
-  // 榜单专属时间跨度选择
-  Widget _buildTopRangeSelector() {
-    final ranges = {
-      '1d': '1天', '3d': '3天', '1w': '1周', '1M': '1月', '3M': '3月', '6M': '6月', '1y': '1年'
-    };
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text("榜单时间跨度", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: ranges.entries.map((e) => ChoiceChip(
-            label: Text(e.value),
-            selected: _tempParams['topRange'] == e.key,
-            onSelected: (val) => setState(() => _tempParams['topRange'] = e.key),
-          )).toList(),
-        ),
-        const SizedBox(height: 24),
-      ],
-    );
-  }
-
+  // 核心：根据类型渲染不同的 UI 组件
   Widget _buildFilterGroup(FilterGroup group) {
-    final hasApiKey = context.read<AppState>().currentSource.apiKey.isNotEmpty;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -127,66 +105,73 @@ class _FilterPageState extends State<FilterPage> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: [
-            for (int i = 0; i < group.options.length; i++) ...[
-              if (group.paramName == 'purity' && group.options[i].value == 'NSFW' && !hasApiKey)
-                const SizedBox.shrink()
-              else
-                _buildOptionChip(group, i)
-            ]
-          ],
+          children: List.generate(group.options.length, (index) {
+            final option = group.options[index];
+
+            if (group.type == 'bitmask') {
+              // === 渲染多选 Bitmask (Wallhaven 风格) ===
+              final isSelected = _tempBitmasks[group.paramName]![index];
+              return FilterChip(
+                label: Text(option.label),
+                selected: isSelected,
+                onSelected: (val) {
+                  setState(() {
+                    _tempBitmasks[group.paramName]![index] = val;
+                  });
+                },
+                checkmarkColor: _getChipColor(option.label), // 保持一点点颜色逻辑
+                selectedColor: (_getChipColor(option.label) ?? Colors.blue).withOpacity(0.15),
+              );
+
+            } else {
+              // === 渲染单选 Radio ===
+              final currentValue = _tempParams[group.paramName];
+              final isSelected = currentValue == option.value;
+              return ChoiceChip(
+                label: Text(option.label),
+                selected: isSelected,
+                onSelected: (val) {
+                  if (val) {
+                    setState(() {
+                      _tempParams[group.paramName] = option.value;
+                    });
+                  }
+                },
+              );
+            }
+          }),
         ),
         const SizedBox(height: 24),
       ],
     );
   }
 
-  Widget _buildOptionChip(FilterGroup group, int index) {
-    final option = group.options[index];
-
-    if (group.type == 'bitmask') {
-      final isSelected = _tempBitmasks[group.paramName]![index];
-      return FilterChip(
-        label: Text(option.label),
-        selected: isSelected,
-        onSelected: (val) => setState(() => _tempBitmasks[group.paramName]![index] = val),
-        checkmarkColor: _getChipColor(option.label, option.value, group.paramName),
-        selectedColor: (_getChipColor(option.label, option.value, group.paramName) ?? Colors.blue).withOpacity(0.15),
-      );
-    } else {
-      final isSelected = _tempParams[group.paramName] == option.value;
-      return ChoiceChip(
-        label: group.paramName == 'colors' && option.value != '' 
-            ? Container(width: 20, height: 20, decoration: BoxDecoration(color: Color(int.parse("0xFF${option.value}")), shape: BoxShape.circle))
-            : Text(option.label),
-        selected: isSelected,
-        onSelected: (val) => setState(() => _tempParams[group.paramName] = option.value),
-      );
-    }
-  }
-
   void _applyFilters() {
     final appState = context.read<AppState>();
-    _tempParams.forEach((key, value) => appState.updateParam(key, value));
+    
+    // 1. 应用普通参数
+    _tempParams.forEach((key, value) {
+      appState.updateParam(key, value);
+    });
+
+    // 2. 拼接并应用 Bitmask 参数
     _tempBitmasks.forEach((key, boolList) {
+      // [true, false, true] -> "101"
       String mask = boolList.map((b) => b ? '1' : '0').join();
       appState.updateParam(key, mask);
     });
+    
+    // 重置页码
     appState.updateParam('page', 1);
+
     Navigator.pop(context);
   }
 
-  Color? _getChipColor(String label, String value, String paramName) {
-    if (paramName == 'purity') {
-      if (value == 'SFW') return Colors.green;
-      if (value == 'Sketchy') return Colors.orange;
-      if (value == 'NSFW') return Colors.red;
-    }
-    if (paramName == 'categories') {
-      if (value == 'General') return Colors.blue;
-      if (value == 'Anime') return Colors.purple;
-      if (value == 'People') return Colors.teal;
-    }
+  // 辅助：给特定关键词加点颜色，好看一点
+  Color? _getChipColor(String label) {
+    if (label.contains('安全') || label.contains('SFW')) return Colors.green;
+    if (label.contains('限制') || label.contains('NSFW')) return Colors.red;
+    if (label.contains('擦边')) return Colors.orange;
     return Colors.blue;
   }
 }
