@@ -13,6 +13,8 @@ class SettingsPage extends StatelessWidget {
 
     return Scaffold(
       body: CustomScrollView(
+        // 【已删除】physics: const BouncingScrollPhysics(), 
+        // 因为 main.dart 里的 scrollBehavior 会自动处理
         slivers: [
           SliverAppBar(
             pinned: true,
@@ -108,10 +110,6 @@ class SettingsPage extends StatelessWidget {
     return mode;
   }
 
-  // ==========================================
-  // 核心升级：底部悬浮弹窗 (Floating Bottom Dialog)
-  // ==========================================
-
   // 1. 主题设置
   void _showThemeDialog(BuildContext context, AppState state) {
     showDialog(
@@ -123,56 +121,70 @@ class SettingsPage extends StatelessWidget {
 
         return StatefulBuilder(
           builder: (context, setState) {
-            return _buildBottomDialog(
-              context,
-              title: "外观设置",
-              content: Column(
-                children: [
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: EdgeInsets.only(left: 12, bottom: 8),
-                      child: Text("模式选择", style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold)),
+            return AlertDialog(
+              title: const Text("外观设置"),
+              actionsAlignment: MainAxisAlignment.spaceEvenly,
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text("深色模式", style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold)),
                     ),
-                  ),
-                  RadioListTile<ThemeMode>(
-                    title: const Text("跟随系统"),
-                    value: ThemeMode.system,
-                    groupValue: tempMode,
-                    onChanged: (v) => setState(() => tempMode = v!),
-                  ),
-                  RadioListTile<ThemeMode>(
-                    title: const Text("浅色"),
-                    value: ThemeMode.light,
-                    groupValue: tempMode,
-                    onChanged: (v) => setState(() => tempMode = v!),
-                  ),
-                  RadioListTile<ThemeMode>(
-                    title: const Text("深色"),
-                    value: ThemeMode.dark,
-                    groupValue: tempMode,
-                    onChanged: (v) => setState(() => tempMode = v!),
-                  ),
-                  const Divider(height: 24),
-                  SwitchListTile(
-                    title: const Text("动态取色 (Material You)"),
-                    value: tempMaterialYou,
-                    onChanged: (v) => setState(() => tempMaterialYou = v),
-                  ),
-                  SwitchListTile(
-                    title: const Text("纯黑背景 (AMOLED)"),
-                    subtitle: const Text("仅在深色模式下生效"),
-                    value: tempAmoled,
-                    onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v),
-                  ),
-                ],
+                    RadioListTile<ThemeMode>(
+                      title: const Text("跟随系统"),
+                      value: ThemeMode.system,
+                      groupValue: tempMode,
+                      onChanged: (v) => setState(() => tempMode = v!),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    RadioListTile<ThemeMode>(
+                      title: const Text("浅色"),
+                      value: ThemeMode.light,
+                      groupValue: tempMode,
+                      onChanged: (v) => setState(() => tempMode = v!),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    RadioListTile<ThemeMode>(
+                      title: const Text("深色"),
+                      value: ThemeMode.dark,
+                      groupValue: tempMode,
+                      onChanged: (v) => setState(() => tempMode = v!),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    const Divider(),
+                    SwitchListTile(
+                      title: const Text("动态取色 (Material You)"),
+                      value: tempMaterialYou,
+                      onChanged: (v) => setState(() => tempMaterialYou = v),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    SwitchListTile(
+                      title: const Text("纯黑背景 (AMOLED)"),
+                      subtitle: const Text("仅在深色模式下生效"),
+                      value: tempAmoled,
+                      onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ],
+                ),
               ),
-              onConfirm: () {
-                state.setThemeMode(tempMode);
-                state.setMaterialYou(tempMaterialYou);
-                state.setAmoled(tempAmoled);
-                Navigator.pop(context);
-              },
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("取消", style: TextStyle(color: Colors.grey)),
+                ),
+                TextButton(
+                  onPressed: () {
+                    state.setThemeMode(tempMode);
+                    state.setMaterialYou(tempMaterialYou);
+                    state.setAmoled(tempAmoled);
+                    Navigator.pop(context);
+                  },
+                  child: const Text("确定", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
             );
           },
         );
@@ -188,10 +200,11 @@ class SettingsPage extends StatelessWidget {
         String tempLang = state.locale.languageCode;
         return StatefulBuilder(
           builder: (context, setState) {
-            return _buildBottomDialog(
-              context,
-              title: "选择语言 / Language",
+            return AlertDialog(
+              title: const Text("选择语言 / Language"),
+              actionsAlignment: MainAxisAlignment.spaceEvenly,
               content: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   RadioListTile<String>(
                     title: const Text("简体中文"),
@@ -207,10 +220,16 @@ class SettingsPage extends StatelessWidget {
                   ),
                 ],
               ),
-              onConfirm: () {
-                state.setLanguage(tempLang);
-                Navigator.pop(context);
-              },
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消", style: TextStyle(color: Colors.grey))),
+                TextButton(
+                  onPressed: () {
+                    state.setLanguage(tempLang);
+                    Navigator.pop(context);
+                  },
+                  child: const Text("确定", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
             );
           },
         );
@@ -223,12 +242,12 @@ class SettingsPage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) {
-        return _buildBottomDialog(
-          context,
-          title: "图源管理",
-          // 限制高度，防止列表太长超出屏幕
-          content: Container(
-            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
+        return AlertDialog(
+          title: const Text("图源管理"),
+          contentPadding: const EdgeInsets.only(top: 20),
+          actionsAlignment: MainAxisAlignment.spaceEvenly,
+          content: SizedBox(
+            width: double.maxFinite,
             child: ListView(
               shrinkWrap: true,
               children: [
@@ -265,9 +284,9 @@ class SettingsPage extends StatelessWidget {
               ],
             ),
           ),
-          onConfirm: () => Navigator.pop(context),
-          confirmText: "关闭",
-          hideCancel: true, // 单按钮模式
+          actions: [
+             TextButton(onPressed: () => Navigator.pop(context), child: const Text("关闭")),
+          ],
         );
       },
     );
@@ -278,9 +297,9 @@ class SettingsPage extends StatelessWidget {
     final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => _buildBottomDialog(
-        context,
-        title: "导入配置",
+      builder: (context) => AlertDialog(
+        title: const Text("导入配置"),
+        actionsAlignment: MainAxisAlignment.spaceEvenly,
         content: TextField(
           controller: controller,
           maxLines: 5,
@@ -291,19 +310,24 @@ class SettingsPage extends StatelessWidget {
             border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide.none),
           ),
         ),
-        confirmText: "导入",
-        onConfirm: () {
-          bool success = state.importSourceConfig(controller.text);
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(success ? "导入成功！" : "导入失败，请检查 JSON 格式"),
-              backgroundColor: success ? Colors.green : Colors.red,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            ),
-          );
-        },
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消", style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () {
+              bool success = state.importSourceConfig(controller.text);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(success ? "导入成功！" : "导入失败，请检查 JSON 格式"),
+                  backgroundColor: success ? Colors.green : Colors.red,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                ),
+              );
+            }, 
+            child: const Text("导入", style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }
@@ -322,12 +346,12 @@ class SettingsPage extends StatelessWidget {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
-          return _buildBottomDialog(
-            context,
-            title: "添加图源",
-            confirmText: "添加",
+          return AlertDialog(
+            title: const Text("添加图源"),
+            actionsAlignment: MainAxisAlignment.spaceEvenly,
             content: SingleChildScrollView(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildInput(nameCtrl, "名称 (Name)"),
                   const SizedBox(height: 10),
@@ -350,85 +374,27 @@ class SettingsPage extends StatelessWidget {
                 ],
               ),
             ),
-            onConfirm: () {
-              if (nameCtrl.text.isNotEmpty) {
-                final config = SourceConfig(
-                  name: nameCtrl.text,
-                  baseUrl: urlCtrl.text,
-                  listKey: listKeyCtrl.text,
-                  thumbKey: thumbKeyCtrl.text,
-                  fullKey: fullKeyCtrl.text,
-                );
-                state.addSource(config);
-                Navigator.pop(context);
-              }
-            },
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消", style: TextStyle(color: Colors.grey))),
+              TextButton(
+                onPressed: () {
+                  if (nameCtrl.text.isNotEmpty) {
+                    final config = SourceConfig(
+                      name: nameCtrl.text,
+                      baseUrl: urlCtrl.text,
+                      listKey: listKeyCtrl.text,
+                      thumbKey: thumbKeyCtrl.text,
+                      fullKey: fullKeyCtrl.text,
+                    );
+                    state.addSource(config);
+                    Navigator.pop(context);
+                  }
+                }, 
+                child: const Text("添加", style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
           );
         }
-      ),
-    );
-  }
-
-  // ==========================================
-  // 通用组件封装：保证样式完全统一
-  // ==========================================
-
-  Widget _buildBottomDialog(BuildContext context, {
-    required String title,
-    required Widget content,
-    required VoidCallback onConfirm,
-    String confirmText = "确定",
-    bool hideCancel = false,
-  }) {
-    return Dialog(
-      // 1. 位置下沉
-      alignment: Alignment.bottomCenter,
-      // 2. 悬浮边距 (关键：实现图中的浮动效果)
-      insetPadding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      // 3. 样式跟随全局 Theme
-      shape: Theme.of(context).dialogTheme.shape,
-      backgroundColor: Theme.of(context).dialogTheme.backgroundColor,
-      
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min, // 包裹内容，不过分占用高度
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 标题 (左对齐)
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 20),
-            
-            // 内容区域
-            content,
-            
-            const SizedBox(height: 28),
-            
-            // 底部按钮 (均匀分布)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                if (!hideCancel)
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text("取消", style: TextStyle(color: Colors.grey, fontSize: 16)),
-                    ),
-                  ),
-                if (!hideCancel) 
-                  // 只有显示取消按钮时才加中间的分割线（或者留空）
-                  const SizedBox(width: 16), 
-                  
-                Expanded(
-                  child: TextButton(
-                    onPressed: onConfirm,
-                    child: Text(confirmText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
