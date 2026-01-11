@@ -12,7 +12,6 @@ void main() async {
   final appState = AppState();
   await appState.init();
 
-  // 统一状态栏样式
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     systemNavigationBarColor: Colors.transparent,
@@ -29,7 +28,7 @@ void main() async {
   );
 }
 
-// === 全局滚动行为：统一回弹手感 ===
+// === 全局滚动行为 ===
 class AppScrollBehavior extends MaterialScrollBehavior {
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) {
@@ -66,7 +65,7 @@ class MyApp extends StatelessWidget {
           darkScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark, surface: darkSurface);
         }
 
-        // === 2. 统一形状 (28px 大圆角) ===
+        // === 2. 统一形状 ===
         const commonShape = RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(28)), 
         );
@@ -87,17 +86,16 @@ class MyApp extends StatelessWidget {
           bodyMedium: textThemeBase.bodyMedium?.copyWith(fontSize: 14),
         );
 
-        // === 5. 统一弹窗样式 (核心修改) ===
-        // 这里定义后，全 App 的 AlertDialog 都会变成“底部悬浮”样式
+        // === 5. 统一弹窗样式 ===
+        // 修复：删除了 actionsAlignment，解决报错
         final dialogThemeLight = DialogThemeData(
           backgroundColor: lightSurface,
           elevation: 0,
           shape: commonShape,
-          alignment: Alignment.bottomCenter, // <--- 关键：全局下沉
-          actionsAlignment: MainAxisAlignment.spaceEvenly, // <--- 关键：按钮均匀分布
+          alignment: Alignment.bottomCenter, // 保持底部悬浮
+          // actionsAlignment: MainAxisAlignment.spaceEvenly, // <--- 已删除，解决报错
           titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
           contentTextStyle: const TextStyle(fontSize: 16, color: Colors.black87),
-          // 定义内边距，模拟悬浮感
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 24), 
         );
         
@@ -105,8 +103,8 @@ class MyApp extends StatelessWidget {
           backgroundColor: darkSurface,
           elevation: 0,
           shape: commonShape,
-          alignment: Alignment.bottomCenter, // <--- 关键
-          actionsAlignment: MainAxisAlignment.spaceEvenly, // <--- 关键
+          alignment: Alignment.bottomCenter, // 保持底部悬浮
+          // actionsAlignment: MainAxisAlignment.spaceEvenly, // <--- 已删除，解决报错
           titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
           contentTextStyle: const TextStyle(fontSize: 16, color: Colors.white70),
           actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -146,7 +144,6 @@ class MyApp extends StatelessWidget {
               shape: commonShape
             ),
             
-            // 应用弹窗主题
             dialogTheme: dialogThemeLight,
 
             textButtonTheme: TextButtonThemeData(
@@ -163,7 +160,6 @@ class MyApp extends StatelessWidget {
               shape: commonShape,
             ),
             
-            // 输入框样式统一
             inputDecorationTheme: const InputDecorationTheme(
               filled: true,
               fillColor: Colors.black12,
@@ -194,7 +190,6 @@ class MyApp extends StatelessWidget {
               shape: commonShape
             ),
             
-            // 应用弹窗主题
             dialogTheme: dialogThemeDark,
 
             textButtonTheme: TextButtonThemeData(
