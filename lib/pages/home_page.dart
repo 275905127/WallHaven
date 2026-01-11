@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
-import 'dart:math'; // 引入随机数库
+import 'dart:math';
 
 import '../models/wallpaper.dart';
 import '../providers.dart';
@@ -77,17 +77,15 @@ class _HomePageState extends State<HomePage> {
 
     // === 核心修改：安全版直链模式 (防止被封) ===
     if (currentSource.listKey == '@direct') {
-      // 这里的数量不要太大，建议 6-8 张，贪多容易被封
       int batchSize = 8; 
 
       for (int i = 0; i < batchSize; i++) {
-        // 如果页面已经关了，停止加载
         if (!mounted) return;
 
         final randomId = Random().nextInt(1000000);
         final separator = currentSource.baseUrl.contains('?') ? '&' : '?';
-        // 拼接随机参数
-        final directUrl = "${currentSource.baseUrl}${separator}_r=${_page}_$index$randomId";
+        // 【修复点】这里把 $index 改回了 $i
+        final directUrl = "${currentSource.baseUrl}${separator}_r=${_page}_${i}_$randomId";
 
         final newItem = Wallpaper(
           id: "direct_${_page}_${i}_$randomId",
@@ -104,9 +102,7 @@ class _HomePageState extends State<HomePage> {
           });
         }
 
-        // === 关键保命措施 ===
-        // 每加载一张，休息 600 毫秒。
-        // 这样 1 秒钟最多请求 1-2 次，大大降低被封风险。
+        // 延时防封
         await Future.delayed(const Duration(milliseconds: 600));
       }
 
