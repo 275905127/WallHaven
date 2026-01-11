@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:gal/gal.dart'; // 【改动点1】引用新库
+import 'package:gal/gal.dart'; 
 import 'package:permission_handler/permission_handler.dart';
 
 class ImageDetailPage extends StatefulWidget {
@@ -22,26 +22,32 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
   bool _isFavorited = false;
   bool _isDownloading = false;
 
+  // === 统一的伪装头 (与主页保持一致) ===
+  final Map<String, String> _headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  };
+
   Future<void> _saveImage() async {
     if (_isDownloading) return;
 
     setState(() => _isDownloading = true);
 
     try {
-      // 1. 权限检查 (GAL 库会自动处理大部分权限，但为了保险保留这个)
-      // Android 10+ 不需要写权限也能保存，Android 9 以下需要
+      // 1. 权限检查
       if (!await Gal.hasAccess()) {
         await Gal.requestAccess();
       }
 
-      // 2. 下载图片数据
+      // 2. 下载图片数据 (关键修复：添加 Headers)
       var response = await Dio().get(
         widget.imageUrl,
-        options: Options(responseType: ResponseType.bytes),
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: _headers, // <--- 必须加这个，否则下载会报 403 错误
+        ),
       );
 
-      // 3. 【改动点2】使用 Gal 保存图片到相册
-      // Gal.putImageBytes 直接把二进制数据存为图片，非常方便
+      // 3. 保存到相册
       await Gal.putImageBytes(
         Uint8List.fromList(response.data),
         name: "wallhaven_${DateTime.now().millisecondsSinceEpoch}",
@@ -53,8 +59,8 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
         );
       }
     } catch (e) {
+      debugPrint("Download Error: $e");
       if (mounted) {
-        // 如果是用户拒绝权限，Gal 会抛出 GalExceptionType.accessDenied
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("❌ 保存失败: $e"), backgroundColor: Colors.red),
         );
@@ -85,6 +91,9 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
               child: Image.network(
                 widget.imageUrl,
                 fit: BoxFit.contain,
+                // === 关键修复：大图浏览也需要伪装头 ===
+                headers: _headers,
+                // =================================
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
                   return Center(
@@ -97,9 +106,23 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
                     ),
                   );
                 },
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.broken_image, color: Colors.white54, size: 50),
+                        SizedBox(height: 10),
+                        Text("无法加载原图", style: TextStyle(color: Colors.white54)),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
           ),
+          
+          // 底部操作栏
           Positioned(
             bottom: 40,
             left: 20,
