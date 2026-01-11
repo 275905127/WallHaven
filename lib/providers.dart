@@ -9,7 +9,7 @@ class AppState extends ChangeNotifier {
   // 默认图源
   List<SourceConfig> _sources = [
     SourceConfig(
-      name: 'Wallhaven', // <--- 修改 1: 去掉 "(默认)"
+      name: 'Wallhaven',
       baseUrl: 'https://wallhaven.cc/api/v1/search',
       filters: [
         FilterGroup(title: '排序', paramName: 'sorting', type: 'radio', options: [
@@ -19,14 +19,14 @@ class AppState extends ChangeNotifier {
             FilterOption(label: '排行榜', value: 'toplist'),
         ]),
         FilterGroup(title: '分类', paramName: 'categories', type: 'bitmask', options: [
-            FilterOption(label: 'General', value: 'General'), // 改为英文更通用
+            FilterOption(label: 'General', value: 'General'),
             FilterOption(label: 'Anime', value: 'Anime'),
             FilterOption(label: 'People', value: 'People'),
         ]),
         FilterGroup(title: '分级', paramName: 'purity', type: 'bitmask', options: [
-            FilterOption(label: 'SFW', value: 'SFW'),         // <--- 修改 2: 改为英文
+            FilterOption(label: 'SFW', value: 'SFW'),
             FilterOption(label: 'Sketchy', value: 'Sketchy'),
-            FilterOption(label: 'NSFW', value: 'NSFW'),       // <--- 修改 3: 改为英文
+            FilterOption(label: 'NSFW', value: 'NSFW'),
         ]),
       ]
     ),
@@ -85,6 +85,26 @@ class AppState extends ChangeNotifier {
 
   void addSource(SourceConfig config) {
     _sources.add(config);
+    _saveSourcesToDisk();
+    notifyListeners();
+  }
+
+  // === 新增：更新现有图源 ===
+  void updateSource(int index, SourceConfig config) {
+    if (index >= 0 && index < _sources.length) {
+      _sources[index] = config;
+      _saveSourcesToDisk();
+      notifyListeners();
+    }
+  }
+
+  // === 新增：删除图源 (顺手加上) ===
+  void removeSource(int index) {
+    if (_sources.length <= 1) return; // 至少保留一个
+    _sources.removeAt(index);
+    if (_currentSourceIndex >= _sources.length) {
+      _currentSourceIndex = 0;
+    }
     _saveSourcesToDisk();
     notifyListeners();
   }
