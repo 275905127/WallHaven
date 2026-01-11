@@ -6,7 +6,7 @@ import 'models/source_config.dart';
 class AppState extends ChangeNotifier {
   SharedPreferences? _prefs;
 
-  // 默认图源
+  // 默认图源：补全 Wallhaven 完整筛选规则
   List<SourceConfig> _sources = [
     SourceConfig(
       name: 'Wallhaven',
@@ -16,7 +16,8 @@ class AppState extends ChangeNotifier {
             FilterOption(label: '最新', value: 'date_added'),
             FilterOption(label: '最热', value: 'views'),
             FilterOption(label: '收藏', value: 'favorites'),
-            FilterOption(label: '排行', value: 'toplist'),
+            FilterOption(label: '榜单', value: 'toplist'), // 统一为 2 字
+            FilterOption(label: '随机', value: 'random'),
         ]),
         FilterGroup(title: '分类', paramName: 'categories', type: 'bitmask', options: [
             FilterOption(label: 'General', value: 'General'),
@@ -28,9 +29,29 @@ class AppState extends ChangeNotifier {
             FilterOption(label: 'Sketchy', value: 'Sketchy'),
             FilterOption(label: 'NSFW', value: 'NSFW'),
         ]),
+        FilterGroup(title: '比例', paramName: 'atleast', type: 'radio', options: [
+            FilterOption(label: '全部', value: ''),
+            FilterOption(label: '横屏', value: 'landscape'),
+            FilterOption(label: '竖屏', value: 'portrait'),
+        ]),
+        FilterGroup(title: '分辨率', paramName: 'resolutions', type: 'radio', options: [
+            FilterOption(label: '全部', value: ''),
+            FilterOption(label: '4K', value: '3840x2160'),
+            FilterOption(label: '2K', value: '2560x1440'),
+            FilterOption(label: '1080P', value: '1920x1080'),
+        ]),
+        FilterGroup(title: '色彩', paramName: 'colors', type: 'radio', options: [
+            FilterOption(label: '全部', value: ''),
+            FilterOption(label: '红', value: 'e74c3c'),
+            FilterOption(label: '绿', value: '2ecc71'),
+            FilterOption(label: '蓝', value: '3498db'),
+            FilterOption(label: '黄', value: 'f1c40f'),
+            FilterOption(label: '紫', value: '9b59b6'),
+        ]),
       ]
     ),
   ];
+  
   int _currentSourceIndex = 0;
   Map<String, dynamic> _activeParams = {};
 
@@ -89,7 +110,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // === 新增：更新现有图源 ===
   void updateSource(int index, SourceConfig config) {
     if (index >= 0 && index < _sources.length) {
       _sources[index] = config;
@@ -98,13 +118,10 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  // === 新增：删除图源 (顺手加上) ===
   void removeSource(int index) {
-    if (_sources.length <= 1) return; // 至少保留一个
+    if (_sources.length <= 1) return;
     _sources.removeAt(index);
-    if (_currentSourceIndex >= _sources.length) {
-      _currentSourceIndex = 0;
-    }
+    if (_currentSourceIndex >= _sources.length) _currentSourceIndex = 0;
     _saveSourcesToDisk();
     notifyListeners();
   }
@@ -116,7 +133,6 @@ class AppState extends ChangeNotifier {
       addSource(config);
       return true;
     } catch (e) {
-      debugPrint("导入失败: $e");
       return false;
     }
   }
@@ -127,9 +143,14 @@ class AppState extends ChangeNotifier {
   }
 
   void updateParam(String key, dynamic value) {
-    _activeParams[key] = value;
+    if (value == null || value == '') {
+      _activeParams.remove(key);
+    } else {
+      _activeParams[key] = value;
+    }
     notifyListeners();
   }
+
   void updateSearchQuery(String q) {
     _activeParams['q'] = q;
     notifyListeners();
