@@ -13,8 +13,6 @@ class SettingsPage extends StatelessWidget {
 
     return Scaffold(
       body: CustomScrollView(
-        // 【已删除】physics: const BouncingScrollPhysics(), 
-        // 因为 main.dart 里的 scrollBehavior 会自动处理
         slivers: [
           SliverAppBar(
             pinned: true,
@@ -110,7 +108,7 @@ class SettingsPage extends StatelessWidget {
     return mode;
   }
 
-  // 1. 主题设置
+  // 1. 主题设置 - 使用标准 AlertDialog
   void _showThemeDialog(BuildContext context, AppState state) {
     showDialog(
       context: context,
@@ -123,58 +121,26 @@ class SettingsPage extends StatelessWidget {
           builder: (context, setState) {
             return AlertDialog(
               title: const Text("外观设置"),
-              actionsAlignment: MainAxisAlignment.spaceEvenly,
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text("深色模式", style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 12, bottom: 8),
+                      child: Text("模式选择", style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold)),
                     ),
-                    RadioListTile<ThemeMode>(
-                      title: const Text("跟随系统"),
-                      value: ThemeMode.system,
-                      groupValue: tempMode,
-                      onChanged: (v) => setState(() => tempMode = v!),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    RadioListTile<ThemeMode>(
-                      title: const Text("浅色"),
-                      value: ThemeMode.light,
-                      groupValue: tempMode,
-                      onChanged: (v) => setState(() => tempMode = v!),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    RadioListTile<ThemeMode>(
-                      title: const Text("深色"),
-                      value: ThemeMode.dark,
-                      groupValue: tempMode,
-                      onChanged: (v) => setState(() => tempMode = v!),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    const Divider(),
-                    SwitchListTile(
-                      title: const Text("动态取色 (Material You)"),
-                      value: tempMaterialYou,
-                      onChanged: (v) => setState(() => tempMaterialYou = v),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    SwitchListTile(
-                      title: const Text("纯黑背景 (AMOLED)"),
-                      subtitle: const Text("仅在深色模式下生效"),
-                      value: tempAmoled,
-                      onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ],
-                ),
+                  ),
+                  RadioListTile<ThemeMode>(title: const Text("跟随系统"), value: ThemeMode.system, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
+                  RadioListTile<ThemeMode>(title: const Text("浅色"), value: ThemeMode.light, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
+                  RadioListTile<ThemeMode>(title: const Text("深色"), value: ThemeMode.dark, groupValue: tempMode, onChanged: (v) => setState(() => tempMode = v!)),
+                  const Divider(),
+                  SwitchListTile(title: const Text("动态取色"), value: tempMaterialYou, onChanged: (v) => setState(() => tempMaterialYou = v)),
+                  SwitchListTile(title: const Text("纯黑背景"), subtitle: const Text("AMOLED"), value: tempAmoled, onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)),
+                ],
               ),
               actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("取消", style: TextStyle(color: Colors.grey)),
-                ),
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消", style: TextStyle(color: Colors.grey))),
                 TextButton(
                   onPressed: () {
                     state.setThemeMode(tempMode);
@@ -182,7 +148,7 @@ class SettingsPage extends StatelessWidget {
                     state.setAmoled(tempAmoled);
                     Navigator.pop(context);
                   },
-                  child: const Text("确定", style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text("确定"),
                 ),
               ],
             );
@@ -202,22 +168,11 @@ class SettingsPage extends StatelessWidget {
           builder: (context, setState) {
             return AlertDialog(
               title: const Text("选择语言 / Language"),
-              actionsAlignment: MainAxisAlignment.spaceEvenly,
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  RadioListTile<String>(
-                    title: const Text("简体中文"),
-                    value: 'zh',
-                    groupValue: tempLang,
-                    onChanged: (v) => setState(() => tempLang = v!),
-                  ),
-                  RadioListTile<String>(
-                    title: const Text("English"),
-                    value: 'en',
-                    groupValue: tempLang,
-                    onChanged: (v) => setState(() => tempLang = v!),
-                  ),
+                  RadioListTile<String>(title: const Text("简体中文"), value: 'zh', groupValue: tempLang, onChanged: (v) => setState(() => tempLang = v!)),
+                  RadioListTile<String>(title: const Text("English"), value: 'en', groupValue: tempLang, onChanged: (v) => setState(() => tempLang = v!)),
                 ],
               ),
               actions: [
@@ -227,7 +182,7 @@ class SettingsPage extends StatelessWidget {
                     state.setLanguage(tempLang);
                     Navigator.pop(context);
                   },
-                  child: const Text("确定", style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text("确定"),
                 ),
               ],
             );
@@ -244,9 +199,9 @@ class SettingsPage extends StatelessWidget {
       builder: (context) {
         return AlertDialog(
           title: const Text("图源管理"),
-          contentPadding: const EdgeInsets.only(top: 20),
-          actionsAlignment: MainAxisAlignment.spaceEvenly,
-          content: SizedBox(
+          // 使用 Container 限制高度
+          content: Container(
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
             width: double.maxFinite,
             child: ListView(
               shrinkWrap: true,
@@ -299,16 +254,10 @@ class SettingsPage extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("导入配置"),
-        actionsAlignment: MainAxisAlignment.spaceEvenly,
         content: TextField(
           controller: controller,
           maxLines: 5,
-          decoration: const InputDecoration(
-            hintText: "在此粘贴 JSON 配置代码...",
-            filled: true,
-            fillColor: Colors.black12,
-            border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide.none),
-          ),
+          decoration: const InputDecoration(hintText: "在此粘贴 JSON 配置代码..."),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消", style: TextStyle(color: Colors.grey))),
@@ -325,7 +274,7 @@ class SettingsPage extends StatelessWidget {
                 ),
               );
             }, 
-            child: const Text("导入", style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text("导入"),
           ),
         ],
       ),
@@ -348,14 +297,12 @@ class SettingsPage extends StatelessWidget {
         builder: (context, setState) {
           return AlertDialog(
             title: const Text("添加图源"),
-            actionsAlignment: MainAxisAlignment.spaceEvenly,
             content: SingleChildScrollView(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildInput(nameCtrl, "名称 (Name)"),
+                  TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "名称")),
                   const SizedBox(height: 10),
-                  _buildInput(urlCtrl, "API 地址 (URL)"),
+                  TextField(controller: urlCtrl, decoration: const InputDecoration(labelText: "API 地址")),
                   const SizedBox(height: 10),
                   TextButton(
                     onPressed: () => setState(() => showAdvanced = !showAdvanced),
@@ -365,11 +312,11 @@ class SettingsPage extends StatelessWidget {
                     ),
                   ),
                   if (showAdvanced) ...[
-                     _buildInput(listKeyCtrl, "List Key"),
+                     TextField(controller: listKeyCtrl, decoration: const InputDecoration(labelText: "List Key")),
                      const SizedBox(height: 8),
-                     _buildInput(thumbKeyCtrl, "Thumb Key"),
+                     TextField(controller: thumbKeyCtrl, decoration: const InputDecoration(labelText: "Thumb Key")),
                      const SizedBox(height: 8),
-                     _buildInput(fullKeyCtrl, "Full Key"),
+                     TextField(controller: fullKeyCtrl, decoration: const InputDecoration(labelText: "Full Key")),
                   ]
                 ],
               ),
@@ -390,22 +337,11 @@ class SettingsPage extends StatelessWidget {
                     Navigator.pop(context);
                   }
                 }, 
-                child: const Text("添加", style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text("添加"),
               ),
             ],
           );
         }
-      ),
-    );
-  }
-
-  Widget _buildInput(TextEditingController ctrl, String label) {
-    return TextField(
-      controller: ctrl,
-      decoration: InputDecoration(
-        labelText: label,
-        isDense: true,
-        border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
       ),
     );
   }
