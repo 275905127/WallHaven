@@ -6,59 +6,40 @@ import 'models/source_config.dart';
 class AppState extends ChangeNotifier {
   SharedPreferences? _prefs;
 
-  // 默认图源：补全 Wallhaven 完整筛选规则
+  // 默认图源
   List<SourceConfig> _sources = [
     SourceConfig(
-      name: 'Wallhaven',
+      name: 'Wallhaven (默认)', 
       baseUrl: 'https://wallhaven.cc/api/v1/search',
       filters: [
         FilterGroup(title: '排序', paramName: 'sorting', type: 'radio', options: [
             FilterOption(label: '最新', value: 'date_added'),
             FilterOption(label: '最热', value: 'views'),
             FilterOption(label: '收藏', value: 'favorites'),
-            FilterOption(label: '榜单', value: 'toplist'), // 统一为 2 字
-            FilterOption(label: '随机', value: 'random'),
+            FilterOption(label: '排行榜', value: 'toplist'),
         ]),
         FilterGroup(title: '分类', paramName: 'categories', type: 'bitmask', options: [
-            FilterOption(label: 'General', value: 'General'),
-            FilterOption(label: 'Anime', value: 'Anime'),
-            FilterOption(label: 'People', value: 'People'),
+            FilterOption(label: '常规', value: 'General'),
+            FilterOption(label: '动漫', value: 'Anime'),
+            FilterOption(label: '人物', value: 'People'),
         ]),
         FilterGroup(title: '分级', paramName: 'purity', type: 'bitmask', options: [
-            FilterOption(label: 'SFW', value: 'SFW'),
-            FilterOption(label: 'Sketchy', value: 'Sketchy'),
-            FilterOption(label: 'NSFW', value: 'NSFW'),
-        ]),
-        FilterGroup(title: '比例', paramName: 'atleast', type: 'radio', options: [
-            FilterOption(label: '全部', value: ''),
-            FilterOption(label: '横屏', value: 'landscape'),
-            FilterOption(label: '竖屏', value: 'portrait'),
-        ]),
-        FilterGroup(title: '分辨率', paramName: 'resolutions', type: 'radio', options: [
-            FilterOption(label: '全部', value: ''),
-            FilterOption(label: '4K', value: '3840x2160'),
-            FilterOption(label: '2K', value: '2560x1440'),
-            FilterOption(label: '1080P', value: '1920x1080'),
-        ]),
-        FilterGroup(title: '色彩', paramName: 'colors', type: 'radio', options: [
-            FilterOption(label: '全部', value: ''),
-            FilterOption(label: '红', value: 'e74c3c'),
-            FilterOption(label: '绿', value: '2ecc71'),
-            FilterOption(label: '蓝', value: '3498db'),
-            FilterOption(label: '黄', value: 'f1c40f'),
-            FilterOption(label: '紫', value: '9b59b6'),
+            FilterOption(label: '安全', value: 'SFW'),
+            FilterOption(label: '擦边', value: 'Sketchy'),
+            FilterOption(label: '限制级', value: 'NSFW'),
         ]),
       ]
     ),
   ];
-  
   int _currentSourceIndex = 0;
   Map<String, dynamic> _activeParams = {};
 
+  // Getters
   List<SourceConfig> get sources => _sources;
   SourceConfig get currentSource => _sources[_currentSourceIndex];
   Map<String, dynamic> get activeParams => _activeParams;
   
+  // Theme State
   ThemeMode _themeMode = ThemeMode.system;
   bool _useMaterialYou = true;
   bool _useAmoled = false;
@@ -68,9 +49,11 @@ class AppState extends ChangeNotifier {
   bool get useAmoled => _useAmoled;
   Locale get locale => _locale;
 
+  // Init
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     
+    // Theme & Locale
     String? mode = _prefs?.getString('themeMode');
     if (mode == 'light') _themeMode = ThemeMode.light;
     if (mode == 'dark') _themeMode = ThemeMode.dark;
@@ -79,6 +62,7 @@ class AppState extends ChangeNotifier {
     String? lang = _prefs?.getString('language');
     if (lang != null) _locale = Locale(lang);
 
+    // Sources
     String? savedSources = _prefs?.getString('generic_sources_v2');
     if (savedSources != null) {
       try {
@@ -97,10 +81,12 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- Source Methods ---
+
   void setSource(int index) {
     _currentSourceIndex = index;
     _prefs?.setInt('current_source_index', index);
-    _activeParams.clear();
+    _activeParams.clear(); // 切换时清空筛选
     notifyListeners();
   }
 
@@ -109,30 +95,17 @@ class AppState extends ChangeNotifier {
     _saveSourcesToDisk();
     notifyListeners();
   }
-
-  void updateSource(int index, SourceConfig config) {
-    if (index >= 0 && index < _sources.length) {
-      _sources[index] = config;
-      _saveSourcesToDisk();
-      notifyListeners();
-    }
-  }
-
-  void removeSource(int index) {
-    if (_sources.length <= 1) return;
-    _sources.removeAt(index);
-    if (_currentSourceIndex >= _sources.length) _currentSourceIndex = 0;
-    _saveSourcesToDisk();
-    notifyListeners();
-  }
   
+  // === 新增：导入配置 ===
+  // 返回 true 表示成功，false 表示失败
   bool importSourceConfig(String jsonString) {
     try {
       final Map<String, dynamic> map = jsonDecode(jsonString);
       final config = SourceConfig.fromJson(map);
-      addSource(config);
+      addSource(config); // 复用添加逻辑
       return true;
     } catch (e) {
+      debugPrint("导入失败: $e");
       return false;
     }
   }
@@ -142,20 +115,17 @@ class AppState extends ChangeNotifier {
     _prefs?.setString('generic_sources_v2', jsonString);
   }
 
+  // --- Filter Methods ---
   void updateParam(String key, dynamic value) {
-    if (value == null || value == '') {
-      _activeParams.remove(key);
-    } else {
-      _activeParams[key] = value;
-    }
+    _activeParams[key] = value;
     notifyListeners();
   }
-
   void updateSearchQuery(String q) {
     _activeParams['q'] = q;
     notifyListeners();
   }
 
+  // --- Theme Methods ---
   void setThemeMode(ThemeMode mode) { _themeMode = mode; _prefs?.setString('themeMode', mode.name); notifyListeners(); }
   void setMaterialYou(bool v) { _useMaterialYou = v; _prefs?.setBool('useMaterialYou', v); notifyListeners(); }
   void setAmoled(bool v) { _useAmoled = v; _prefs?.setBool('useAmoled', v); notifyListeners(); }
