@@ -659,7 +659,7 @@ class SettingsPage extends StatelessWidget {
           height: 40, 
           child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              trackHeight: 16, 
+              trackHeight: 12, 
               trackShape: const RoundedRectSliderTrackShape(),
               activeTrackColor: primaryColor,
               inactiveTrackColor: primaryColor.withOpacity(0.15),
