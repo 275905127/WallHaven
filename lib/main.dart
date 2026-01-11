@@ -66,6 +66,7 @@ class MyApp extends StatelessWidget {
         }
 
         // === 2. 统一形状 (动态读取设置) ===
+        // 注意：这里不是 const，因为 appState.cornerRadius 是变量
         final commonShape = RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(appState.cornerRadius)), 
         );
@@ -151,7 +152,8 @@ class MyApp extends StatelessWidget {
               )
             ),
             
-            bottomSheetTheme: const BottomSheetThemeData(
+            // 修复点：这里去掉了 const，因为 commonShape 是变量
+            bottomSheetTheme: BottomSheetThemeData(
               backgroundColor: lightSurface,
               modalBackgroundColor: lightSurface,
               shape: commonShape,
@@ -197,6 +199,7 @@ class MyApp extends StatelessWidget {
               )
             ),
             
+            // 这里本来就没有 const，保持原样
             bottomSheetTheme: BottomSheetThemeData(
               backgroundColor: darkSurface,
               modalBackgroundColor: darkSurface,
