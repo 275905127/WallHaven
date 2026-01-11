@@ -37,6 +37,8 @@ dependencies:
   
   # 动态取色 (Material You)
   dynamic_color: ^1.6.9
+  cached_network_image: ^3.3.1
+  flutter_cache_manager: ^3.3.1
 
 
 dev_dependencies:
