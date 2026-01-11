@@ -12,8 +12,11 @@ void main() async {
   final appState = AppState();
   await appState.init();
 
+  // 统一状态栏样式：透明沉浸式
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
+    systemNavigationBarColor: Colors.transparent, // 底部导航条也透明 (Android 10+)
+    statusBarIconBrightness: Brightness.dark,
   ));
 
   runApp(
@@ -26,6 +29,15 @@ void main() async {
   );
 }
 
+// === 1. 自定义全局滚动行为 (统一手感) ===
+// 所有的 ListView/GridView 默认都拥有“阻尼回弹”效果，不用每个页面单独写
+class AppScrollBehavior extends MaterialScrollBehavior {
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+  }
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -35,21 +47,20 @@ class MyApp extends StatelessWidget {
 
     return DynamicColorBuilder(
       builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
-        // 1. 定义核心颜色
-        const lightBg = Color(0xFFF1F1F3); // 全局背景
-        const lightSurface = Color(0xFFFFFDFD); // 卡片/弹窗颜色
+        // === 2. 统一颜色定义 ===
+        const lightBg = Color(0xFFF1F1F3);     // 全局背景：冷灰白
+        const lightSurface = Color(0xFFFFFDFD); // 卡片/弹窗：微暖白
         
         final darkBg = appState.useAmoled ? Colors.black : const Color(0xFF121212);
         final darkSurface = appState.useAmoled ? const Color(0xFF1A1A1A) : const Color(0xFF2C2C2C);
 
-        // 2. 生成配色
+        // 生成配色方案
         ColorScheme lightScheme;
         ColorScheme darkScheme;
 
         if (lightDynamic != null && appState.useMaterialYou) {
           lightScheme = lightDynamic.harmonized();
           lightScheme = lightScheme.copyWith(surface: lightSurface, surfaceContainerHighest: lightSurface);
-          
           darkScheme = darkDynamic?.harmonized() ?? const ColorScheme.dark();
           darkScheme = darkScheme.copyWith(surface: darkSurface, surfaceContainerHighest: darkSurface);
         } else {
@@ -57,35 +68,38 @@ class MyApp extends StatelessWidget {
           darkScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark, surface: darkSurface);
         }
 
-        // 3. 统一形状：参考图的大圆角 (28px)
+        // === 3. 统一形状 (圆角系统) ===
+        // 改这里，全App所有卡片和弹窗的圆角都会变
         const commonShape = RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(28)),
-        );
-
-        // 4. 统一 Dialog 主题 (关键！)
-        // 这会让所有 AlertDialog 自动变成参考图的样式
-        final dialogThemeLight = DialogTheme(
-          backgroundColor: lightSurface,
-          elevation: 0,
-          shape: commonShape,
-          titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
-          contentTextStyle: const TextStyle(fontSize: 16, color: Colors.black87),
-          // 按钮均匀分布
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          borderRadius: BorderRadius.all(Radius.circular(28)), 
         );
         
-        final dialogThemeDark = DialogTheme(
-          backgroundColor: darkSurface,
-          elevation: 0,
-          shape: commonShape,
-          titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-          contentTextStyle: const TextStyle(fontSize: 16, color: Colors.white70),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        // === 4. 统一转场动画 ===
+        // 类似 Android 10+ 的缩放淡入淡出，或者 iOS 的侧滑
+        const pageTransitions = PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: ZoomPageTransitionsBuilder(), // 现代安卓风格
+            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(), // 经典 iOS 侧滑
+          },
+        );
+
+        // === 5. 统一字体样式 (TextTheme) ===
+        // 预设好标题和正文样式，页面里直接用 Theme.of(context).textTheme.titleLarge
+        // 这样以后想换字体或改大小，改这里就行
+        final textThemeBase = Theme.of(context).textTheme;
+        final appTextTheme = textThemeBase.copyWith(
+          titleLarge: textThemeBase.titleLarge?.copyWith(fontWeight: FontWeight.bold, fontSize: 20),
+          titleMedium: textThemeBase.titleMedium?.copyWith(fontWeight: FontWeight.bold, fontSize: 16),
+          bodyMedium: textThemeBase.bodyMedium?.copyWith(fontSize: 14),
         );
 
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'Wallhaven Client',
+          
+          // 注入全局滚动行为
+          scrollBehavior: AppScrollBehavior(),
+
           locale: appState.locale,
           supportedLocales: const [Locale('zh'), Locale('en')],
           localizationsDelegates: const [
@@ -99,11 +113,44 @@ class MyApp extends StatelessWidget {
             useMaterial3: true,
             colorScheme: lightScheme,
             scaffoldBackgroundColor: lightBg,
-            appBarTheme: AppBarTheme(backgroundColor: lightBg, scrolledUnderElevation: 0),
-            cardTheme: const CardTheme(color: lightSurface, elevation: 0, margin: EdgeInsets.zero, shape: commonShape),
-            dialogTheme: dialogThemeLight,
-            // 确保 AlertDialog 内部按钮对齐
-            timePickerTheme: TimePickerThemeData(shape: commonShape, backgroundColor: lightSurface),
+            textTheme: appTextTheme, // 应用统一字体
+            pageTransitionsTheme: pageTransitions, // 应用统一转场
+
+            appBarTheme: AppBarTheme(
+              backgroundColor: lightBg,
+              scrolledUnderElevation: 0,
+              titleTextStyle: TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
+              iconTheme: const IconThemeData(color: Colors.black),
+            ),
+            
+            cardTheme: const CardTheme(
+              color: lightSurface, 
+              elevation: 0, 
+              margin: EdgeInsets.zero, 
+              shape: commonShape
+            ),
+            
+            dialogTheme: const DialogTheme(
+              backgroundColor: lightSurface,
+              elevation: 4,
+              shape: commonShape,
+              titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
+              actionsPadding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+            ),
+
+            // 按钮样式统一
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              )
+            ),
+            
+            bottomSheetTheme: const BottomSheetThemeData(
+              backgroundColor: lightSurface,
+              modalBackgroundColor: lightSurface,
+              shape: commonShape,
+            ),
           ),
 
           // === 深色主题 ===
@@ -111,9 +158,42 @@ class MyApp extends StatelessWidget {
             useMaterial3: true,
             colorScheme: darkScheme,
             scaffoldBackgroundColor: darkBg,
-            appBarTheme: AppBarTheme(backgroundColor: darkBg, scrolledUnderElevation: 0),
-            cardTheme: CardTheme(color: darkSurface, elevation: 0, margin: EdgeInsets.zero, shape: commonShape),
-            dialogTheme: dialogThemeDark,
+            textTheme: appTextTheme.apply(bodyColor: Colors.white, displayColor: Colors.white), // 字体自动变白
+            pageTransitionsTheme: pageTransitions,
+
+            appBarTheme: AppBarTheme(
+              backgroundColor: darkBg,
+              scrolledUnderElevation: 0,
+              titleTextStyle: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              iconTheme: const IconThemeData(color: Colors.white),
+            ),
+            
+            cardTheme: CardTheme(
+              color: darkSurface, 
+              elevation: 0, 
+              margin: EdgeInsets.zero, 
+              shape: commonShape
+            ),
+            
+            dialogTheme: DialogTheme(
+              backgroundColor: darkSurface,
+              shape: commonShape,
+              titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            ),
+
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              )
+            ),
+            
+            bottomSheetTheme: BottomSheetThemeData(
+              backgroundColor: darkSurface,
+              modalBackgroundColor: darkSurface,
+              shape: commonShape,
+            ),
           ),
           
           themeMode: appState.themeMode,
