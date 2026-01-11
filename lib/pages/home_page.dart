@@ -77,16 +77,16 @@ class _HomePageState extends State<HomePage> {
 
     // === 直链模式 (Luvbree 等随机图) ===
     if (currentSource.listKey == '@direct') {
-      int batchSize = 10; 
+      int batchSize = 8; 
       for (int i = 0; i < batchSize; i++) {
         if (!mounted) return;
 
-        final randomId = Random().nextInt(1000000);
+        // 生成强力随机参数，防止缓存
+        final randomId = "${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000000)}";
         final separator = currentSource.baseUrl.contains('?') ? '&' : '?';
-        final directUrl = "${currentSource.baseUrl}${separator}_r=${_page}_${i}_$randomId";
+        // 拼接 _r 参数放在最后
+        final directUrl = "${currentSource.baseUrl}${separator}cache_buster=${_page}_${i}_$randomId";
 
-        // 【优化】给随机图生成一个随机宽高比 (0.6 ~ 1.6)
-        // 这样即使图还没出来，瀑布流也是错落有致的，不会全是正方形
         double randomRatio = 0.6 + Random().nextDouble(); 
 
         final newItem = Wallpaper(
@@ -96,7 +96,7 @@ class _HomePageState extends State<HomePage> {
           resolution: "Random",
           views: 0,
           favorites: 0,
-          aspectRatio: randomRatio, // 使用随机比例占位
+          aspectRatio: randomRatio,
         );
 
         if (mounted) {
@@ -104,7 +104,7 @@ class _HomePageState extends State<HomePage> {
             _wallpapers.add(newItem);
           });
         }
-        await Future.delayed(const Duration(milliseconds: 300)); // 适当加快一点点
+        await Future.delayed(const Duration(milliseconds: 600));
       }
 
       if (mounted) {
@@ -118,13 +118,17 @@ class _HomePageState extends State<HomePage> {
 
     // === 普通 API 模式 (Wallhaven 等) ===
     try {
-      final Map<String, dynamic> queryParams = {
-        'page': _page,
-        if (currentSource.apiKey.isNotEmpty) 
-          currentSource.apiKeyParam: currentSource.apiKey,
-      };
-
+      // 1. 先把筛选参数（可能包含 page:1）放进去
+      final Map<String, dynamic> queryParams = {};
       queryParams.addAll(activeParams);
+
+      // 2. 【核心修复】必须在合并 activeParams 之后，再强制覆盖 page 参数！
+      // 这样才能确保使用的是当前滚动的真实页码 (_page)，而不是筛选器里写死的 page:1
+      queryParams['page'] = _page;
+      
+      if (currentSource.apiKey.isNotEmpty) {
+        queryParams[currentSource.apiKeyParam] = currentSource.apiKey;
+      }
 
       var response = await Dio().get(
         currentSource.baseUrl,
@@ -147,18 +151,13 @@ class _HomePageState extends State<HomePage> {
             String full = _getValueByPath(item, currentSource.fullKey) ?? thumb;
             String id = _getValueByPath(item, currentSource.idKey)?.toString() ?? full.hashCode.toString();
             
-            // 【核心优化】尝试解析宽高，计算比例
             double ratio = 1.0;
             try {
-              // Wallhaven 字段: dimension_x, dimension_y
-              // 其他源可能是 width, height，这里做一个简单的容错读取
-              // 如果你的源 key 不一样，这里可能需要去 SourceConfig 里加配置，但 dimension_x 是 Wallhaven 标配
               var w = item['dimension_x'] ?? item['width'];
               var h = item['dimension_y'] ?? item['height'];
               if (w != null && h != null) {
                 ratio = (w as num) / (h as num);
               } else if (item['ratio'] != null) {
-                // 有些 API 直接返回 "1.77"
                 ratio = double.tryParse(item['ratio'].toString()) ?? 1.0;
               }
             } catch (e) {
@@ -172,14 +171,14 @@ class _HomePageState extends State<HomePage> {
               resolution: "",
               views: 0,
               favorites: 0,
-              aspectRatio: ratio, // 存入比例
+              aspectRatio: ratio,
             );
           }).where((w) => w.thumbUrl.isNotEmpty).toList();
 
           if (mounted) {
             setState(() {
               _wallpapers.addAll(newWallpapers);
-              _page++;
+              _page++; // 页面+1，下次请求就是下一页了
               _isLoading = false;
             });
           }
@@ -288,11 +287,10 @@ class _HomePageState extends State<HomePage> {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          color: Theme.of(context).colorScheme.surfaceContainerHighest, // 占位背景色
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          // 【核心优化】使用 AspectRatio 提前占位
           child: AspectRatio(
             aspectRatio: wallpaper.aspectRatio,
             child: Hero(
@@ -300,10 +298,9 @@ class _HomePageState extends State<HomePage> {
               child: Image.network(
                 wallpaper.thumbUrl,
                 fit: BoxFit.cover,
-                // 加载中不显示 Loading 转圈了，因为背景色已经占位了，看起来更干净
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
-                  return Container(color: Colors.transparent); // 透明，透出底部的卡片色
+                  return Container(color: Colors.transparent);
                 },
                 errorBuilder: (_,__,___) => const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
               ),
