@@ -51,43 +51,44 @@ class _HomePageState extends State<HomePage> {
   }
 
   // 核心：请求 Wallhaven API (支持多图源)
+  // 修改 _fetchWallpapers 方法
   Future<void> _fetchWallpapers({bool refresh = false}) async {
     if (_isLoading) return;
 
-    // 获取全局状态 (不监听变化，只读取一次)
     final appState = context.read<AppState>();
     final currentSource = appState.currentSource;
+    final filters = appState.activeFilters; // 获取刚才筛选页设置的参数
 
-    // 如果是下拉刷新，或者检测到图源切换了，重置列表
-    if (refresh || _lastSourceUrl != currentSource.baseUrl) {
+    if (refresh) {
       setState(() {
         _page = 1;
         _wallpapers.clear();
-        _lastSourceUrl = currentSource.baseUrl; // 更新记录
       });
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      // 1. 准备参数
+      // 1. 基础参数
       final queryParams = {
         'page': _page,
-        'sorting': 'date_added',
-        // 2. 合并图源自带的参数 (例如动漫源自带 categories: 010)
-        ...currentSource.params,
-        // 这里后续还可以合并 FilterPage 里的筛选参数
+        'apikey': currentSource.apiKey, // 从图源拿 Key
+        // 从全局筛选拿参数
+        'categories': filters['categories'],
+        'purity': filters['purity'],
+        'sorting': filters['sorting'],
+        'order': filters['order'],
+        'topRange': filters['topRange'],
+        'q': filters['q'], // 搜索词
       };
 
-      // 3. 发起真实请求
+      // 2. 请求
       var response = await Dio().get(
         currentSource.baseUrl,
         queryParameters: queryParams,
       );
 
-      // 4. 解析数据
+      // 3. 处理数据... (同之前)
       if (response.statusCode == 200) {
         var dataList = response.data['data'] as List;
         List<Wallpaper> newWallpapers = dataList
@@ -97,21 +98,17 @@ class _HomePageState extends State<HomePage> {
         if (mounted) {
           setState(() {
             _wallpapers.addAll(newWallpapers);
-            _page++; // 准备下一页
+            _page++;
             _isLoading = false;
           });
         }
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        // 简单的错误提示
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("加载失败，请检查网络: $e")),
-        );
-      }
+      // ... 错误处理
+      if (mounted) setState(() => _isLoading = false);
     }
   }
+
 
   Future<void> _handleRefresh() async {
     await _fetchWallpapers(refresh: true);
