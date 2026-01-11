@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers.dart';
 
 class FilterPage extends StatefulWidget {
   const FilterPage({super.key});
@@ -8,280 +10,157 @@ class FilterPage extends StatefulWidget {
 }
 
 class _FilterPageState extends State<FilterPage> {
-  // 分类: General, Anime, People
-  final Map<String, bool> _categories = {
-    '常规': true,
-    '动漫': true,
-    '人物': false,
-  };
+  // 本地临时状态
+  late Map<String, bool> _categories;
+  late Map<String, bool> _purity;
+  late String _selectedSort;
+  late String _selectedTopRange;
 
-  // 纯净度: SFW, Sketchy, NSFW
-  final Map<String, bool> _purity = {
-    '安全': true,
-    '擦边': false,
-    '限制级': false,
-  };
+  @override
+  void initState() {
+    super.initState();
+    // 1. 从全局状态初始化 (回显上次的筛选)
+    final filters = context.read<AppState>().activeFilters;
+    
+    // 解析 categories (例如 "100" -> General=true, others=false)
+    String catStr = filters['categories'] ?? '111';
+    _categories = {
+      'General': catStr[0] == '1',
+      'Anime': catStr[1] == '1',
+      'People': catStr[2] == '1',
+    };
 
-  // 排序方式
-  String _selectedSort = '最新添加';
-  final List<String> _sortOptions = [
-    '最新添加', '相关度', '随机', '浏览量', '收藏量', '排行榜'
-  ];
+    // 解析 purity
+    String purStr = filters['purity'] ?? '100';
+    _purity = {
+      'SFW': purStr[0] == '1',
+      'Sketchy': purStr[1] == '1',
+      'NSFW': purStr[2] == '1',
+    };
 
-  // 排行榜时间范围
-  String _selectedTopRange = '1个月';
-  final List<String> _topRangeOptions = ['1天', '3天', '1周', '1个月', '3个月', '6个月', '1年'];
-
-  // 分辨率
-  String _selectedResolution = '任意';
-  final List<String> _resolutions = ['任意', '1920x1080', '2560x1440', '4K+'];
+    _selectedSort = filters['sorting'] ?? 'date_added';
+    _selectedTopRange = filters['topRange'] ?? '1M';
+  }
 
   @override
   Widget build(BuildContext context) {
+    // 映射 UI 显示文本
+    final sortMap = {
+      'date_added': '最新添加',
+      'relevance': '相关度',
+      'random': '随机',
+      'views': '浏览量',
+      'favorites': '收藏量',
+      'toplist': '排行榜'
+    };
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F2),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text("筛选", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFFF2F2F2),
-        elevation: 0,
-        centerTitle: false,
+        title: const Text("筛选"),
         actions: [
           TextButton(
             onPressed: () {
               // 重置逻辑
+              setState(() {
+                _categories = {'General': true, 'Anime': true, 'People': true};
+                _purity = {'SFW': true, 'Sketchy': false, 'NSFW': false};
+                _selectedSort = 'date_added';
+              });
             },
             child: const Text("重置"),
-          ),
-          const SizedBox(width: 8),
+          )
         ],
       ),
-      body: SingleChildScrollView(
+      body: ListView(
         padding: const EdgeInsets.all(16),
-        physics: const BouncingScrollPhysics(),
-        child: Column(
-          children: [
-            // 第一组：分类与分级
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: _boxDecoration(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTitle("分类 (Categories)"),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    children: _categories.keys.map((key) {
-                      return FilterChip(
-                        label: Text(key),
-                        selected: _categories[key]!,
-                        onSelected: (bool selected) {
-                          setState(() {
-                            _categories[key] = selected;
-                          });
-                        },
-                        selectedColor: Colors.blue.withOpacity(0.1),
-                        checkmarkColor: Colors.blue,
-                        labelStyle: TextStyle(
-                          color: _categories[key]! ? Colors.blue : Colors.black87,
-                          fontWeight: _categories[key]! ? FontWeight.bold : FontWeight.normal,
-                        ),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        side: BorderSide(color: _categories[key]! ? Colors.blue : Colors.grey.shade300),
-                        backgroundColor: Colors.white,
-                      );
-                    }).toList(),
-                  ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  _buildTitle("分级 (Purity)"),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    children: _purity.keys.map((key) {
-                      Color activeColor = Colors.blue;
-                      if (key == '安全') activeColor = Colors.green;
-                      if (key == '擦边') activeColor = Colors.orange;
-                      if (key == '限制级') activeColor = Colors.red;
+        children: [
+          // 1. 分类
+          _buildSection("分类 (Categories)", [
+            _buildFilterChip("常规", _categories['General']!, (v) => setState(() => _categories['General'] = v)),
+            _buildFilterChip("动漫", _categories['Anime']!, (v) => setState(() => _categories['Anime'] = v)),
+            _buildFilterChip("人物", _categories['People']!, (v) => setState(() => _categories['People'] = v)),
+          ]),
+          
+          const SizedBox(height: 20),
 
-                      return FilterChip(
-                        label: Text(key),
-                        selected: _purity[key]!,
-                        onSelected: (bool selected) {
-                          setState(() {
-                            _purity[key] = selected;
-                          });
-                        },
-                        selectedColor: activeColor.withOpacity(0.1),
-                        checkmarkColor: activeColor,
-                        labelStyle: TextStyle(
-                          color: _purity[key]! ? activeColor : Colors.black87,
-                          fontWeight: _purity[key]! ? FontWeight.bold : FontWeight.normal,
-                        ),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        side: BorderSide(color: _purity[key]! ? activeColor : Colors.grey.shade300),
-                        backgroundColor: Colors.white,
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
-            ),
-            
-            const SizedBox(height: 16),
+          // 2. 分级
+          _buildSection("分级 (Purity)", [
+            _buildFilterChip("安全 (SFW)", _purity['SFW']!, (v) => setState(() => _purity['SFW'] = v), color: Colors.green),
+            _buildFilterChip("擦边 (Sketchy)", _purity['Sketchy']!, (v) => setState(() => _purity['Sketchy'] = v), color: Colors.orange),
+            _buildFilterChip("限制级 (NSFW)", _purity['NSFW']!, (v) => setState(() => _purity['NSFW'] = v), color: Colors.red),
+          ]),
 
-            // 第二组：排序
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: _boxDecoration(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTitle("排序 (Sorting)"),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _sortOptions.map((key) {
-                      bool isSelected = _selectedSort == key;
-                      return ChoiceChip(
-                        label: Text(key),
-                        selected: isSelected,
-                        onSelected: (bool selected) {
-                          if (selected) {
-                            setState(() {
-                              _selectedSort = key;
-                            });
-                          }
-                        },
-                        selectedColor: Colors.black,
-                        labelStyle: TextStyle(
-                          color: isSelected ? Colors.white : Colors.black87,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        backgroundColor: Colors.white,
-                        showCheckmark: false, 
-                      );
-                    }).toList(),
-                  ),
+          const SizedBox(height: 20),
 
-                  if (_selectedSort == '排行榜') ...[
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Divider(height: 1),
-                    ),
-                    _buildTitle("时间范围"),
-                    const SizedBox(height: 12),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: _topRangeOptions.map((key) {
-                          bool isSelected = _selectedTopRange == key;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              label: Text(key),
-                              selected: isSelected,
-                              onSelected: (bool selected) {
-                                if (selected) setState(() => _selectedTopRange = key);
-                              },
-                              selectedColor: Colors.black,
-                              labelStyle: TextStyle(
-                                color: isSelected ? Colors.white : Colors.black87,
-                              ),
-                              showCheckmark: false,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                              backgroundColor: Colors.white,
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+          // 3. 排序
+          _buildSection("排序 (Sorting)", sortMap.entries.map((e) {
+            return ChoiceChip(
+              label: Text(e.value),
+              selected: _selectedSort == e.key,
+              onSelected: (v) => setState(() => _selectedSort = e.key),
+            );
+          }).toList()),
 
-            const SizedBox(height: 16),
-            
-            // 第三组：分辨率
-             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: _boxDecoration(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                   _buildTitle("分辨率 (Resolution)"),
-                   const SizedBox(height: 12),
-                   Wrap(
-                    spacing: 8,
-                    children: _resolutions.map((key) {
-                      bool isSelected = _selectedResolution == key;
-                      return ChoiceChip(
-                         label: Text(key),
-                         selected: isSelected,
-                         onSelected: (val) => setState(() => _selectedResolution = key),
-                         selectedColor: Colors.black,
-                         labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black87),
-                         showCheckmark: false,
-                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                         backgroundColor: Colors.white,
-                      );
-                    }).toList(),
-                   )
-                ],
-              ),
-             ),
-
-             const SizedBox(height: 80),
-          ],
-        ),
+          // 4. 排行榜时间 (仅当选排行榜时显示)
+          if (_selectedSort == 'toplist') ...[
+            const SizedBox(height: 12),
+            _buildSection("时间范围", ['1d', '3d', '1w', '1M', '3M', '6M', '1y'].map((e) {
+               return ChoiceChip(
+                label: Text(e),
+                selected: _selectedTopRange == e,
+                onSelected: (v) => setState(() => _selectedTopRange = e),
+              );
+            }).toList()),
+          ]
+        ],
       ),
-      
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: SizedBox(
-          width: MediaQuery.of(context).size.width * 0.9,
-          height: 56,
-          child: FloatingActionButton.extended(
-            onPressed: () {
-               Navigator.pop(context);
-            },
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            elevation: 4,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
-            label: const Text("应用筛选", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            icon: const Icon(Icons.check),
-          ),
-        ),
+      floatingActionButton: FloatingActionButton.extended(
+        label: const Text("应用筛选"),
+        icon: const Icon(Icons.check),
+        onPressed: () {
+          // 1. 拼接 binary string
+          String catStr = 
+              "${_categories['General']! ? 1 : 0}${_categories['Anime']! ? 1 : 0}${_categories['People']! ? 1 : 0}";
+          String purStr = 
+              "${_purity['SFW']! ? 1 : 0}${_purity['Sketchy']! ? 1 : 0}${_purity['NSFW']! ? 1 : 0}";
+
+          // 2. 更新全局状态
+          context.read<AppState>().updateFilters({
+            'categories': catStr,
+            'purity': purStr,
+            'sorting': _selectedSort,
+            'topRange': _selectedTopRange,
+          });
+
+          // 3. 返回并刷新
+          Navigator.pop(context);
+        },
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 
-  BoxDecoration _boxDecoration() {
-    return BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(24),
-      boxShadow: [
-        BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
+  Widget _buildSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: children),
       ],
     );
   }
 
-  Widget _buildTitle(String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 14, 
-        fontWeight: FontWeight.bold, 
-        color: Colors.grey[600]
+  Widget _buildFilterChip(String label, bool selected, Function(bool) onSelect, {Color? color}) {
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: onSelect,
+      checkmarkColor: color,
+      selectedColor: (color ?? Colors.blue).withOpacity(0.2),
+      labelStyle: TextStyle(
+        color: selected ? (color ?? Colors.blue) : null,
+        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
       ),
     );
   }
