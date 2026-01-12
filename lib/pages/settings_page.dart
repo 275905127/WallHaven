@@ -13,6 +13,7 @@ class SettingsPage extends StatelessWidget {
     final textColor = Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
 
     return Scaffold(
+      // 背景色由 main.dart 中的 themeData 控制 (即 appState.customScaffoldColor)
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
@@ -21,6 +22,8 @@ class SettingsPage extends StatelessWidget {
             elevation: 0,
             centerTitle: false,
             iconTheme: IconThemeData(color: textColor),
+            // 确保 Appbar 背景透明或跟随设置
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           ),
           SliverList(
             delegate: SliverChildListDelegate([
@@ -32,7 +35,8 @@ class SettingsPage extends StatelessWidget {
                     _buildCard(
                       context,
                       child: Padding(
-                        padding: const EdgeInsets.all(20), 
+                        // 优化：加大内边距，更舒展
+                        padding: const EdgeInsets.all(24), 
                         child: Row(
                           children: [
                             Expanded(
@@ -40,26 +44,29 @@ class SettingsPage extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(appState.locale.languageCode == 'zh' ? "当前图源" : "Current Source", 
-                                    style: TextStyle(color: Colors.grey, fontSize: 13)),
-                                  const SizedBox(height: 6),
+                                    style: TextStyle(color: Colors.grey, fontSize: 13, letterSpacing: 0.5)),
+                                  const SizedBox(height: 8),
                                   Text(appState.currentSource.name, 
-                                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
+                                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: textColor)),
                                   const SizedBox(height: 4),
                                   Text(appState.currentSource.baseUrl, 
-                                    style: TextStyle(fontSize: 10, color: Colors.grey, overflow: TextOverflow.ellipsis), maxLines: 1),
+                                    style: TextStyle(fontSize: 11, color: Colors.grey, overflow: TextOverflow.ellipsis), maxLines: 1),
                                 ],
                               ),
                             ),
-                            CircleAvatar(
-                              radius: 26,
-                              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                              child: Icon(Icons.hub, color: Theme.of(context).colorScheme.primary),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.hub, size: 32, color: Theme.of(context).colorScheme.primary),
                             ),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
                     // === 2. 基础设置卡片 (主题、语言、图源管理) ===
                     _buildCard(
@@ -87,14 +94,14 @@ class SettingsPage extends StatelessWidget {
                             title: appState.locale.languageCode == 'zh' ? "图源管理" : "Source Manager",
                             subtitle: appState.locale.languageCode == 'zh' ? "添加、编辑或删除" : "Manage sources",
                             icon: Icons.source_outlined,
-                            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                            trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
                             onTap: () => _showSourceManagerDialog(context),
                           ),
                         ],
                       ),
                     ),
                     
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                     
                     // === 3. 我的收藏卡片 (单独一个卡片) ===
                     _buildCard(
@@ -104,12 +111,14 @@ class SettingsPage extends StatelessWidget {
                         title: appState.locale.languageCode == 'zh' ? "我的收藏" : "My Favorites",
                         subtitle: appState.locale.languageCode == 'zh' ? "查看已收藏的壁纸" : "View favorite wallpapers",
                         icon: Icons.bookmark_outline,
-                        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                        trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
                         onTap: () {
                           Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritesPage()));
                         },
                       ),
                     ),
+                    
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -127,7 +136,76 @@ class SettingsPage extends StatelessWidget {
     return mode;
   }
 
-  // --- 弹窗逻辑 ---
+  // --- 样式组件构建 (UI 核心优化点) ---
+
+  // 1. 卡片构建 (Shadow + Color Logic)
+  Widget _buildCard(BuildContext context, {required Widget child}) { 
+    final appState = context.read<AppState>();
+    final radius = appState.cornerRadius; 
+    
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // 颜色逻辑：优先自定义 -> 其次深色模式深灰 -> 最后浅色模式纯白
+    // 这种纯白 (Colors.white) 配合浅灰背景 (F2F2F6) 才是参考图质感的关键
+    final cardColor = appState.customCardColor ?? (isDark ? const Color(0xFF1C1C1E) : Colors.white);
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(radius),
+        // === 注入灵魂：弥散阴影 ===
+        // 让卡片看起来是浮在背景上的，而不是贴在背景上
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.05), // 浅色模式阴影要淡
+            offset: const Offset(0, 2), 
+            blurRadius: 10, // 柔和的模糊
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: child,
+      ),
+    ); 
+  }
+
+  // 2. 列表项构建 (Spacing + Typography)
+  Widget _buildTile(BuildContext context, {required String title, required String subtitle, required IconData icon, Widget? trailing, VoidCallback? onTap}) {
+    final textColor = Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        // 优化：左右边距加到 24，上下 18，让卡片看起来不那么挤，更有呼吸感
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24), 
+        child: Row(children: [
+          Icon(icon, color: textColor.withOpacity(0.7), size: 26), 
+          
+          // 优化：图标和文字的间距加大到 20
+          const SizedBox(width: 20),
+          
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: TextStyle(
+              fontWeight: FontWeight.w600, // 优化：半粗体，更有质感
+              fontSize: 16, 
+              color: textColor
+            )), 
+            const SizedBox(height: 4),
+            Text(subtitle, style: TextStyle(color: textColor.withOpacity(0.5), fontSize: 13)),
+          ])),
+          
+          if (trailing != null) trailing,
+        ]),
+      ),
+    );
+  }
+  
+  // 优化：分割线缩进，对齐文字起始位置 (24padding + 26icon + 20gap = 70)
+  Widget _divider() => const Divider(height: 1, indent: 70, endIndent: 0, color: Color(0x0D000000));
+
+  // --- 弹窗逻辑 (完全保留你提供的原有逻辑) ---
 
   void _showThemeDialog(BuildContext context, AppState state) {
     showDialog(
@@ -168,7 +246,6 @@ class SettingsPage extends StatelessWidget {
                     SwitchListTile(title: const Text("纯黑背景 (AMOLED)"), value: tempAmoled, shape: dynamicShape, onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)),
                     
                     const Divider(height: 24),
-                    // === 修改：自定义颜色使用 HEX 输入 ===
                     ListTile(
                       title: const Text("自定义背景颜色"),
                       trailing: CircleAvatar(backgroundColor: state.customScaffoldColor ?? Colors.grey[300], radius: 12),
@@ -253,7 +330,7 @@ class SettingsPage extends StatelessWidget {
               try {
                 String hex = ctrl.text.trim().replaceAll("#", "");
                 if (hex.length == 6) {
-                  hex = "FF$hex"; // 默认补全 Alpha 通道
+                  hex = "FF$hex"; 
                 }
                 if (hex.length == 8) {
                   final val = int.parse(hex, radix: 16);
@@ -272,10 +349,7 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // 图源管理、删除确认等代码保持不变，为节省篇幅省略，可以直接复用之前的代码块
-  // 如果你需要我再次发送这部分代码，请告诉我。这里为了避免超出长度限制，主要展示改动部分。
-  
-  // (以下是复用的方法，请保留原文件中的实现)
+  // 图源管理、删除确认等代码保持不变
   void _showSourceManagerDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -493,8 +567,7 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // Filter 编辑器逻辑... (同上，保持不变)
-   Future<List<FilterGroup>?> _openFilterEditor(BuildContext context, List<FilterGroup> currentFilters) {
+  Future<List<FilterGroup>?> _openFilterEditor(BuildContext context, List<FilterGroup> currentFilters) {
     return showDialog<List<FilterGroup>>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -593,7 +666,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // Filter Group 编辑器逻辑... (同上，保持不变)
   Future<FilterGroup?> _openGroupEditor(BuildContext context, FilterGroup? group) {
     final titleCtrl = TextEditingController(text: group?.title);
     final paramCtrl = TextEditingController(text: group?.paramName);
@@ -832,15 +904,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildCard(BuildContext context, {required Widget child}) { 
-    final radius = context.read<AppState>().cornerRadius; 
-    return Card(
-      clipBehavior: Clip.antiAlias, 
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
-      child: child 
-    ); 
-  }
-
   Widget _buildThemeRadio(BuildContext context, String label, ThemeMode value, ThemeMode groupValue, ValueChanged<ThemeMode> onChanged) {
     return InkWell(
       onTap: () => onChanged(value),
@@ -865,25 +928,4 @@ class SettingsPage extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildTile(BuildContext context, {required String title, required String subtitle, required IconData icon, Widget? trailing, VoidCallback? onTap}) {
-    final textColor = Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20), 
-        child: Row(children: [
-          Icon(icon, color: textColor.withOpacity(0.7)), 
-          const SizedBox(width: 16),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)), const SizedBox(height: 4),
-            Text(subtitle, style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 13)),
-          ])),
-          if (trailing != null) trailing,
-        ]),
-      ),
-    );
-  }
-  
-  Widget _divider() => const Divider(height: 1, indent: 56, endIndent: 0, color: Color(0x10000000));
 }
