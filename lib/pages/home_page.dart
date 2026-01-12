@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import '../models/wallpaper.dart';
 import '../providers.dart';
@@ -340,10 +341,9 @@ class _HomePageState extends State<HomePage> {
       _page++;
     });
   }
-}
   // ✅ 整批冷却：防止滚动触发下一轮太快（防封关键）
   await Future.delayed(const Duration(milliseconds: 900));
-
+}
   Future<void> _fetchApiMode(dynamic currentSource, Map<String, dynamic> activeParams) async {
     final Map<String, dynamic> queryParams = Map.from(activeParams);
     queryParams['page'] = _page;
