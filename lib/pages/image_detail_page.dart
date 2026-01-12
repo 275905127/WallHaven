@@ -1,4 +1,4 @@
-import 'dart:ui'; // 用于毛玻璃效果
+import 'dart:ui'; 
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -27,8 +27,6 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
   bool _isDownloading = false;
   Map<String, dynamic> _details = {};
   bool _isLoadingDetails = false;
-  
-  // 沉浸式控制：是否隐藏 UI
   bool _hideUI = false;
 
   @override
@@ -38,7 +36,6 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
     _fetchExtraDetails();
   }
 
-  // === 获取详情 (Headers 修复版) ===
   Future<void> _fetchExtraDetails() async {
     final appState = context.read<AppState>();
     if (!appState.currentSource.baseUrl.contains('wallhaven')) return;
@@ -49,7 +46,6 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
     
     try {
       final url = "https://wallhaven.cc/api/v1/w/${widget.wallpaper.id}";
-      // ✨ 修复：使用动态 Headers
       final headers = appState.getHeaders();
       final response = await Dio().get(url, options: Options(headers: headers));
       
@@ -67,7 +63,6 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
     }
   }
 
-  // === 下载图片 (Headers 修复版) ===
   Future<void> _saveImage() async {
     if (_isDownloading) return;
     setState(() => _isDownloading = true);
@@ -75,15 +70,11 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
     try {
       if (!await Gal.hasAccess()) await Gal.requestAccess();
 
-      // ✨ 修复：使用动态 Headers (解决 403 下载失败)
       final headers = context.read<AppState>().getHeaders();
       
       var response = await Dio().get(
         widget.wallpaper.fullSizeUrl,
         options: Options(responseType: ResponseType.bytes, headers: headers),
-        onReceiveProgress: (count, total) {
-          // 这里可以加下载进度条
-        },
       );
 
       await Gal.putImageBytes(
@@ -93,13 +84,13 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ 保存成功"), backgroundColor: Colors.green),
+          const SnackBar(content: Text("✅ 保存成功"), backgroundColor: Colors.green, behavior: SnackBarBehavior.floating),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ 保存失败: $e"), backgroundColor: Colors.red),
+          SnackBar(content: Text("❌ 保存失败: $e"), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
         );
       }
     } finally {
@@ -116,17 +107,16 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     final appState = context.read<AppState>();
-    // ✨ 修复：图片加载也需要 Headers
     final headers = appState.getHeaders();
     
     return Scaffold(
-      backgroundColor: Colors.black, // 沉浸式背景
+      backgroundColor: Colors.black, 
       body: Stack(
         children: [
-          // === 1. 图片层 (全屏 + 缩放) ===
+          // === 1. 图片层 ===
           Positioned.fill(
             child: GestureDetector(
-              onTap: () => setState(() => _hideUI = !_hideUI), // 点击切换 UI 显示
+              onTap: () => setState(() => _hideUI = !_hideUI), 
               child: InteractiveViewer(
                 minScale: 1.0,
                 maxScale: 4.0,
@@ -134,139 +124,166 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
                   tag: widget.wallpaper.id,
                   child: CachedNetworkImage(
                     imageUrl: widget.wallpaper.fullSizeUrl,
-                    httpHeaders: headers, // 注入 Headers
+                    httpHeaders: headers, 
                     fit: BoxFit.contain,
-                    placeholder: (_, __) => const Center(child: CircularProgressIndicator(color: Colors.white)),
-                    errorWidget: (_, __, ___) => const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 50)),
+                    placeholder: (_, __) => const Center(child: CircularProgressIndicator(color: Colors.white24)),
+                    errorWidget: (_, __, ___) => const Center(child: Icon(Icons.broken_image, color: Colors.white24, size: 50)),
                   ),
                 ),
               ),
             ),
           ),
 
-          // === 2. 顶部导航栏 (渐变阴影) ===
+          // === 2. 顶部导航栏 ===
           AnimatedPositioned(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
             top: _hideUI ? -100 : 0,
             left: 0,
             right: 0,
             child: Container(
-              padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top, left: 10, right: 10, bottom: 10),
+              padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top, left: 8, right: 8, bottom: 20),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.black54, Colors.transparent],
+                  colors: [Colors.black87, Colors.transparent],
                 ),
               ),
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                    icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 24),
                     onPressed: () => Navigator.pop(context),
                   ),
                   const Spacer(),
-                  // 顶部操作按钮 (如果有)
                 ],
               ),
             ),
           ),
 
-          // === 3. 底部毛玻璃信息栏 (核心视觉升级) ===
+          // === 3. 底部悬浮岛 (视觉核心优化) ===
           AnimatedPositioned(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            bottom: _hideUI ? -300 : 20, // 隐藏时移出屏幕
-            left: 16,
-            right: 16,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOutCubic,
+            bottom: _hideUI ? -200 : 34, 
+            left: 20,
+            right: 20,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(32), // 更圆润的圆角
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15), // 高斯模糊
+                // 增加模糊度，更有质感
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20), 
                 child: Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6), // 半透明黑底
-                    border: Border.all(color: Colors.white.withOpacity(0.1)), // 极细边框增加质感
+                    // 降低不透明度，更通透
+                    color: const Color(0xFF1A1A1A).withOpacity(0.4), 
+                    // 极细的边框，若隐若现
+                    border: Border.all(color: Colors.white.withOpacity(0.08), width: 1), 
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 第一行：标题/链接 + 收藏 + 下载
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
+                          // 左侧信息
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   _getResolution(), 
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)
+                                  style: const TextStyle(
+                                    color: Colors.white, 
+                                    fontWeight: FontWeight.w600, 
+                                    fontSize: 17,
+                                    letterSpacing: 0.5
+                                  )
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _getFileSize(), 
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12)
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(6)
+                                      ),
+                                      child: Text(
+                                        _getFileSize(), 
+                                        style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      _getUploaderName(), 
+                                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                                      maxLines: 1, overflow: TextOverflow.ellipsis
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
                           ),
+                          
                           // 收藏按钮
                           Consumer<AppState>(
                             builder: (ctx, state, _) {
                               final isFav = state.isFavorite(widget.wallpaper);
                               return IconButton(
-                                icon: Icon(isFav ? Icons.favorite : Icons.favorite_border, color: isFav ? Colors.redAccent : Colors.white),
+                                icon: Icon(
+                                  isFav ? Icons.favorite : Icons.favorite_border, 
+                                  color: isFav ? const Color(0xFFFF453A) : Colors.white, // iOS 风格红
+                                  size: 28
+                                ),
                                 onPressed: () => state.toggleFavorite(widget.wallpaper),
                               );
                             }
                           ),
-                          const SizedBox(width: 8),
-                          // 下载按钮 (带背景)
-                          Container(
-                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                            child: IconButton(
-                              icon: _isDownloading 
-                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                                : const Icon(Icons.download, color: Colors.black),
-                              onPressed: _saveImage,
+                          
+                          const SizedBox(width: 16),
+                          
+                          // 下载按钮 (高亮设计)
+                          Material(
+                            color: Colors.white, // 纯白背景
+                            shape: const CircleBorder(),
+                            clipBehavior: Clip.antiAlias,
+                            child: InkWell(
+                              onTap: _saveImage,
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: _isDownloading 
+                                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black))
+                                  : const Icon(Icons.arrow_downward_rounded, color: Colors.black, size: 24),
+                              ),
                             ),
                           ),
                         ],
                       ),
                       
-                      const SizedBox(height: 16),
-                      const Divider(color: Colors.white24, height: 1),
-                      const SizedBox(height: 12),
-
-                      // 第二行：详细信息 (标签/上传者)
-                      Row(
-                        children: [
-                          const Icon(Icons.person, color: Colors.white54, size: 16),
-                          const SizedBox(width: 6),
-                          Text(_getUploaderName(), style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                          const Spacer(),
-                          if (appState.currentSource.baseUrl.contains('wallhaven'))
-                            GestureDetector(
-                              onTap: _searchSimilar,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.white12,
-                                  borderRadius: BorderRadius.circular(20)
-                                ),
-                                child: const Row(
-                                  children: [
-                                    Text("相似图", style: TextStyle(color: Colors.white, fontSize: 12)),
-                                    Icon(Icons.chevron_right, color: Colors.white, size: 14)
-                                  ],
-                                ),
+                      // 如果是 Wallhaven 源，显示相似图片入口
+                      if (appState.currentSource.baseUrl.contains('wallhaven')) ...[
+                        const SizedBox(height: 16),
+                        GestureDetector(
+                          onTap: _searchSimilar,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(16)
+                            ),
+                            child: const Center(
+                              child: Text(
+                                "查找相似图片", 
+                                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)
                               ),
-                            )
-                        ],
-                      ),
+                            ),
+                          ),
+                        )
+                      ]
                     ],
                   ),
                 ),
@@ -278,25 +295,27 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
     );
   }
 
-  // === 辅助方法 ===
   String _getUploaderName() {
     if (_details['uploader'] != null) {
       return _details['uploader'] is Map ? _details['uploader']['username'] : _details['uploader'].toString();
     }
-    return "Unknown User";
+    return "Unknown";
   }
 
   String _getResolution() {
     if (widget.wallpaper.resolution.isNotEmpty) return widget.wallpaper.resolution;
-    if (_details['dimension_x'] != null) return "${_details['dimension_x']}x${_details['dimension_y']}";
-    return "壁纸详情";
+    if (_details['dimension_x'] != null) return "${_details['dimension_x']} × ${_details['dimension_y']}";
+    return "Wallpaper";
   }
 
   String _getFileSize() {
     if (_details['file_size'] != null) {
       final size = _details['file_size'] as num;
-      return "${(size / 1024 / 1024).toStringAsFixed(2)} MB";
+      if (size > 1024 * 1024) {
+        return "${(size / 1024 / 1024).toStringAsFixed(1)} MB";
+      }
+      return "${(size / 1024).toStringAsFixed(0)} KB";
     }
-    return "High Quality";
+    return "HQ";
   }
 }
