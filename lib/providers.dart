@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/source_config.dart';
+import 'models/wallpaper.dart';
 
 // === 全局常量：统一 User-Agent ===
 const Map<String, String> kAppHeaders = {
@@ -71,10 +72,14 @@ class AppState extends ChangeNotifier {
 
   int _currentSourceIndex = 0;
   Map<String, dynamic> _activeParams = {};
+  
+  // === 新增：收藏列表 ===
+  List<Wallpaper> _favorites = [];
 
   List<SourceConfig> get sources => _sources;
   SourceConfig get currentSource => _sources[_currentSourceIndex];
   Map<String, dynamic> get activeParams => _activeParams;
+  List<Wallpaper> get favorites => _favorites;
   
   ThemeMode _themeMode = ThemeMode.system;
   bool _useMaterialYou = true;
@@ -85,7 +90,7 @@ class AppState extends ChangeNotifier {
   double _cornerRadius = 24.0; 
   double _homeCornerRadius = 12.0;
 
-  // === 新增：自定义颜色 ===
+  // 自定义颜色
   Color? _customScaffoldColor;
   Color? _customCardColor;
 
@@ -102,6 +107,7 @@ class AppState extends ChangeNotifier {
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     
+    // 1. 读取基础配置
     String? mode = _prefs?.getString('themeMode');
     if (mode == 'light') _themeMode = ThemeMode.light;
     if (mode == 'dark') _themeMode = ThemeMode.dark;
@@ -113,13 +119,14 @@ class AppState extends ChangeNotifier {
     _cornerRadius = _prefs?.getDouble('corner_radius') ?? 24.0;
     _homeCornerRadius = _prefs?.getDouble('home_corner_radius') ?? 12.0;
 
-    // 读取自定义颜色
+    // 2. 读取自定义颜色
     int? scaffoldColorVal = _prefs?.getInt('custom_scaffold_color');
     if (scaffoldColorVal != null) _customScaffoldColor = Color(scaffoldColorVal);
     
     int? cardColorVal = _prefs?.getInt('custom_card_color');
     if (cardColorVal != null) _customCardColor = Color(cardColorVal);
 
+    // 3. 读取图源
     String? savedSources = _prefs?.getString('generic_sources_v2');
     if (savedSources != null) {
       try {
@@ -135,13 +142,69 @@ class AppState extends ChangeNotifier {
     _currentSourceIndex = _prefs?.getInt('current_source_index') ?? 0;
     if (_currentSourceIndex >= _sources.length) _currentSourceIndex = 0;
     
+    // 4. 读取收藏
+    String? savedFavs = _prefs?.getString('my_favorites_v1');
+    if (savedFavs != null) {
+      try {
+        List<dynamic> jsonList = jsonDecode(savedFavs);
+        _favorites = jsonList.map((e) => Wallpaper.fromJson(e)).toList();
+      } catch (e) {
+        debugPrint("收藏读取错误: $e");
+      }
+    }
+
+    // 5. 读取当前图源的筛选参数
+    _loadFiltersForCurrentSource();
+    
     notifyListeners();
+  }
+
+  // === 筛选持久化逻辑 ===
+  void _loadFiltersForCurrentSource() {
+    // 根据当前图源的 URL 作为 Key 来存储参数，防止不同图源参数冲突
+    final key = "filters_${currentSource.baseUrl}";
+    String? savedFilters = _prefs?.getString(key);
+    if (savedFilters != null) {
+      try {
+        _activeParams = jsonDecode(savedFilters);
+      } catch (e) {
+        _activeParams = {};
+      }
+    } else {
+      _activeParams = {};
+    }
+  }
+
+  void _saveFiltersForCurrentSource() {
+    final key = "filters_${currentSource.baseUrl}";
+    _prefs?.setString(key, jsonEncode(_activeParams));
+  }
+
+  // === 收藏逻辑 ===
+  bool isFavorite(Wallpaper wallpaper) {
+    return _favorites.any((e) => e.id == wallpaper.id);
+  }
+
+  void toggleFavorite(Wallpaper wallpaper) {
+    if (isFavorite(wallpaper)) {
+      _favorites.removeWhere((e) => e.id == wallpaper.id);
+    } else {
+      _favorites.add(wallpaper);
+    }
+    _saveFavorites();
+    notifyListeners();
+  }
+
+  void _saveFavorites() {
+    String jsonString = jsonEncode(_favorites.map((e) => e.toJson()).toList());
+    _prefs?.setString('my_favorites_v1', jsonString);
   }
 
   void setSource(int index) {
     _currentSourceIndex = index;
     _prefs?.setInt('current_source_index', index);
-    _activeParams.clear();
+    // 切换图源时，加载新图源的筛选参数
+    _loadFiltersForCurrentSource();
     notifyListeners();
   }
 
@@ -166,6 +229,7 @@ class AppState extends ChangeNotifier {
       _currentSourceIndex = 0;
     }
     _saveSourcesToDisk();
+    _loadFiltersForCurrentSource(); // 重新加载
     notifyListeners();
   }
   
@@ -188,10 +252,13 @@ class AppState extends ChangeNotifier {
 
   void updateParam(String key, dynamic value) {
     _activeParams[key] = value;
+    _saveFiltersForCurrentSource(); // 每次修改都保存
     notifyListeners();
   }
+  
   void updateSearchQuery(String q) {
     _activeParams['q'] = q;
+    _saveFiltersForCurrentSource();
     notifyListeners();
   }
 
@@ -203,7 +270,6 @@ class AppState extends ChangeNotifier {
   void setCornerRadius(double value) { _cornerRadius = value; _prefs?.setDouble('corner_radius', value); notifyListeners(); }
   void setHomeCornerRadius(double value) { _homeCornerRadius = value; _prefs?.setDouble('home_corner_radius', value); notifyListeners(); }
 
-  // === 设置自定义颜色 ===
   void setCustomScaffoldColor(Color? color) {
     _customScaffoldColor = color;
     if (color == null) {
