@@ -42,15 +42,21 @@ class SettingsPage extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(appState.locale.languageCode == 'zh' ? "当前图源" : "Current Source",
-                                      style: const TextStyle(color: Colors.grey, fontSize: 13, letterSpacing: 0.5)),
+                                  Text(
+                                    appState.locale.languageCode == 'zh' ? "当前图源" : "Current Source",
+                                    style: const TextStyle(color: Colors.grey, fontSize: 13, letterSpacing: 0.5),
+                                  ),
                                   const SizedBox(height: 8),
-                                  Text(appState.currentSource.name,
-                                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: textColor)),
+                                  Text(
+                                    appState.currentSource.name,
+                                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: textColor),
+                                  ),
                                   const SizedBox(height: 4),
-                                  Text(appState.currentSource.baseUrl,
-                                      style: const TextStyle(fontSize: 11, color: Colors.grey, overflow: TextOverflow.ellipsis),
-                                      maxLines: 1),
+                                  Text(
+                                    appState.currentSource.baseUrl,
+                                    style: const TextStyle(fontSize: 11, color: Colors.grey, overflow: TextOverflow.ellipsis),
+                                    maxLines: 1,
+                                  ),
                                 ],
                               ),
                             ),
@@ -79,14 +85,6 @@ class SettingsPage extends StatelessWidget {
                             subtitle: _getThemeSubtitle(appState),
                             icon: Icons.palette_outlined,
                             onTap: () => _showThemeDialog(context, appState),
-                          ),
-                          _divider(),
-                          _buildTile(
-                            context,
-                            title: appState.locale.languageCode == 'zh' ? "语言" : "Language",
-                            subtitle: appState.locale.languageCode == 'zh' ? "简体中文" : "English",
-                            icon: Icons.language,
-                            onTap: () => _showLanguageDialog(context, appState),
                           ),
                           _divider(),
                           _buildTile(
@@ -120,7 +118,7 @@ class SettingsPage extends StatelessWidget {
 
                     const SizedBox(height: 20),
 
-                    // === 4. ✅ 备份与恢复（全量：源 + 收藏 + 外观 + 每源筛选） ===
+                    // === 4. ✅ 备份与恢复（含云端入口） ===
                     _buildCard(
                       context,
                       child: Column(
@@ -128,30 +126,39 @@ class SettingsPage extends StatelessWidget {
                           _buildTile(
                             context,
                             title: "导出备份",
-                            subtitle: "复制一段 JSON（可保存到云端/备忘录）",
+                            subtitle: "复制 JSON（本地可用，云端你自己放）",
                             icon: Icons.upload_file,
                             onTap: () => _exportBackup(context),
                           ),
+                          _divider(),
                           _buildTile(
-  context,
-  title: "从云端恢复备份",
-  subtitle: "通过 URL 拉取整包 JSON",
-  icon: Icons.cloud_download,
-  onTap: () => _importBackupFromUrl(context),
-),
-_divider(),
-_buildTile(
-  context,
-  title: "从云端导入图源",
-  subtitle: "通过 URL 导入 SourceConfig",
-  icon: Icons.cloud_sync,
-  onTap: () => _importSourceFromUrl(context),
-),
+                            context,
+                            title: "备份到 WebDAV",
+                            subtitle: appState.webdavUrl.trim().isEmpty ? "先去下面填 WebDAV 文件 URL" : "把当前整包 JSON 推上去",
+                            icon: Icons.cloud_upload,
+                            onTap: () => _syncBackupToWebdav(context),
+                          ),
+                          _divider(),
+                          _buildTile(
+                            context,
+                            title: "从云端恢复备份",
+                            subtitle: "优先 GitHub Raw，没有就用 WebDAV",
+                            icon: Icons.cloud_download,
+                            onTap: () => _restoreFromCloud(context),
+                          ),
+                          _divider(),
+                          _buildTile(
+                            context,
+                            title: "从云端导入图源",
+                            subtitle: "给个 URL，直接加进图源列表",
+                            icon: Icons.cloud_sync,
+                            onTap: () => _importSourceFromUrl(context),
+                          ),
                           _divider(),
                           _buildTile(
                             context,
                             title: "导入备份",
-                            subtitle: "粘贴 JSON 一键恢复（含外观）",
+                            subtitle: "粘贴 JSON 一键恢复（含外观/收藏/筛选）",
                             icon: Icons.download,
                             onTap: () => _importBackup(context),
                           ),
@@ -162,6 +169,14 @@ _buildTile(
                             subtitle: "从本机 SharedPreferences 里找 app_backup_v1",
                             icon: Icons.restore,
                             onTap: () => _restoreLastBackup(context),
+                          ),
+                          _divider(),
+                          _buildTile(
+                            context,
+                            title: "云端设置",
+                            subtitle: "GitHub Raw / WebDAV 账号密码",
+                            icon: Icons.settings_ethernet,
+                            onTap: () => _showCloudSettings(context),
                           ),
                         ],
                       ),
@@ -255,6 +270,142 @@ _buildTile(
     }
   }
 
+  void _restoreFromCloud(BuildContext context) async {
+    final ok = await context.read<AppState>().restoreFromCloud();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ok ? "✅ 云端恢复完成" : "❌ 云端恢复失败（先把 GitHub Raw 或 WebDAV 填好）"),
+          backgroundColor: ok ? Colors.green : Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _syncBackupToWebdav(BuildContext context) async {
+    final ok = await context.read<AppState>().syncBackupToWebdav();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ok ? "✅ 已推送到 WebDAV" : "❌ 推送失败（检查 WebDAV URL/账号密码）"),
+          backgroundColor: ok ? Colors.green : Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _importSourceFromUrl(BuildContext context) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("图源配置 URL"),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(hintText: "https://.../source.json"),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+          ElevatedButton(
+            onPressed: () async {
+              final ok = await context.read<AppState>().importSourceFromUrl(ctrl.text.trim());
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(ok ? "✅ 图源已导入" : "❌ 导入失败（URL/JSON 不对）"),
+                    backgroundColor: ok ? Colors.green : Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text("导入"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCloudSettings(BuildContext context) {
+    final state = context.read<AppState>();
+
+    final githubCtrl = TextEditingController(text: state.githubRawUrl);
+    final webdavUrlCtrl = TextEditingController(text: state.webdavUrl);
+    final webdavUserCtrl = TextEditingController(text: state.webdavUser);
+    final webdavPassCtrl = TextEditingController(text: state.webdavPass);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("云端设置"),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                TextField(
+                  controller: githubCtrl,
+                  decoration: const InputDecoration(
+                    labelText: "GitHub Raw（备份 JSON URL）",
+                    hintText: "https://raw.githubusercontent.com/.../backup.json",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: webdavUrlCtrl,
+                  decoration: const InputDecoration(
+                    labelText: "WebDAV 文件 URL（PUT/GET）",
+                    hintText: "https://example.com/dav/backup.json",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: webdavUserCtrl,
+                  decoration: const InputDecoration(
+                    labelText: "WebDAV 用户名",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: webdavPassCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: "WebDAV 密码",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "小提示：WebDAV 建议直接填“完整文件 URL”。\nGitHub Raw 只能拉取，不能上传。",
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+          ElevatedButton(
+            onPressed: () {
+              state.setGithubRawUrl(githubCtrl.text);
+              state.setWebdavUrl(webdavUrlCtrl.text);
+              state.setWebdavUser(webdavUserCtrl.text);
+              state.setWebdavPass(webdavPassCtrl.text);
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("✅ 云端设置已保存")),
+              );
+            },
+            child: const Text("保存"),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ============================================================
   // 原有逻辑（基本不动）
   // ============================================================
@@ -295,28 +446,33 @@ _buildTile(
     );
   }
 
-  Widget _buildTile(BuildContext context,
-      {required String title,
-      required String subtitle,
-      required IconData icon,
-      Widget? trailing,
-      VoidCallback? onTap}) {
+  Widget _buildTile(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    Widget? trailing,
+    VoidCallback? onTap,
+  }) {
     final textColor = Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
     return InkWell(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
-        child: Row(children: [
-          Icon(icon, color: textColor.withOpacity(0.7), size: 26),
-          const SizedBox(width: 20),
-          Expanded(
+        child: Row(
+          children: [
+            Icon(icon, color: textColor.withOpacity(0.7), size: 26),
+            const SizedBox(width: 20),
+            Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: textColor)),
-            const SizedBox(height: 4),
-            Text(subtitle, style: TextStyle(color: textColor.withOpacity(0.5), fontSize: 13)),
-          ])),
-          if (trailing != null) trailing,
-        ]),
+                Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: textColor)),
+                const SizedBox(height: 4),
+                Text(subtitle, style: TextStyle(color: textColor.withOpacity(0.5), fontSize: 13)),
+              ]),
+            ),
+            if (trailing != null) trailing,
+          ],
+        ),
       ),
     );
   }
@@ -546,9 +702,10 @@ _buildTile(
         content: const Text("确定要删除这个图源吗？此操作无法撤销。"),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).textTheme.bodyLarge?.color),
-              child: const Text("取消")),
+            onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).textTheme.bodyLarge?.color),
+            child: const Text("取消"),
+          ),
           TextButton(
             onPressed: () {
               state.removeSource(index);
@@ -851,29 +1008,6 @@ _buildTile(
     );
   }
 
-  void _showLanguageDialog(BuildContext context, AppState state) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        String tempLang = state.locale.languageCode;
-        return StatefulBuilder(
-          builder: (context, setState) => _buildBottomDialog(
-            context,
-            title: "选择语言",
-            content: Column(children: [
-              RadioListTile<String>(title: const Text("简体中文"), value: 'zh', groupValue: tempLang, onChanged: (v) => setState(() => tempLang = v!)),
-              RadioListTile<String>(title: const Text("English"), value: 'en', groupValue: tempLang, onChanged: (v) => setState(() => tempLang = v!)),
-            ]),
-            onConfirm: () {
-              state.setLanguage(tempLang);
-              Navigator.pop(context);
-            },
-          ),
-        );
-      },
-    );
-  }
-
   void _showImportDialog(BuildContext context, AppState state) {
     final controller = TextEditingController();
     showDialog(
@@ -895,7 +1029,14 @@ _buildTile(
   }
 
   // === 通用弹窗/输入/slider（原样保留） ===
-  Widget _buildBottomDialog(BuildContext context, {required String title, required Widget content, required VoidCallback onConfirm, String confirmText = "确定", bool hideCancel = false}) {
+  Widget _buildBottomDialog(
+    BuildContext context, {
+    required String title,
+    required Widget content,
+    required VoidCallback onConfirm,
+    String confirmText = "确定",
+    bool hideCancel = false,
+  }) {
     final buttonColor = Theme.of(context).textTheme.bodyLarge?.color;
     final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
@@ -1003,53 +1144,6 @@ _buildTile(
     );
   }
 
-  void _importBackupFromUrl(BuildContext context) {
-  final ctrl = TextEditingController();
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text("云端备份 URL"),
-      content: TextField(controller: ctrl, decoration: const InputDecoration(hintText: "https://.../backup.json")),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
-        ElevatedButton(
-          onPressed: () async {
-            final ok = await context.read<AppState>().importBackupFromUrl(ctrl.text.trim());
-            if (ctx.mounted) Navigator.pop(ctx);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(ok ? "✅ 已恢复" : "❌ 失败")),
-            );
-          },
-          child: const Text("拉取并恢复"),
-        ),
-      ],
-    ),
-  );
-}
-
-void _importSourceFromUrl(BuildContext context) {
-  final ctrl = TextEditingController();
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text("图源配置 URL"),
-      content: TextField(controller: ctrl, decoration: const InputDecoration(hintText: "https://.../source.json")),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
-        ElevatedButton(
-          onPressed: () async {
-            final ok = await context.read<AppState>().importSourceFromUrl(ctrl.text.trim());
-            if (ctx.mounted) Navigator.pop(ctx);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(ok ? "✅ 图源已导入" : "❌ 导入失败")),
-            );
-          },
-          child: const Text("导入"),
-        ),
-      ],
-    ),
-  );
-}
   Widget _buildThemeRadio(BuildContext context, String label, ThemeMode value, ThemeMode groupValue, ValueChanged<ThemeMode> onChanged) {
     return InkWell(
       onTap: () => onChanged(value),
