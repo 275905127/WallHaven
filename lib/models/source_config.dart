@@ -52,10 +52,8 @@ class SourceConfig {
   final String fullKey;
   final String idKey;
 
+  // === 核心变化：不再是死板的 filterType，而是动态的 filters 列表 ===
   final List<FilterGroup> filters; 
-  
-  // === ✨ 新增：自定义请求头 (解决 403 关键) ===
-  final Map<String, String>? headers;
 
   SourceConfig({
     required this.name,
@@ -66,8 +64,7 @@ class SourceConfig {
     this.thumbKey = 'thumbs.large',
     this.fullKey = 'path',
     this.idKey = 'id',
-    this.filters = const [],
-    this.headers, // 构造函数添加 headers
+    this.filters = const [], // 默认为空
   });
 
   Map<String, dynamic> toJson() => {
@@ -80,7 +77,6 @@ class SourceConfig {
     'fullKey': fullKey,
     'idKey': idKey,
     'filters': filters.map((e) => e.toJson()).toList(),
-    'headers': headers, // 序列化 headers
   };
 
   factory SourceConfig.fromJson(Map<String, dynamic> json) {
@@ -96,10 +92,6 @@ class SourceConfig {
       filters: json['filters'] != null 
           ? (json['filters'] as List).map((e) => FilterGroup.fromJson(e)).toList()
           : [],
-      // 反序列化 headers，确保类型安全
-      headers: json['headers'] != null 
-          ? Map<String, String>.from(json['headers']) 
-          : null,
     );
   }
 }
