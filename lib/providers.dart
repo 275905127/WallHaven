@@ -1,11 +1,11 @@
-import 'dart:convert';
+Import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/source_config.dart';
 import 'models/wallpaper.dart';
 
-// === 全局常量：默认 App Headers ===
-const Map<String, String> kDefaultAppHeaders = {
+// === 全局常量：统一 User-Agent ===
+const Map<String, String> kAppHeaders = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
   "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
   "Accept-Language": "en-US,en;q=0.9",
@@ -72,6 +72,8 @@ class AppState extends ChangeNotifier {
 
   int _currentSourceIndex = 0;
   Map<String, dynamic> _activeParams = {};
+  
+  // === 新增：收藏列表 ===
   List<Wallpaper> _favorites = [];
 
   List<SourceConfig> get sources => _sources;
@@ -79,22 +81,16 @@ class AppState extends ChangeNotifier {
   Map<String, dynamic> get activeParams => _activeParams;
   List<Wallpaper> get favorites => _favorites;
   
-  // === ✨ 核心新增：获取合并后的 Headers ===
-  // 将默认 Headers 与图源自定义 Headers 合并
-  Map<String, String> getHeaders() {
-    final Map<String, String> headers = Map.from(kDefaultAppHeaders);
-    if (currentSource.headers != null) {
-      headers.addAll(currentSource.headers!);
-    }
-    return headers;
-  }
-
   ThemeMode _themeMode = ThemeMode.system;
   bool _useMaterialYou = true;
   bool _useAmoled = false;
   Locale _locale = const Locale('zh');
+  
+  // 外观设置
   double _cornerRadius = 24.0; 
   double _homeCornerRadius = 12.0;
+
+  // 自定义颜色
   Color? _customScaffoldColor;
   Color? _customCardColor;
 
@@ -104,12 +100,14 @@ class AppState extends ChangeNotifier {
   Locale get locale => _locale;
   double get cornerRadius => _cornerRadius;
   double get homeCornerRadius => _homeCornerRadius;
+  
   Color? get customScaffoldColor => _customScaffoldColor;
   Color? get customCardColor => _customCardColor;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     
+    // 1. 读取基础配置
     String? mode = _prefs?.getString('themeMode');
     if (mode == 'light') _themeMode = ThemeMode.light;
     if (mode == 'dark') _themeMode = ThemeMode.dark;
@@ -121,12 +119,14 @@ class AppState extends ChangeNotifier {
     _cornerRadius = _prefs?.getDouble('corner_radius') ?? 24.0;
     _homeCornerRadius = _prefs?.getDouble('home_corner_radius') ?? 12.0;
 
+    // 2. 读取自定义颜色
     int? scaffoldColorVal = _prefs?.getInt('custom_scaffold_color');
     if (scaffoldColorVal != null) _customScaffoldColor = Color(scaffoldColorVal);
     
     int? cardColorVal = _prefs?.getInt('custom_card_color');
     if (cardColorVal != null) _customCardColor = Color(cardColorVal);
 
+    // 3. 读取图源
     String? savedSources = _prefs?.getString('generic_sources_v2');
     if (savedSources != null) {
       try {
@@ -142,6 +142,7 @@ class AppState extends ChangeNotifier {
     _currentSourceIndex = _prefs?.getInt('current_source_index') ?? 0;
     if (_currentSourceIndex >= _sources.length) _currentSourceIndex = 0;
     
+    // 4. 读取收藏
     String? savedFavs = _prefs?.getString('my_favorites_v1');
     if (savedFavs != null) {
       try {
@@ -152,11 +153,15 @@ class AppState extends ChangeNotifier {
       }
     }
 
+    // 5. 读取当前图源的筛选参数
     _loadFiltersForCurrentSource();
+    
     notifyListeners();
   }
 
+  // === 筛选持久化逻辑 ===
   void _loadFiltersForCurrentSource() {
+    // 根据当前图源的 URL 作为 Key 来存储参数，防止不同图源参数冲突
     final key = "filters_${currentSource.baseUrl}";
     String? savedFilters = _prefs?.getString(key);
     if (savedFilters != null) {
@@ -175,6 +180,7 @@ class AppState extends ChangeNotifier {
     _prefs?.setString(key, jsonEncode(_activeParams));
   }
 
+  // === 收藏逻辑 ===
   bool isFavorite(Wallpaper wallpaper) {
     return _favorites.any((e) => e.id == wallpaper.id);
   }
@@ -197,6 +203,7 @@ class AppState extends ChangeNotifier {
   void setSource(int index) {
     _currentSourceIndex = index;
     _prefs?.setInt('current_source_index', index);
+    // 切换图源时，加载新图源的筛选参数
     _loadFiltersForCurrentSource();
     notifyListeners();
   }
@@ -222,7 +229,7 @@ class AppState extends ChangeNotifier {
       _currentSourceIndex = 0;
     }
     _saveSourcesToDisk();
-    _loadFiltersForCurrentSource();
+    _loadFiltersForCurrentSource(); // 重新加载
     notifyListeners();
   }
   
@@ -245,7 +252,7 @@ class AppState extends ChangeNotifier {
 
   void updateParam(String key, dynamic value) {
     _activeParams[key] = value;
-    _saveFiltersForCurrentSource(); 
+    _saveFiltersForCurrentSource(); // 每次修改都保存
     notifyListeners();
   }
   
