@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers.dart';
 import '../models/source_config.dart';
+import 'favorites_page.dart'; // 引入收藏页
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -60,7 +61,7 @@ class SettingsPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
 
-                    // === 2. 设置项列表卡片 ===
+                    // === 2. 基础设置卡片 (主题、语言、图源管理) ===
                     _buildCard(
                       context,
                       child: Column(
@@ -90,6 +91,23 @@ class SettingsPage extends StatelessWidget {
                             onTap: () => _showSourceManagerDialog(context),
                           ),
                         ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // === 3. 我的收藏卡片 (单独一个卡片) ===
+                    _buildCard(
+                      context,
+                      child: _buildTile(
+                        context,
+                        title: appState.locale.languageCode == 'zh' ? "我的收藏" : "My Favorites",
+                        subtitle: appState.locale.languageCode == 'zh' ? "查看已收藏的壁纸" : "View favorite wallpapers",
+                        icon: Icons.bookmark_outline,
+                        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                        onTap: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritesPage()));
+                        },
                       ),
                     ),
                   ],
@@ -150,21 +168,21 @@ class SettingsPage extends StatelessWidget {
                     SwitchListTile(title: const Text("纯黑背景 (AMOLED)"), value: tempAmoled, shape: dynamicShape, onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)),
                     
                     const Divider(height: 24),
-                    // === 新增：自定义颜色入口 ===
+                    // === 修改：自定义颜色使用 HEX 输入 ===
                     ListTile(
                       title: const Text("自定义背景颜色"),
                       trailing: CircleAvatar(backgroundColor: state.customScaffoldColor ?? Colors.grey[300], radius: 12),
                       shape: dynamicShape,
-                      onTap: () => _showColorPicker(context, "选择背景颜色", state.customScaffoldColor, (c) {
+                      onTap: () => _showHexColorPicker(context, "背景颜色", state.customScaffoldColor, (c) {
                         state.setCustomScaffoldColor(c);
-                        Navigator.pop(context); // 选完关闭颜色选择器，回到外观设置
+                        Navigator.pop(context);
                       }),
                     ),
                     ListTile(
                       title: const Text("自定义卡片颜色"),
                       trailing: CircleAvatar(backgroundColor: state.customCardColor ?? Colors.grey[300], radius: 12),
                       shape: dynamicShape,
-                      onTap: () => _showColorPicker(context, "选择卡片颜色", state.customCardColor, (c) {
+                      onTap: () => _showHexColorPicker(context, "卡片颜色", state.customCardColor, (c) {
                         state.setCustomCardColor(c);
                         Navigator.pop(context);
                       }),
@@ -193,54 +211,71 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // === 简单的颜色选择器 ===
-  void _showColorPicker(BuildContext context, String title, Color? currentColor, ValueChanged<Color?> onSelect) {
-    // 预设颜色列表
-    final List<Color> presets = [
-      Colors.black, const Color(0xFF121212), const Color(0xFF1A1A1A), const Color(0xFF2C2C2C), // 深色系
-      Colors.white, const Color(0xFFF1F1F3), const Color(0xFFFFFDFD), Colors.grey[200]!, // 浅色系
-      Colors.deepPurple[900]!, Colors.indigo[900]!, const Color(0xFF001F24), const Color(0xFF1F0000), // 彩色深色
-    ];
+  // === HEX 颜色输入弹窗 ===
+  void _showHexColorPicker(BuildContext context, String title, Color? currentColor, ValueChanged<Color?> onSelect) {
+    final ctrl = TextEditingController();
+    if (currentColor != null) {
+      // 转成 HEX 字符串 (FFRRGGBB)
+      ctrl.text = currentColor.value.toRadixString(16).toUpperCase().padLeft(8, '0');
+    }
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: GridView.builder(
-            shrinkWrap: true,
-            itemCount: presets.length + 1, // +1 是“恢复默认”
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 10, mainAxisSpacing: 10),
-            itemBuilder: (ctx, index) {
-              if (index == 0) {
-                return InkWell(
-                  onTap: () => onSelect(null),
-                  borderRadius: BorderRadius.circular(50),
-                  child: Container(
-                    decoration: BoxDecoration(border: Border.all(color: Colors.grey), shape: BoxShape.circle),
-                    child: const Icon(Icons.format_color_reset, color: Colors.grey),
-                  ),
-                );
-              }
-              final color = presets[index - 1];
-              return InkWell(
-                onTap: () => onSelect(color),
-                borderRadius: BorderRadius.circular(50),
-                child: Container(
-                  decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: Colors.grey.withOpacity(0.3))),
-                  child: currentColor?.value == color.value ? const Icon(Icons.check, color: Colors.white) : null,
+        title: Text("输入 HEX 颜色 ($title)"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: ctrl,
+              decoration: const InputDecoration(
+                labelText: "HEX (例如: FFFFFF)",
+                hintText: "AARRGGBB 或 RRGGBB",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => onSelect(null), 
+                  child: const Text("恢复默认")
                 ),
-              );
-            },
-          ),
+              ],
+            )
+          ],
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消"))],
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+          ElevatedButton(
+            onPressed: () {
+              try {
+                String hex = ctrl.text.trim().replaceAll("#", "");
+                if (hex.length == 6) {
+                  hex = "FF$hex"; // 默认补全 Alpha 通道
+                }
+                if (hex.length == 8) {
+                  final val = int.parse(hex, radix: 16);
+                  onSelect(Color(val));
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("格式错误，请输入 6位 或 8位 HEX")));
+                }
+              } catch (e) {
+                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("颜色解析失败")));
+              }
+            }, 
+            child: const Text("确定")
+          ),
+        ],
       ),
     );
   }
 
-  // 1. 图源管理
+  // 图源管理、删除确认等代码保持不变，为节省篇幅省略，可以直接复用之前的代码块
+  // 如果你需要我再次发送这部分代码，请告诉我。这里为了避免超出长度限制，主要展示改动部分。
+  
+  // (以下是复用的方法，请保留原文件中的实现)
   void _showSourceManagerDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -320,7 +355,7 @@ class SettingsPage extends StatelessWidget {
   }
 
   void _confirmDelete(BuildContext context, AppState state, int index) {
-    showDialog(
+     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("确认删除"),
@@ -458,7 +493,8 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  Future<List<FilterGroup>?> _openFilterEditor(BuildContext context, List<FilterGroup> currentFilters) {
+  // Filter 编辑器逻辑... (同上，保持不变)
+   Future<List<FilterGroup>?> _openFilterEditor(BuildContext context, List<FilterGroup> currentFilters) {
     return showDialog<List<FilterGroup>>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -557,6 +593,7 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
+  // Filter Group 编辑器逻辑... (同上，保持不变)
   Future<FilterGroup?> _openGroupEditor(BuildContext context, FilterGroup? group) {
     final titleCtrl = TextEditingController(text: group?.title);
     final paramCtrl = TextEditingController(text: group?.paramName);
