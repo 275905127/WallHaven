@@ -5,6 +5,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:convert';
 
 import '../models/wallpaper.dart';
 import '../providers.dart';
@@ -110,51 +111,108 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // === 🚀 升级版直链模式：支持筛选参数 ===
+  // === 🚀 升级版直链模式：把 random/跳转解析成“最终图片直链”再入列表 ===
   Future<void> _fetchDirectMode(dynamic currentSource) async {
-    int batchSize = 5; 
-    List<Wallpaper> newItems = [];
-    final appState = context.read<AppState>();
-    
-    // 1. 构建参数字符串 (把筛选条件拼接到 URL 里)
-    StringBuffer paramBuffer = StringBuffer();
-    appState.activeParams.forEach((key, value) {
-      if (value != null && value.toString().isNotEmpty) {
-        paramBuffer.write("&$key=$value");
+  const int batchSize = 5;
+  final appState = context.read<AppState>();
+
+  // 1) 构建参数字符串
+  final StringBuffer paramBuffer = StringBuffer();
+  appState.activeParams.forEach((key, value) {
+    if (value != null && value.toString().isNotEmpty) {
+      paramBuffer.write("&$key=$value");
+    }
+  });
+  final String paramString = paramBuffer.toString();
+
+  Future<String> resolveFinalImageUrl(String requestUrl) async {
+    final dio = Dio();
+
+    // 先按 bytes 拉一次：既能跟随重定向拿 realUri，也能判断是不是 image/*
+    final resp = await dio.get(
+      requestUrl,
+      options: Options(
+        headers: kAppHeaders,
+        responseType: ResponseType.bytes,
+        followRedirects: true,
+        validateStatus: (code) => code != null && code >= 200 && code < 400,
+      ),
+    );
+
+    final ct = resp.headers.value('content-type') ?? '';
+    // 情况 A：直接就是图片（或 302 后变成图片）
+    if (ct.startsWith('image/')) {
+      return resp.realUri.toString();
+    }
+
+    // 情况 B：返回 JSON，里面包了直链
+    try {
+      final text = utf8.decode(resp.data as List<int>);
+      final dynamic j = jsonDecode(text);
+
+      String? extracted;
+      if (j is Map) {
+        extracted ??= j['url']?.toString();
+        extracted ??= j['image']?.toString();
+        if (j['data'] is Map) {
+          extracted ??= j['data']['url']?.toString();
+          extracted ??= j['data']['image']?.toString();
+          extracted ??= j['data']['path']?.toString();
+        }
+        if (j['images'] is List && (j['images'] as List).isNotEmpty) {
+          final first = (j['images'] as List).first;
+          if (first is Map) extracted ??= first['url']?.toString();
+        }
       }
-    });
-    String paramString = paramBuffer.toString();
-    
-    for (int i = 0; i < batchSize; i++) {
-      if (!mounted) return;
-      final randomId = "${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000000)}";
-      final separator = currentSource.baseUrl.contains('?') ? '&' : '?';
-      
-      // 2. 拼接完整 URL: BaseURL + 随机数 + 筛选参数
-      final directUrl = "${currentSource.baseUrl}${separator}cache_buster=${_page}_${i}_$randomId$paramString";
-      
-      double randomRatio = 0.6 + Random().nextDouble(); 
 
-      newItems.add(Wallpaper(
-        id: "direct_${_page}_${i}_$randomId",
-        thumbUrl: directUrl,
-        fullSizeUrl: directUrl,
-        resolution: "Random",
-        aspectRatio: randomRatio,
-        purity: 'sfw', // 直链默认 sfw
-        metadata: {},
-      ));
+      if (extracted != null && extracted.startsWith('http')) {
+        return extracted;
+      }
+    } catch (_) {
+      // ignore
     }
-    
-    await Future.delayed(const Duration(milliseconds: 500));
 
-    if (mounted) {
-      setState(() {
-        _wallpapers.addAll(newItems);
-        _page++;
-      });
-    }
+    // 兜底：至少把最终跳转后的 uri 固定下来
+    return resp.realUri.toString();
   }
+
+  final List<Wallpaper> newItems = [];
+
+  for (int i = 0; i < batchSize; i++) {
+    if (!mounted) return;
+
+    final randomId = "${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000000)}";
+    final separator = currentSource.baseUrl.contains('?') ? '&' : '?';
+
+    // 你原来的“抽奖机 URL”（每次请求都会随机）
+    final requestUrl =
+        "${currentSource.baseUrl}${separator}cache_buster=${_page}_${i}_$randomId$paramString";
+
+    // ✅ 关键：解析成“最终固定直链”
+    final finalUrl = await resolveFinalImageUrl(requestUrl);
+
+    final double ratio = 0.6 + Random().nextDouble();
+
+    newItems.add(Wallpaper(
+      id: "direct_${finalUrl.hashCode}", // 固定：同一张图不会因为再次请求变 ID
+      thumbUrl: finalUrl,
+      fullSizeUrl: finalUrl,
+      resolution: "Random",
+      aspectRatio: ratio,
+      purity: 'sfw',
+      metadata: {
+        "source_request_url": requestUrl, // 需要的话留痕
+      },
+    ));
+  }
+
+  if (mounted) {
+    setState(() {
+      _wallpapers.addAll(newItems);
+      _page++;
+    });
+  }
+}
 
   Future<void> _fetchApiMode(dynamic currentSource, Map<String, dynamic> activeParams) async {
     final Map<String, dynamic> queryParams = Map.from(activeParams);
