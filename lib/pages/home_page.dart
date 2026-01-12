@@ -111,9 +111,12 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // === 🚀 升级版直链模式：把 random/跳转解析成“最终图片直链”再入列表 ===
+  // === 🚀 直链模式：一次请求拿到最终直链 + 真实比例（降低频率防封） ===
   Future<void> _fetchDirectMode(dynamic currentSource) async {
-  const int batchSize = 5;
+  const int batchSize = 2; // 👈 你说会封：别贪，先稳住
+  const int headerBytes = 32768; // 32KB：够解析 jpg/png/webp 头部
+  const Duration perItemDelay = Duration(milliseconds: 450); // 👈 降频，防封
+
   final appState = context.read<AppState>();
 
   // 1) 构建参数字符串
@@ -125,27 +128,134 @@ class _HomePageState extends State<HomePage> {
   });
   final String paramString = paramBuffer.toString();
 
-  Future<String> resolveFinalImageUrl(String requestUrl) async {
-    final dio = Dio();
+  final dio = Dio();
 
-    // 先按 bytes 拉一次：既能跟随重定向拿 realUri，也能判断是不是 image/*
+  // 解析宽高：返回 (w,h) 或 null
+  (int, int)? parseImageSize(Uint8List b) {
+    // --- PNG ---
+    bool isPng() =>
+        b.length > 24 &&
+        b[0] == 0x89 &&
+        b[1] == 0x50 &&
+        b[2] == 0x4E &&
+        b[3] == 0x47 &&
+        b[4] == 0x0D &&
+        b[5] == 0x0A &&
+        b[6] == 0x1A &&
+        b[7] == 0x0A;
+
+    int readBe32(int o) =>
+        (b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3];
+
+    if (isPng()) {
+      // IHDR width/height 在 offset 16..23
+      final w = readBe32(16);
+      final h = readBe32(20);
+      if (w > 0 && h > 0) return (w, h);
+    }
+
+    // --- JPEG ---
+    bool isJpg() => b.length > 3 && b[0] == 0xFF && b[1] == 0xD8;
+    if (isJpg()) {
+      int i = 2;
+      while (i + 9 < b.length) {
+        if (b[i] != 0xFF) {
+          i++;
+          continue;
+        }
+        int marker = b[i + 1];
+        // SOF0/1/2/3/5/6/7/9/10/11/13/14/15
+        bool isSof = (marker >= 0xC0 && marker <= 0xCF) && marker != 0xC4 && marker != 0xC8 && marker != 0xCC;
+        int len = (b[i + 2] << 8) | b[i + 3];
+        if (len < 2) break;
+
+        if (isSof && i + 7 < b.length) {
+          final h = (b[i + 5] << 8) | b[i + 6];
+          final w = (b[i + 7] << 8) | b[i + 8];
+          if (w > 0 && h > 0) return (w, h);
+          break;
+        }
+        i += 2 + len;
+      }
+    }
+
+    // --- WEBP (只处理 VP8X / VP8L，够覆盖大部分) ---
+    bool isWebp() =>
+        b.length > 30 &&
+        b[0] == 0x52 &&
+        b[1] == 0x49 &&
+        b[2] == 0x46 &&
+        b[3] == 0x46 && // RIFF
+        b[8] == 0x57 &&
+        b[9] == 0x45 &&
+        b[10] == 0x42 &&
+        b[11] == 0x50; // WEBP
+    if (isWebp()) {
+      // 找 VP8X chunk
+      for (int i = 12; i + 16 < b.length; i++) {
+        if (b[i] == 0x56 && b[i + 1] == 0x50 && b[i + 2] == 0x38 && b[i + 3] == 0x58) {
+          // VP8X: width-1 at i+12..i+14 (3 bytes LE), height-1 at i+15..i+17
+          if (i + 18 < b.length) {
+            int wMinus1 = b[i + 12] | (b[i + 13] << 8) | (b[i + 14] << 16);
+            int hMinus1 = b[i + 15] | (b[i + 16] << 8) | (b[i + 17] << 16);
+            final w = wMinus1 + 1;
+            final h = hMinus1 + 1;
+            if (w > 0 && h > 0) return (w, h);
+          }
+        }
+        // 找 VP8L chunk
+        if (b[i] == 0x56 && b[i + 1] == 0x50 && b[i + 2] == 0x38 && b[i + 3] == 0x4C) {
+          // VP8L: signature 0x2f at chunk payload start (i+8)
+          final p = i + 8;
+          if (p + 5 < b.length && b[p] == 0x2F) {
+            final b1 = b[p + 1];
+            final b2 = b[p + 2];
+            final b3 = b[p + 3];
+            final b4 = b[p + 4];
+            final w = 1 + ((b1 | (b2 << 8)) & 0x3FFF);
+            final h = 1 + (((b2 >> 6) | (b3 << 2) | (b4 << 10)) & 0x3FFF);
+            if (w > 0 && h > 0) return (w, h);
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  Future<(String finalUrl, double ratio)> resolveFinalUrlAndRatio(String requestUrl) async {
     final resp = await dio.get(
       requestUrl,
       options: Options(
-        headers: kAppHeaders,
+        headers: {
+          ...kAppHeaders,
+          // 只取头部，减轻压力 + 更快得到宽高
+          "Range": "bytes=0-${headerBytes - 1}",
+        },
         responseType: ResponseType.bytes,
         followRedirects: true,
         validateStatus: (code) => code != null && code >= 200 && code < 400,
       ),
     );
 
+    // 1) 最终直链（关键：固定住，后面不会再抽奖）
+    final finalUrl = resp.realUri.toString();
+
+    // 2) 如果直接是图片 bytes：从头部解析宽高
     final ct = resp.headers.value('content-type') ?? '';
-    // 情况 A：直接就是图片（或 302 后变成图片）
     if (ct.startsWith('image/')) {
-      return resp.realUri.toString();
+      final bytes = Uint8List.fromList(resp.data as List<int>);
+      final sz = parseImageSize(bytes);
+      if (sz != null) {
+        final r = sz.$1 / sz.$2;
+        // 防极端值（避免 Masonry 被奇怪比例搞炸）
+        final ratio = r.isFinite ? r.clamp(0.35, 2.2) : 1.0;
+        return (finalUrl, ratio.toDouble());
+      }
+      return (finalUrl, 1.0);
     }
 
-    // 情况 B：返回 JSON，里面包了直链
+    // 3) 如果是 JSON：尝试提取 url，再用 Range 抓头部算比例（再来一次，但只在 JSON 情况）
     try {
       final text = utf8.decode(resp.data as List<int>);
       final dynamic j = jsonDecode(text);
@@ -159,21 +269,38 @@ class _HomePageState extends State<HomePage> {
           extracted ??= j['data']['image']?.toString();
           extracted ??= j['data']['path']?.toString();
         }
-        if (j['images'] is List && (j['images'] as List).isNotEmpty) {
-          final first = (j['images'] as List).first;
-          if (first is Map) extracted ??= first['url']?.toString();
-        }
       }
 
       if (extracted != null && extracted.startsWith('http')) {
-        return extracted;
+        final resp2 = await dio.get(
+          extracted,
+          options: Options(
+            headers: {
+              ...kAppHeaders,
+              "Range": "bytes=0-${headerBytes - 1}",
+            },
+            responseType: ResponseType.bytes,
+            followRedirects: true,
+            validateStatus: (code) => code != null && code >= 200 && code < 400,
+          ),
+        );
+
+        final final2 = resp2.realUri.toString();
+        final bytes2 = Uint8List.fromList(resp2.data as List<int>);
+        final sz2 = parseImageSize(bytes2);
+        if (sz2 != null) {
+          final r = sz2.$1 / sz2.$2;
+          final ratio = r.isFinite ? r.clamp(0.35, 2.2) : 1.0;
+          return (final2, ratio.toDouble());
+        }
+        return (final2, 1.0);
       }
     } catch (_) {
       // ignore
     }
 
-    // 兜底：至少把最终跳转后的 uri 固定下来
-    return resp.realUri.toString();
+    // 兜底：至少固定最终 URL
+    return (finalUrl, 1.0);
   }
 
   final List<Wallpaper> newItems = [];
@@ -184,26 +311,27 @@ class _HomePageState extends State<HomePage> {
     final randomId = "${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000000)}";
     final separator = currentSource.baseUrl.contains('?') ? '&' : '?';
 
-    // 你原来的“抽奖机 URL”（每次请求都会随机）
+    // 抽奖机 URL（只用一次）
     final requestUrl =
         "${currentSource.baseUrl}${separator}cache_buster=${_page}_${i}_$randomId$paramString";
 
-    // ✅ 关键：解析成“最终固定直链”
-    final finalUrl = await resolveFinalImageUrl(requestUrl);
-
-    final double ratio = 0.6 + Random().nextDouble();
+    // ✅ 一次请求（Range）拿到最终直链 + 真实比例
+    final resolved = await resolveFinalUrlAndRatio(requestUrl);
+    final finalUrl = resolved.$1;
+    final ratio = resolved.$2;
 
     newItems.add(Wallpaper(
-      id: "direct_${finalUrl.hashCode}", // 固定：同一张图不会因为再次请求变 ID
+      id: "direct_${finalUrl.hashCode}",
       thumbUrl: finalUrl,
       fullSizeUrl: finalUrl,
       resolution: "Random",
       aspectRatio: ratio,
       purity: 'sfw',
-      metadata: {
-        "source_request_url": requestUrl, // 需要的话留痕
-      },
+      metadata: {"source_request_url": requestUrl},
     ));
+
+    // 👇 降频防封
+    await Future.delayed(perItemDelay);
   }
 
   if (mounted) {
