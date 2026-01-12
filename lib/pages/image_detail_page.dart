@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:gal/gal.dart'; 
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:convert';
+import 'dart:ui' as ui;
 
 import '../providers.dart';
 import '../models/wallpaper.dart';
@@ -68,37 +70,96 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
   }
 
   Future<void> _saveImage() async {
-    if (_isDownloading) return;
-    setState(() => _isDownloading = true);
+  if (_isDownloading) return;
+  setState(() => _isDownloading = true);
 
-    try {
-      if (!await Gal.hasAccess()) await Gal.requestAccess();
-
-      var response = await Dio().get(
-        widget.wallpaper.fullSizeUrl,
-        options: Options(responseType: ResponseType.bytes, headers: kAppHeaders),
-      );
-
-      await Gal.putImageBytes(
-        Uint8List.fromList(response.data),
-        name: "wallhaven_${widget.wallpaper.id}",
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ 保存成功"), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ 保存失败: $e"), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isDownloading = false);
+  try {
+    if (!await Gal.hasAccess()) {
+      await Gal.requestAccess();
     }
+
+    String url = widget.wallpaper.fullSizeUrl;
+
+    Future<Response<dynamic>> fetchBytes(String u) {
+      return Dio().get(
+        u,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: kAppHeaders,
+          followRedirects: true,
+          validateStatus: (code) => code != null && code >= 200 && code < 400,
+        ),
+      );
+    }
+
+    // 先按“图片直链”下载
+    Response<dynamic> resp = await fetchBytes(url);
+
+    // 如果返回的不是图片（有些源会回 JSON/HTML/302），尝试从 JSON 里掏出真正图片 URL 再下载
+    final ct0 = resp.headers.value('content-type') ?? '';
+    if (!ct0.startsWith('image/')) {
+      try {
+        final text = utf8.decode(resp.data as List<int>);
+        final dynamic j = jsonDecode(text);
+
+        String? extracted;
+        if (j is Map) {
+          extracted ??= j['url']?.toString();
+          extracted ??= (j['data'] is Map) ? j['data']['url']?.toString() : null;
+          extracted ??= (j['data'] is Map) ? j['data']['image']?.toString() : null;
+          extracted ??= j['image']?.toString();
+        }
+
+        if (extracted != null && extracted.startsWith('http')) {
+          url = extracted;
+          resp = await fetchBytes(url);
+        }
+      } catch (_) {
+        // ignore，走下面统一报错/兜底
+      }
+    }
+
+    final bytes = Uint8List.fromList(resp.data as List<int>);
+    final ct = resp.headers.value('content-type') ?? '';
+
+    // 关键：很多设备/实现对 webp 直接 Gal.putImageBytes 会炸
+    // 这里统一转成 PNG 再存（jpg/png/webp 都能过）
+    Uint8List bytesToSave = bytes;
+    try {
+      if (ct == 'image/webp' || url.toLowerCase().endsWith('.webp')) {
+        final codec = await ui.instantiateImageCodec(bytes);
+        final frame = await codec.getNextFrame();
+        final bd = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+        if (bd != null) {
+          bytesToSave = bd.buffer.asUint8List();
+        }
+      }
+    } catch (_) {
+      // 转码失败就用原始 bytes 兜底（可能仍失败，但比直接放弃强）
+      bytesToSave = bytes;
+    }
+
+    final safeId = widget.wallpaper.id.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
+    await Gal.putImageBytes(
+      bytesToSave,
+      name: "wallpaper_$safeId",
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ 保存成功"), backgroundColor: Colors.green),
+      );
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ 保存失败: $e"), backgroundColor: Colors.red),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _isDownloading = false);
   }
+}
 
   // === 跳转相似搜索 ===
   void _searchSimilar() {
