@@ -1,30 +1,19 @@
 // lib/pages/settings_page.dart
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
-
 import '../providers.dart';
 import '../models/source_config.dart';
 import 'favorites_page.dart';
+import 'icon_wall_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
-  static const _kGithubRawUrlKey = 'cloud_github_raw_url_v1';
-  static const _kWebDavFileUrlKey = 'cloud_webdav_file_url_v1';
-  static const _kWebDavUserKey = 'cloud_webdav_user_v1';
-  static const _kWebDavPassKey = 'cloud_webdav_pass_v1';
-
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
-    final theme = Theme.of(context);
-    final textColor = theme.brightness == Brightness.dark ? Colors.white : Colors.black;
+    final textColor = Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
 
     return Scaffold(
       body: CustomScrollView(
@@ -35,246 +24,160 @@ class SettingsPage extends StatelessWidget {
             elevation: 0,
             centerTitle: false,
             iconTheme: IconThemeData(color: textColor),
-            backgroundColor: theme.scaffoldBackgroundColor,
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           ),
           SliverList(
             delegate: SliverChildListDelegate([
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // ===== 顶部：当前图源 =====
+                    // === 1. 当前图源卡片 ===
                     _buildCard(
                       context,
                       child: Padding(
-                        padding: const EdgeInsets.all(18),
+                        padding: const EdgeInsets.all(24),
                         child: Row(
                           children: [
                             Expanded(
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                const Text("当前图源", style: TextStyle(color: Colors.grey, fontSize: 13)),
-                                const SizedBox(height: 8),
-                                Text(
-                                  appState.currentSource.name,
-                                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: textColor),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  appState.currentSource.baseUrl,
-                                  style: const TextStyle(fontSize: 11, color: Colors.grey, overflow: TextOverflow.ellipsis),
-                                  maxLines: 1,
-                                ),
-                              ]),
-                            ),
-                            const SizedBox(width: 12),
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primaryContainer.withOpacity(0.35),
-                                borderRadius: BorderRadius.circular(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    appState.locale.languageCode == 'zh' ? "当前图源" : "Current Source",
+                                    style: const TextStyle(color: Colors.grey, fontSize: 13, letterSpacing: 0.5),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    appState.currentSource.name,
+                                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: textColor),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    appState.currentSource.baseUrl,
+                                    style: const TextStyle(fontSize: 11, color: Colors.grey, overflow: TextOverflow.ellipsis),
+                                    maxLines: 1,
+                                  ),
+                                ],
                               ),
-                              child: Icon(Icons.hub, color: theme.colorScheme.primary),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.hub, size: 32, color: Theme.of(context).colorScheme.primary),
                             ),
                           ],
                         ),
                       ),
                     ),
+                    const SizedBox(height: 20),
 
-                    const SizedBox(height: 14),
-
-                    // ===== 外观设置（收纳为一个入口）=====
-                    _buildSectionTitle("外观设置"),
+                    // === 2. 基础设置卡片 ===
                     _buildCard(
                       context,
                       child: Column(
                         children: [
                           _buildTile(
                             context,
-                            title: "颜色模式",
-                            subtitle: _modeText(appState.themeMode),
-                            icon: Icons.brightness_6_outlined,
+                            title: appState.locale.languageCode == 'zh' ? "主题与外观" : "Theme & Appearance",
+                            subtitle: _getThemeSubtitle(appState),
+                            icon: Icons.palette_outlined,
+                            onTap: () => _showThemeDialog(context, appState),
+                          ),
+                          _divider(),
+                          _buildTile(
+                            context,
+                            title: appState.locale.languageCode == 'zh' ? "图源管理" : "Source Manager",
+                            subtitle: appState.locale.languageCode == 'zh' ? "添加、编辑或删除" : "Manage sources",
+                            icon: Icons.source_outlined,
                             trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-                            onTap: () => _showAppearanceSheet(context, appState),
+                            onTap: () => _showSourceManagerDialog(context),
+                          ),
+                          _divider(),
+                          _buildTile(
+                            context,
+                            title: "图标墙",
+                            subtitle: "点一下复制 Icons.xxx",
+                            icon: Icons.grid_view,
+                            trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+                            onTap: () {
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => const IconWallPage()));
+                            },
                           ),
                         ],
                       ),
                     ),
 
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 20),
 
-                    // ===== 图源设置 =====
-                    _buildSectionTitle("图源设置"),
-                    _buildCard(
-                      context,
-                      child: _buildExpansion(
-                        context,
-                        title: "图源管理",
-                        subtitle: "管理已添加图源 / 添加图源 / 导入图源配置",
-                        icon: Icons.source_outlined,
-                        children: [
-                          // 已添加图源（展开列表）
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                const Text("已添加的图源", style: TextStyle(fontWeight: FontWeight.w700)),
-                                const SizedBox(height: 8),
-                                ...List.generate(appState.sources.length, (index) {
-                                  final s = appState.sources[index];
-                                  final isCurrent = appState.currentSource == s;
-                                  return _miniListTile(
-                                    context,
-                                    title: s.name,
-                                    subtitle: s.baseUrl,
-                                    leading: isCurrent ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                                    leadingColor: isCurrent ? Theme.of(context).colorScheme.primary : Colors.grey,
-                                    onTap: () => appState.setSource(index),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          tooltip: "编辑",
-                                          icon: const Icon(Icons.edit, size: 18, color: Colors.grey),
-                                          onPressed: () => _showSourceConfigDialog(context, appState, existingSource: s, index: index),
-                                        ),
-                                        if (appState.sources.length > 1)
-                                          IconButton(
-                                            tooltip: "删除",
-                                            icon: const Icon(Icons.delete_outline, size: 18, color: Colors.grey),
-                                            onPressed: () => _confirmDelete(context, appState, index),
-                                          ),
-                                      ],
-                                    ),
-                                  );
-                                }),
-                              ],
-                            ),
-                          ),
-                          const Divider(height: 1),
-                          // 添加图源（展开<自定义图源><导入图源配置>）
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                const Text("添加图源", style: TextStyle(fontWeight: FontWeight.w700)),
-                                const SizedBox(height: 10),
-                                _actionButton(
-                                  context,
-                                  icon: Icons.add,
-                                  label: "自定义图源",
-                                  onTap: () => _showSourceConfigDialog(context, appState),
-                                ),
-                                const SizedBox(height: 10),
-                                _actionButton(
-                                  context,
-                                  icon: Icons.file_download_outlined,
-                                  label: "导入图源配置（粘贴 JSON）",
-                                  onTap: () => _showImportDialog(context, appState),
-                                ),
-                                const SizedBox(height: 10),
-                                _actionButton(
-                                  context,
-                                  icon: Icons.cloud_sync,
-                                  label: "从云端导入图源（URL）",
-                                  onTap: () => _importSourceFromUrl(context),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // ===== 我的收藏（暂时单着）=====
-                    _buildSectionTitle("内容"),
+                    // === 3. 我的收藏 ===
                     _buildCard(
                       context,
                       child: _buildTile(
                         context,
-                        title: "我的收藏",
-                        subtitle: "查看已收藏的壁纸",
+                        title: appState.locale.languageCode == 'zh' ? "我的收藏" : "My Favorites",
+                        subtitle: appState.locale.languageCode == 'zh' ? "查看已收藏的壁纸" : "View favorite wallpapers",
                         icon: Icons.bookmark_outline,
                         trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritesPage())),
+                        onTap: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritesPage()));
+                        },
                       ),
                     ),
 
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 20),
 
-                    // ===== 备份与恢复（二级）=====
-                    _buildSectionTitle("备份与恢复"),
+                    // === 4. 备份与恢复 ===
                     _buildCard(
                       context,
-                      child: _buildExpansion(
-                        context,
-                        title: "备份与恢复",
-                        subtitle: "本地 + 云端（GitHub Raw / WebDAV）",
-                        icon: Icons.backup_outlined,
+                      child: Column(
                         children: [
-                          // 二级：云端设置
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                            child: _subHeader("云端设置"),
-                          ),
                           _buildTile(
                             context,
-                            title: "配置云端",
-                            subtitle: "WebDAV（文件 URL/账号/密码）+ GitHub Raw（只读）",
-                            icon: Icons.cloud_outlined,
-                            trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-                            onTap: () => _showCloudConfigSheet(context),
-                          ),
-                          const Divider(height: 1),
-
-                          // 二级：备份（本地+云端同步备份）
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                            child: _subHeader("备份"),
-                          ),
-                          _buildTile(
-                            context,
-                            title: "备份（本地 + 云端）",
-                            subtitle: "优先 WebDAV；未配置就只本地（复制 JSON）",
+                            title: "导出备份",
+                            subtitle: "复制一段 JSON（可保存到云端/备忘录）",
                             icon: Icons.upload_file,
-                            onTap: () => _backupLocalAndMaybeCloud(context),
-                          ),
-                          const Divider(height: 1),
-
-                          // 二级：恢复（选择云端还是本地）
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                            child: _subHeader("恢复"),
+                            onTap: () => _exportBackup(context),
                           ),
                           _buildTile(
                             context,
-                            title: "从云端恢复",
-                            subtitle: "优先 GitHub Raw；否则 WebDAV",
-                            icon: Icons.cloud_download_outlined,
-                            onTap: () => _restoreFromCloud(context),
+                            title: "从云端恢复备份",
+                            subtitle: "通过 URL 拉取整包 JSON",
+                            icon: Icons.cloud_download,
+                            onTap: () => _importBackupFromUrl(context),
                           ),
+                          _divider(),
                           _buildTile(
                             context,
-                            title: "从本地恢复（粘贴 JSON）",
-                            subtitle: "手动粘贴备份 JSON 直接恢复",
+                            title: "从云端导入图源",
+                            subtitle: "通过 URL 导入 SourceConfig",
+                            icon: Icons.cloud_sync,
+                            onTap: () => _importSourceFromUrl(context),
+                          ),
+                          _divider(),
+                          _buildTile(
+                            context,
+                            title: "导入备份",
+                            subtitle: "粘贴 JSON 一键恢复（含外观）",
                             icon: Icons.download,
                             onTap: () => _importBackup(context),
                           ),
+                          _divider(),
                           _buildTile(
                             context,
                             title: "恢复到上次自动备份",
-                            subtitle: "从本机 SharedPreferences: app_backup_v1",
+                            subtitle: "从本机 SharedPreferences 里找 app_backup_v1",
                             icon: Icons.restore,
                             onTap: () => _restoreLastBackup(context),
                           ),
                         ],
                       ),
                     ),
+
+                    const SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -286,375 +189,59 @@ class SettingsPage extends StatelessWidget {
   }
 
   // ============================================================
-  // 外观设置（统一成一个 Sheet，排版规整）
+  // 备份 UI
   // ============================================================
 
-  void _showAppearanceSheet(BuildContext context, AppState state) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) {
-        ThemeMode tempMode = state.themeMode;
-        bool tempMaterialYou = state.useMaterialYou;
-        bool tempAmoled = state.useAmoled;
-        double tempCardRadius = state.cornerRadius;
-        double tempImgRadius = state.homeCornerRadius;
-
-        return StatefulBuilder(builder: (ctx, setState) {
-          final theme = Theme.of(ctx);
-          final cardColor = state.customCardColor ?? theme.colorScheme.surface;
-          final radius = state.cornerRadius;
-
-          return Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(12, 12, 12, 16),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(radius),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 18, offset: const Offset(0, 6))],
-              ),
-              child: SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text("外观设置", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                          ),
-                          IconButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            icon: const Icon(Icons.close),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-
-                      const Text("颜色模式", style: TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          _choiceChip(
-                            ctx,
-                            label: "跟随系统",
-                            selected: tempMode == ThemeMode.system,
-                            onTap: () => setState(() => tempMode = ThemeMode.system),
-                          ),
-                          _choiceChip(
-                            ctx,
-                            label: "浅色模式",
-                            selected: tempMode == ThemeMode.light,
-                            onTap: () => setState(() => tempMode = ThemeMode.light),
-                          ),
-                          _choiceChip(
-                            ctx,
-                            label: "深色模式",
-                            selected: tempMode == ThemeMode.dark,
-                            onTap: () => setState(() => tempMode = ThemeMode.dark),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 14),
-                      const Divider(height: 1),
-                      const SizedBox(height: 14),
-
-                      const Text("自定义颜色", style: TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      _switchRow(
-                        ctx,
-                        title: "动态取色",
-                        value: tempMaterialYou,
-                        onChanged: (v) => setState(() => tempMaterialYou = v),
-                      ),
-                      const SizedBox(height: 8),
-                      _colorRow(
-                        ctx,
-                        title: "背景颜色",
-                        color: state.customScaffoldColor,
-                        onTap: () => _showHexColorPicker(ctx, "背景颜色", state.customScaffoldColor, (c) => state.setCustomScaffoldColor(c)),
-                      ),
-                      const SizedBox(height: 8),
-                      _colorRow(
-                        ctx,
-                        title: "卡片颜色",
-                        color: state.customCardColor,
-                        onTap: () => _showHexColorPicker(ctx, "卡片颜色", state.customCardColor, (c) => state.setCustomCardColor(c)),
-                      ),
-
-                      const SizedBox(height: 14),
-                      const Divider(height: 1),
-                      const SizedBox(height: 14),
-
-                      const Text("自定义圆角", style: TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      _sliderRow(
-                        ctx,
-                        label: "卡片圆角",
-                        value: tempCardRadius,
-                        min: 0,
-                        max: 40,
-                        onChanged: (v) => setState(() => tempCardRadius = v),
-                      ),
-                      const SizedBox(height: 6),
-                      _sliderRow(
-                        ctx,
-                        label: "图片圆角",
-                        value: tempImgRadius,
-                        min: 0,
-                        max: 40,
-                        onChanged: (v) => setState(() => tempImgRadius = v),
-                      ),
-
-                      const SizedBox(height: 14),
-
-                      AnimatedSize(
-                        duration: const Duration(milliseconds: 160),
-                        child: tempMode == ThemeMode.light
-                            ? const SizedBox.shrink()
-                            : _switchRow(
-                                ctx,
-                                title: "纯黑背景（AMOLED）",
-                                value: tempAmoled,
-                                onChanged: (v) => setState(() => tempAmoled = v),
-                              ),
-                      ),
-
-                      const SizedBox(height: 14),
-
-                      FilledButton(
-                        onPressed: () {
-                          state.setThemeMode(tempMode);
-                          state.setMaterialYou(tempMaterialYou);
-                          state.setAmoled(tempAmoled);
-                          state.setCornerRadius(tempCardRadius);
-                          state.setHomeCornerRadius(tempImgRadius);
-                          Navigator.pop(ctx);
-                        },
-                        child: const Text("保存"),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        });
-      },
-    );
-  }
-
-  // ============================================================
-  // 备份与恢复：云端设置 / 备份 / 恢复
-  // ============================================================
-
-  Future<void> _showCloudConfigSheet(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-
-    final githubCtrl = TextEditingController(text: prefs.getString(_kGithubRawUrlKey) ?? "");
-    final webdavCtrl = TextEditingController(text: prefs.getString(_kWebDavFileUrlKey) ?? "");
-    final userCtrl = TextEditingController(text: prefs.getString(_kWebDavUserKey) ?? "");
-    final passCtrl = TextEditingController(text: prefs.getString(_kWebDavPassKey) ?? "");
-
-    bool obscure = true;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => StatefulBuilder(builder: (ctx, setState) {
-        final theme = Theme.of(ctx);
-        final radius = context.read<AppState>().cornerRadius;
-        final isDark = theme.brightness == Brightness.dark;
-        final cardColor = context.read<AppState>().customCardColor ?? (isDark ? const Color(0xFF1C1C1E) : Colors.white);
-
-        Future<void> save() async {
-          await prefs.setString(_kGithubRawUrlKey, githubCtrl.text.trim());
-          await prefs.setString(_kWebDavFileUrlKey, webdavCtrl.text.trim());
-          await prefs.setString(_kWebDavUserKey, userCtrl.text.trim());
-          await prefs.setString(_kWebDavPassKey, passCtrl.text);
-        }
-
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(12, 12, 12, 16),
-            decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: BorderRadius.circular(radius),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 18, offset: const Offset(0, 6))],
-            ),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(children: [
-                      const Expanded(child: Text("云端配置", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800))),
-                      IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close)),
-                    ]),
-                    const SizedBox(height: 10),
-
-                    _input(ctx, controller: githubCtrl, label: "GitHub Raw 地址（只读，用于恢复）", hint: "https://raw.githubusercontent.com/.../backup.json"),
-                    const SizedBox(height: 10),
-                    _input(ctx, controller: webdavCtrl, label: "WebDAV 文件 URL（用于备份/恢复）", hint: "https://dav.example.com/backup.json"),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(child: _input(ctx, controller: userCtrl, label: "WebDAV 用户名", hint: "")),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: passCtrl,
-                            obscureText: obscure,
-                            decoration: InputDecoration(
-                              labelText: "WebDAV 密码",
-                              hintText: "",
-                              isDense: true,
-                              filled: true,
-                              fillColor: Theme.of(ctx).scaffoldBackgroundColor,
-                              border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide.none),
-                              suffixIcon: IconButton(
-                                icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
-                                onPressed: () => setState(() => obscure = !obscure),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            icon: const Icon(Icons.save_outlined),
-                            label: const Text("保存"),
-                            onPressed: () async {
-                              await save();
-                              if (ctx.mounted) Navigator.pop(ctx);
-                              _toast(context, "✅ 已保存云端配置");
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            icon: const Icon(Icons.check_circle_outline),
-                            label: const Text("测试 WebDAV"),
-                            onPressed: () async {
-                              await save();
-                              final ok = await _testWebDav(ctx);
-                              _toast(context, ok ? "✅ WebDAV 可用" : "❌ WebDAV 测试失败");
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      }),
-    );
-  }
-
-  Future<void> _backupLocalAndMaybeCloud(BuildContext context) async {
+  void _exportBackup(BuildContext context) async {
     final state = context.read<AppState>();
-    final prefs = await SharedPreferences.getInstance();
-
     final json = state.exportBackupJson();
-
-    // 本地：复制到剪贴板（“本地可用”最稳）
     await Clipboard.setData(ClipboardData(text: json));
-
-    // 云端：有 WebDAV 文件 URL 才上传
-    final webdavUrl = (prefs.getString(_kWebDavFileUrlKey) ?? "").trim();
-    final user = prefs.getString(_kWebDavUserKey) ?? "";
-    final pass = prefs.getString(_kWebDavPassKey) ?? "";
-
-    if (webdavUrl.isEmpty) {
-      _toast(context, "✅ 已备份到本地（JSON 已复制）");
-      return;
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ 备份已复制到剪贴板")),
+      );
     }
-
-    final ok = await _uploadToWebDav(webdavUrl, user, pass, json);
-    _toast(context, ok ? "✅ 已备份：本地 + WebDAV" : "⚠️ 本地已备份（WebDAV 失败）");
   }
-
-  Future<void> _restoreFromCloud(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    final githubUrl = (prefs.getString(_kGithubRawUrlKey) ?? "").trim();
-    final webdavUrl = (prefs.getString(_kWebDavFileUrlKey) ?? "").trim();
-    final user = prefs.getString(_kWebDavUserKey) ?? "";
-    final pass = prefs.getString(_kWebDavPassKey) ?? "";
-
-    // 规则：优先 GitHub Raw；否则 WebDAV
-    if (githubUrl.isNotEmpty) {
-      final ok = await context.read<AppState>().importBackupFromUrl(githubUrl);
-      _toast(context, ok ? "✅ 已从 GitHub Raw 恢复" : "❌ GitHub Raw 恢复失败");
-      return;
-    }
-
-    if (webdavUrl.isNotEmpty) {
-      final json = await _downloadFromWebDav(webdavUrl, user, pass);
-      if (json == null) {
-        _toast(context, "❌ WebDAV 拉取失败");
-        return;
-      }
-      final ok = await context.read<AppState>().importBackupJson(json);
-      _toast(context, ok ? "✅ 已从 WebDAV 恢复" : "❌ WebDAV 恢复失败");
-      return;
-    }
-
-    _toast(context, "先去配置 GitHub Raw 或 WebDAV");
-  }
-
-  // ============================================================
-  // 现有：导入/恢复（保留本地粘贴 & 上次自动备份）
-  // ============================================================
 
   void _importBackup(BuildContext context) {
     final ctrl = TextEditingController();
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("从本地粘贴备份 JSON"),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: TextField(
-            controller: ctrl,
-            maxLines: 10,
-            decoration: const InputDecoration(hintText: "把备份 JSON 粘贴进来…", border: OutlineInputBorder()),
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text("导入备份 JSON"),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: TextField(
+              controller: ctrl,
+              maxLines: 10,
+              decoration: const InputDecoration(
+                hintText: "把备份 JSON 粘贴进来…",
+                border: OutlineInputBorder(),
+              ),
+            ),
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
-          ElevatedButton(
-            onPressed: () async {
-              final ok = await context.read<AppState>().importBackupJson(ctrl.text.trim());
-              if (ctx.mounted) Navigator.pop(ctx);
-              _toast(context, ok ? "✅ 已恢复" : "❌ 导入失败");
-            },
-            child: const Text("恢复"),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+            ElevatedButton(
+              onPressed: () async {
+                final state = context.read<AppState>();
+                final ok = await state.importBackupJson(ctrl.text.trim());
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(ok ? "✅ 已恢复（含外观/图源/收藏）" : "❌ 导入失败：JSON 不对或缺字段"),
+                      backgroundColor: ok ? Colors.green : Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text("导入并恢复"),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -662,16 +249,312 @@ class SettingsPage extends StatelessWidget {
     final state = context.read<AppState>();
     final last = state.getLastBackupJson();
     if (last == null || last.trim().isEmpty) {
-      _toast(context, "没有找到上次自动备份");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("没有找到上次自动备份")),
+      );
       return;
     }
     final ok = await state.importBackupJson(last);
-    _toast(context, ok ? "✅ 已恢复到上次自动备份" : "❌ 恢复失败");
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ok ? "✅ 已恢复到上次自动备份" : "❌ 恢复失败"),
+          backgroundColor: ok ? Colors.green : Colors.red,
+        ),
+      );
+    }
   }
 
   // ============================================================
-  // 图源管理：编辑 / 删除 / 导入 / 云端导入（URL）
+  // 原有逻辑（基本不动）
   // ============================================================
+
+  String _getThemeSubtitle(AppState state) {
+    String mode = "跟随系统";
+    if (state.themeMode == ThemeMode.light) mode = "浅色";
+    if (state.themeMode == ThemeMode.dark) mode = "深色";
+    return mode;
+  }
+
+  Widget _buildCard(BuildContext context, {required Widget child}) {
+    final appState = context.read<AppState>();
+    final radius = appState.cornerRadius;
+
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final cardColor = appState.customCardColor ?? (isDark ? const Color(0xFF1C1C1E) : Colors.white);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+            offset: const Offset(0, 2),
+            blurRadius: 10,
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _buildTile(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    Widget? trailing,
+    VoidCallback? onTap,
+  }) {
+    final textColor = Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
+        child: Row(
+          children: [
+            Icon(icon, color: textColor.withOpacity(0.7), size: 26),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: textColor)),
+                const SizedBox(height: 4),
+                Text(subtitle, style: TextStyle(color: textColor.withOpacity(0.5), fontSize: 13)),
+              ]),
+            ),
+            if (trailing != null) trailing,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _divider() => const Divider(height: 1, indent: 70, endIndent: 0, color: Color(0x0D000000));
+
+  // --- 外观弹窗（原样保留） ---
+  void _showThemeDialog(BuildContext context, AppState state) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        ThemeMode tempMode = state.themeMode;
+        bool tempMaterialYou = state.useMaterialYou;
+        bool tempAmoled = state.useAmoled;
+        double tempGlobalRadius = state.cornerRadius;
+        double tempHomeRadius = state.homeCornerRadius;
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final dynamicShape = RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(tempGlobalRadius),
+            );
+
+            return _buildBottomDialog(
+              context,
+              title: "外观设置",
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildThemeRadio(context, "跟随系统", ThemeMode.system, tempMode, (v) => setState(() => tempMode = v)),
+                          _buildThemeRadio(context, "浅色", ThemeMode.light, tempMode, (v) => setState(() => tempMode = v)),
+                          _buildThemeRadio(context, "深色", ThemeMode.dark, tempMode, (v) => setState(() => tempMode = v)),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 24),
+                    SwitchListTile(title: const Text("动态取色"), value: tempMaterialYou, shape: dynamicShape, onChanged: (v) => setState(() => tempMaterialYou = v)),
+                    SwitchListTile(
+                      title: const Text("纯黑背景 (AMOLED)"),
+                      value: tempAmoled,
+                      shape: dynamicShape,
+                      onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v),
+                    ),
+                    const Divider(height: 24),
+                    ListTile(
+                      title: const Text("自定义背景颜色"),
+                      trailing: CircleAvatar(backgroundColor: state.customScaffoldColor ?? Colors.grey[300], radius: 12),
+                      shape: dynamicShape,
+                      onTap: () => _showHexColorPicker(context, "背景颜色", state.customScaffoldColor, (c) {
+                        state.setCustomScaffoldColor(c);
+                        Navigator.pop(context);
+                      }),
+                    ),
+                    ListTile(
+                      title: const Text("自定义卡片颜色"),
+                      trailing: CircleAvatar(backgroundColor: state.customCardColor ?? Colors.grey[300], radius: 12),
+                      shape: dynamicShape,
+                      onTap: () => _showHexColorPicker(context, "卡片颜色", state.customCardColor, (c) {
+                        state.setCustomCardColor(c);
+                        Navigator.pop(context);
+                      }),
+                    ),
+                    const Divider(height: 24),
+                    const SizedBox(height: 8),
+                    _buildFancySlider(context, label: "全局圆角", value: tempGlobalRadius, max: 40.0, onChanged: (v) => setState(() => tempGlobalRadius = v)),
+                    const SizedBox(height: 12),
+                    _buildFancySlider(context, label: "首页图片", value: tempHomeRadius, max: 40.0, onChanged: (v) => setState(() => tempHomeRadius = v)),
+                  ],
+                ),
+              ),
+              onConfirm: () {
+                state.setThemeMode(tempMode);
+                state.setMaterialYou(tempMaterialYou);
+                state.setAmoled(tempAmoled);
+                state.setCornerRadius(tempGlobalRadius);
+                state.setHomeCornerRadius(tempHomeRadius);
+                Navigator.pop(context);
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showHexColorPicker(BuildContext context, String title, Color? currentColor, ValueChanged<Color?> onSelect) {
+    final ctrl = TextEditingController();
+    if (currentColor != null) {
+      ctrl.text = currentColor.value.toRadixString(16).toUpperCase().padLeft(8, '0');
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("输入 HEX 颜色 ($title)"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: ctrl,
+              decoration: const InputDecoration(
+                labelText: "HEX (例如: FFFFFF)",
+                hintText: "AARRGGBB 或 RRGGBB",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(onPressed: () => onSelect(null), child: const Text("恢复默认")),
+              ],
+            )
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+          ElevatedButton(
+            onPressed: () {
+              try {
+                String hex = ctrl.text.trim().replaceAll("#", "");
+                if (hex.length == 6) hex = "FF$hex";
+                if (hex.length == 8) {
+                  final val = int.parse(hex, radix: 16);
+                  onSelect(Color(val));
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("格式错误，请输入 6位 或 8位 HEX")));
+                }
+              } catch (_) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("颜色解析失败")));
+              }
+            },
+            child: const Text("确定"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 图源管理/导入等（原样保留）
+  void _showSourceManagerDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Consumer<AppState>(
+          builder: (context, state, child) {
+            return _buildBottomDialog(
+              context,
+              title: "图源管理",
+              content: Container(
+                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
+                width: double.maxFinite,
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    ...List.generate(state.sources.length, (index) {
+                      final source = state.sources[index];
+                      final isSelected = state.currentSource == source;
+                      return ListTile(
+                        title: Text(source.name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                        subtitle: Text(source.baseUrl, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (state.sources.length > 1)
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, size: 20, color: Colors.grey),
+                                onPressed: () => _confirmDelete(context, state, index),
+                              ),
+                            IconButton(
+                              icon: const Icon(Icons.edit, size: 20, color: Colors.grey),
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _showSourceConfigDialog(context, state, existingSource: source, index: index);
+                              },
+                            ),
+                            if (isSelected)
+                              Icon(Icons.radio_button_checked, color: Theme.of(context).colorScheme.primary)
+                            else
+                              const Icon(Icons.radio_button_unchecked, color: Colors.grey),
+                          ],
+                        ),
+                        onTap: () {
+                          state.setSource(index);
+                          Navigator.pop(context);
+                        },
+                      );
+                    }),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.add),
+                      title: const Text("添加自定义图源"),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showSourceConfigDialog(context, state);
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.file_download_outlined),
+                      title: const Text("导入配置"),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showImportDialog(context, state);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              onConfirm: () => Navigator.pop(context),
+              confirmText: "关闭",
+              hideCancel: true,
+            );
+          },
+        );
+      },
+    );
+  }
 
   void _confirmDelete(BuildContext context, AppState state, int index) {
     showDialog(
@@ -680,7 +563,11 @@ class SettingsPage extends StatelessWidget {
         title: const Text("确认删除"),
         content: const Text("确定要删除这个图源吗？此操作无法撤销。"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).textTheme.bodyLarge?.color),
+            child: const Text("取消"),
+          ),
           TextButton(
             onPressed: () {
               state.removeSource(index);
@@ -704,170 +591,90 @@ class SettingsPage extends StatelessWidget {
 
     List<FilterGroup> tempFilters = existingSource?.filters.toList() ?? [];
     bool showAdvanced = false;
+    final unifiedTextColor = Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => StatefulBuilder(builder: (ctx, setState) {
-        final radius = state.cornerRadius;
-        final theme = Theme.of(ctx);
-        final isDark = theme.brightness == Brightness.dark;
-        final cardColor = state.customCardColor ?? (isDark ? const Color(0xFF1C1C1E) : Colors.white);
-
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(12, 12, 12, 16),
-            decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: BorderRadius.circular(radius),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 18, offset: const Offset(0, 6))],
-            ),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(children: [
-                      Expanded(child: Text(isEditing ? "编辑图源" : "添加图源", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800))),
-                      IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close)),
-                    ]),
-                    const SizedBox(height: 10),
-                    _input(ctx, controller: nameCtrl, label: "名称", hint: "例如：Wallhaven"),
-                    const SizedBox(height: 10),
-                    _input(ctx, controller: urlCtrl, label: "API 地址", hint: "https://..."),
-                    const SizedBox(height: 10),
-
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.filter_list),
-                      label: Text("配置筛选规则（${tempFilters.length}）"),
-                      style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                      onPressed: () async {
-                        final result = await _openFilterEditor(ctx, List.from(tempFilters));
-                        if (result != null) setState(() => tempFilters = result);
-                      },
+      builder: (context) => StatefulBuilder(builder: (context, setState) {
+        return _buildBottomDialog(
+          context,
+          title: isEditing ? "编辑图源" : "添加图源",
+          confirmText: "保存",
+          content: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildInput(context, nameCtrl, "名称 (Name)"),
+                const SizedBox(height: 10),
+                _buildInput(context, urlCtrl, "API 地址 (URL)"),
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.filter_list),
+                    label: Text("配置筛选规则 (${tempFilters.length})"),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.all(16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      foregroundColor: Theme.of(context).colorScheme.primary,
                     ),
-
-                    const SizedBox(height: 10),
-                    _input(ctx, controller: apiKeyCtrl, label: "API Key（可选）", hint: ""),
-
-                    const SizedBox(height: 6),
-                    Align(
-                      alignment: Alignment.center,
-                      child: TextButton(
-                        onPressed: () => setState(() => showAdvanced = !showAdvanced),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text("高级配置"),
-                            const SizedBox(width: 4),
-                            Icon(showAdvanced ? Icons.expand_less : Icons.expand_more),
-                          ],
-                        ),
+                    onPressed: () async {
+                      final result = await _openFilterEditor(context, List.from(tempFilters));
+                      if (result != null) setState(() => tempFilters = result);
+                    },
+                  ),
+                ),
+                _buildInput(context, apiKeyCtrl, "API Key (可选)"),
+                Padding(
+                  padding: const EdgeInsets.only(top: 24, bottom: 12),
+                  child: InkWell(
+                    onTap: () => setState(() => showAdvanced = !showAdvanced),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text("高级配置", style: TextStyle(color: unifiedTextColor, fontWeight: FontWeight.bold)),
+                          const SizedBox(width: 4),
+                          Icon(showAdvanced ? Icons.expand_less : Icons.expand_more, color: unifiedTextColor)
+                        ],
                       ),
                     ),
-
-                    AnimatedSize(
-                      duration: const Duration(milliseconds: 160),
-                      child: showAdvanced
-                          ? Column(
-                              children: [
-                                _input(ctx, controller: listKeyCtrl, label: "List Key", hint: "data"),
-                                const SizedBox(height: 10),
-                                _input(ctx, controller: thumbKeyCtrl, label: "Thumb Key", hint: "thumbs.large"),
-                                const SizedBox(height: 10),
-                                _input(ctx, controller: fullKeyCtrl, label: "Full Key", hint: "path"),
-                              ],
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-
-                    const SizedBox(height: 14),
-                    FilledButton(
-                      onPressed: () {
-                        if (nameCtrl.text.trim().isEmpty) return;
-
-                        final newConfig = SourceConfig(
-                          name: nameCtrl.text.trim(),
-                          baseUrl: urlCtrl.text.trim(),
-                          apiKey: apiKeyCtrl.text.trim(),
-                          listKey: listKeyCtrl.text.trim(),
-                          thumbKey: thumbKeyCtrl.text.trim(),
-                          fullKey: fullKeyCtrl.text.trim(),
-                          filters: tempFilters,
-                        );
-
-                        if (isEditing) {
-                          state.updateSource(index!, newConfig);
-                        } else {
-                          state.addSource(newConfig);
-                        }
-                        Navigator.pop(ctx);
-                      },
-                      child: const Text("保存"),
-                    ),
-                    const SizedBox(height: 6),
-                  ],
+                  ),
                 ),
-              ),
+                if (showAdvanced) ...[
+                  _buildInput(context, listKeyCtrl, "List Key"),
+                  const SizedBox(height: 10),
+                  _buildInput(context, thumbKeyCtrl, "Thumb Key"),
+                  const SizedBox(height: 10),
+                  _buildInput(context, fullKeyCtrl, "Full Key"),
+                ]
+              ],
             ),
           ),
+          onConfirm: () {
+            if (nameCtrl.text.isNotEmpty) {
+              final newConfig = SourceConfig(
+                name: nameCtrl.text,
+                baseUrl: urlCtrl.text,
+                apiKey: apiKeyCtrl.text,
+                listKey: listKeyCtrl.text,
+                thumbKey: thumbKeyCtrl.text,
+                fullKey: fullKeyCtrl.text,
+                filters: tempFilters,
+              );
+              if (isEditing) {
+                state.updateSource(index!, newConfig);
+              } else {
+                state.addSource(newConfig);
+              }
+              Navigator.pop(context);
+            }
+          },
         );
       }),
-    );
-  }
-
-  void _showImportDialog(BuildContext context, AppState state) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("导入图源配置"),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: TextField(
-            controller: controller,
-            maxLines: 8,
-            decoration: const InputDecoration(hintText: "在此粘贴 SourceConfig JSON...", border: OutlineInputBorder()),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
-          ElevatedButton(
-            onPressed: () {
-              final ok = state.importSourceConfig(controller.text.trim());
-              Navigator.pop(ctx);
-              _toast(context, ok ? "✅ 导入成功" : "❌ 导入失败");
-            },
-            child: const Text("导入"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _importSourceFromUrl(BuildContext context) {
-    final ctrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("图源配置 URL"),
-        content: TextField(controller: ctrl, decoration: const InputDecoration(hintText: "https://.../source.json")),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
-          ElevatedButton(
-            onPressed: () async {
-              final ok = await context.read<AppState>().importSourceFromUrl(ctrl.text.trim());
-              if (ctx.mounted) Navigator.pop(ctx);
-              _toast(context, ok ? "✅ 图源已导入" : "❌ 导入失败");
-            },
-            child: const Text("导入"),
-          ),
-        ],
-      ),
     );
   }
 
@@ -876,22 +683,25 @@ class SettingsPage extends StatelessWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setState) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          backgroundColor: Theme.of(context).dialogTheme.backgroundColor,
+          shape: Theme.of(context).dialogTheme.shape,
+          insetPadding: const EdgeInsets.all(16),
           child: Container(
-            height: MediaQuery.of(context).size.height * 0.78,
+            height: MediaQuery.of(context).size.height * 0.8,
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Expanded(child: Text("筛选规则编辑", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800))),
+                    Text("筛选规则编辑", style: Theme.of(context).textTheme.titleLarge),
                     IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
                   ],
                 ),
                 const Divider(),
                 Expanded(
                   child: currentFilters.isEmpty
-                      ? const Center(child: Text("暂无筛选组", style: TextStyle(color: Colors.grey)))
+                      ? const Center(child: Text("暂无筛选组，请点击下方添加", style: TextStyle(color: Colors.grey)))
                       : ReorderableListView(
                           onReorder: (oldIndex, newIndex) {
                             setState(() {
@@ -904,8 +714,8 @@ class SettingsPage extends StatelessWidget {
                             for (int i = 0; i < currentFilters.length; i++)
                               ListTile(
                                 key: ValueKey(currentFilters[i]),
-                                title: Text(currentFilters[i].title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                subtitle: Text("参数：${currentFilters[i].paramName} ｜ 类型：${currentFilters[i].type}"),
+                                title: Text(currentFilters[i].title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: Text("参数: ${currentFilters[i].paramName} | 类型: ${currentFilters[i].type}"),
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -933,6 +743,11 @@ class SettingsPage extends StatelessWidget {
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.add),
                     label: const Text("添加筛选组"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      foregroundColor: Theme.of(context).colorScheme.onSurface,
+                      elevation: 0,
+                    ),
                     onPressed: () async {
                       final newGroup = await _openGroupEditor(context, null);
                       if (newGroup != null) setState(() => currentFilters.add(newGroup));
@@ -942,9 +757,10 @@ class SettingsPage extends StatelessWidget {
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, foregroundColor: Colors.white),
                     onPressed: () => Navigator.pop(ctx, currentFilters),
-                    child: const Text("保存"),
+                    child: const Text("保存全部规则"),
                   ),
                 ),
               ],
@@ -965,37 +781,34 @@ class SettingsPage extends StatelessWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setState) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          backgroundColor: Theme.of(context).dialogTheme.backgroundColor,
+          shape: Theme.of(context).dialogTheme.shape,
+          insetPadding: const EdgeInsets.all(16),
           child: Container(
-            padding: const EdgeInsets.all(16),
-            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.78),
+            padding: const EdgeInsets.all(20),
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
             child: SingleChildScrollView(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(group == null ? "新建筛选组" : "编辑筛选组", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: titleCtrl,
-                    decoration: const InputDecoration(labelText: "显示标题（如：排序）", border: OutlineInputBorder()),
-                  ),
+                  Text(group == null ? "新建筛选组" : "编辑筛选组", style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 20),
+                  _buildInput(context, titleCtrl, "显示标题 (如: 排序)"),
                   const SizedBox(height: 10),
-                  TextField(
-                    controller: paramCtrl,
-                    decoration: const InputDecoration(labelText: "API 参数名（如：sorting）", border: OutlineInputBorder()),
-                  ),
+                  _buildInput(context, paramCtrl, "API参数名 (如: sorting)"),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     value: type,
                     decoration: const InputDecoration(labelText: "类型", border: OutlineInputBorder()),
                     items: const [
-                      DropdownMenuItem(value: 'radio', child: Text("单选（Radio）")),
-                      DropdownMenuItem(value: 'bitmask', child: Text("多选/位掩码（Bitmask）")),
+                      DropdownMenuItem(value: 'radio', child: Text("单选 (Radio)")),
+                      DropdownMenuItem(value: 'bitmask', child: Text("多选/位掩码 (Bitmask)")),
                     ],
                     onChanged: (v) => setState(() => type = v!),
                   ),
-                  const SizedBox(height: 12),
-                  const Text("选项列表", style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 20),
+                  const Text("选项列表:", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   ...List.generate(options.length, (index) {
                     return Padding(
@@ -1005,7 +818,7 @@ class SettingsPage extends StatelessWidget {
                           Expanded(
                             child: TextFormField(
                               initialValue: options[index].label,
-                              decoration: const InputDecoration(hintText: "名称", isDense: true, border: OutlineInputBorder()),
+                              decoration: const InputDecoration(hintText: "名称", isDense: true, contentPadding: EdgeInsets.all(8)),
                               onChanged: (v) => options[index] = FilterOption(label: v, value: options[index].value),
                             ),
                           ),
@@ -1013,7 +826,7 @@ class SettingsPage extends StatelessWidget {
                           Expanded(
                             child: TextFormField(
                               initialValue: options[index].value,
-                              decoration: const InputDecoration(hintText: "值", isDense: true, border: OutlineInputBorder()),
+                              decoration: const InputDecoration(hintText: "值", isDense: true, contentPadding: EdgeInsets.all(8)),
                               onChanged: (v) => options[index] = FilterOption(label: options[index].label, value: v),
                             ),
                           ),
@@ -1028,24 +841,26 @@ class SettingsPage extends StatelessWidget {
                   TextButton.icon(
                     icon: const Icon(Icons.add),
                     label: const Text("添加选项"),
-                    onPressed: () => setState(() => options.add(FilterOption(label: "", value: ""))),
+                    onPressed: () => setState(() => options.add(const FilterOption(label: "", value: ""))),
                   ),
-                  const SizedBox(height: 12),
-                  FilledButton(
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.primary, foregroundColor: Colors.white),
                     onPressed: () {
-                      if (titleCtrl.text.trim().isEmpty || paramCtrl.text.trim().isEmpty) return;
-                      Navigator.pop(
-                        ctx,
-                        FilterGroup(
-                          title: titleCtrl.text.trim(),
-                          paramName: paramCtrl.text.trim(),
-                          type: type,
-                          options: options,
-                        ),
-                      );
+                      if (titleCtrl.text.isNotEmpty && paramCtrl.text.isNotEmpty) {
+                        Navigator.pop(
+                          ctx,
+                          FilterGroup(
+                            title: titleCtrl.text,
+                            paramName: paramCtrl.text,
+                            type: type,
+                            options: options,
+                          ),
+                        );
+                      }
                     },
                     child: const Text("确认"),
-                  ),
+                  )
                 ],
               ),
             ),
@@ -1055,398 +870,224 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // ============================================================
-  // WebDAV：上传 / 下载 / 测试
-  // ============================================================
-
-  Future<bool> _testWebDav(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    final url = (prefs.getString(_kWebDavFileUrlKey) ?? "").trim();
-    if (url.isEmpty) return false;
-
-    final user = prefs.getString(_kWebDavUserKey) ?? "";
-    final pass = prefs.getString(_kWebDavPassKey) ?? "";
-
-    try {
-      final uri = Uri.parse(url);
-      final headers = <String, String>{...kAppHeaders};
-
-      if (user.isNotEmpty || pass.isNotEmpty) {
-        final basic = base64Encode(utf8.encode("$user:$pass"));
-        headers["Authorization"] = "Basic $basic";
-      }
-
-      // HEAD 不一定支持，GET 更稳
-      final resp = await http.get(uri, headers: headers);
-      return resp.statusCode == 200 || resp.statusCode == 404; // 404 也算“连得上”
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<bool> _uploadToWebDav(String url, String user, String pass, String jsonString) async {
-    try {
-      final uri = Uri.parse(url);
-      final headers = <String, String>{
-        ...kAppHeaders,
-        "Content-Type": "application/json; charset=utf-8",
-      };
-
-      if (user.isNotEmpty || pass.isNotEmpty) {
-        final basic = base64Encode(utf8.encode("$user:$pass"));
-        headers["Authorization"] = "Basic $basic";
-      }
-
-      final resp = await http.put(uri, headers: headers, body: utf8.encode(jsonString));
-      return resp.statusCode >= 200 && resp.statusCode < 300;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<String?> _downloadFromWebDav(String url, String user, String pass) async {
-    try {
-      final uri = Uri.parse(url);
-      final headers = <String, String>{...kAppHeaders};
-
-      if (user.isNotEmpty || pass.isNotEmpty) {
-        final basic = base64Encode(utf8.encode("$user:$pass"));
-        headers["Authorization"] = "Basic $basic";
-      }
-
-      final resp = await http.get(uri, headers: headers);
-      if (resp.statusCode != 200) return null;
-      return resp.body;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // ============================================================
-  // UI 基建：统一的卡片 / tile / 折叠 / 输入
-  // ============================================================
-
-  Widget _buildCard(BuildContext context, {required Widget child}) {
-    final appState = context.read<AppState>();
-    final radius = appState.cornerRadius;
-
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final cardColor = appState.customCardColor ?? (isDark ? const Color(0xFF1C1C1E) : Colors.white);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(radius),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.22 : 0.06), blurRadius: 14, offset: const Offset(0, 6))],
+  void _showImportDialog(BuildContext context, AppState state) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => _buildBottomDialog(
+        context,
+        title: "导入配置",
+        content: TextField(controller: controller, maxLines: 5, decoration: const InputDecoration(hintText: "在此粘贴 JSON...")),
+        confirmText: "导入",
+        onConfirm: () {
+          bool success = state.importSourceConfig(controller.text);
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(success ? "导入成功" : "导入失败"), backgroundColor: success ? Colors.green : Colors.red),
+          );
+        },
       ),
-      child: ClipRRect(borderRadius: BorderRadius.circular(radius), child: child),
     );
   }
 
-  Widget _buildTile(
+  // === 通用弹窗/输入/slider（原样保留） ===
+  Widget _buildBottomDialog(
     BuildContext context, {
     required String title,
-    required String subtitle,
-    required IconData icon,
-    Widget? trailing,
-    VoidCallback? onTap,
+    required Widget content,
+    required VoidCallback onConfirm,
+    String confirmText = "确定",
+    bool hideCancel = false,
   }) {
-    final theme = Theme.of(context);
-    final textColor = theme.brightness == Brightness.dark ? Colors.white : Colors.black;
+    final buttonColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-        child: Row(
-          children: [
-            _leadingIcon(theme, icon),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: textColor)),
-                const SizedBox(height: 4),
-                Text(subtitle, style: TextStyle(fontSize: 12.5, color: textColor.withOpacity(0.55))),
-              ]),
-            ),
-            if (trailing != null) trailing,
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildExpansion(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required List<Widget> children,
-  }) {
-    final theme = Theme.of(context);
-    final textColor = theme.brightness == Brightness.dark ? Colors.white : Colors.black;
-
-    return Theme(
-      data: theme.copyWith(dividerColor: Colors.transparent),
-      child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        childrenPadding: EdgeInsets.zero,
-        leading: _leadingIcon(theme, icon),
-        title: Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: textColor)),
-        subtitle: Text(subtitle, style: TextStyle(fontSize: 12.5, color: textColor.withOpacity(0.55))),
-        iconColor: theme.colorScheme.primary,
-        collapsedIconColor: Colors.grey,
-        children: children,
-      ),
-    );
-  }
-
-  Widget _buildSectionTitle(String text) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
-      child: Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.grey)),
-    );
-  }
-
-  Widget _subHeader(String text) {
-    return Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800));
-  }
-
-  Widget _leadingIcon(ThemeData theme, IconData icon) {
-    return Container(
-      width: 38,
-      height: 38,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withOpacity(0.22),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Icon(icon, size: 20, color: theme.colorScheme.primary),
-    );
-  }
-
-  Widget _miniListTile(
-    BuildContext context, {
-    required String title,
-    required String subtitle,
-    required IconData leading,
-    required Color leadingColor,
-    required VoidCallback onTap,
-    Widget? trailing,
-  }) {
-    final theme = Theme.of(context);
-    final textColor = theme.brightness == Brightness.dark ? Colors.white : Colors.black;
-
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-        child: Row(
-          children: [
-            Icon(leading, size: 18, color: leadingColor),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title, style: TextStyle(fontWeight: FontWeight.w700, color: textColor)),
-                const SizedBox(height: 2),
-                Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: textColor.withOpacity(0.55))),
-              ]),
-            ),
-            if (trailing != null) trailing,
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _actionButton(BuildContext context, {required IconData icon, required String label, required VoidCallback onTap}) {
-    final theme = Theme.of(context);
-    return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon),
-      label: Text(label),
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        foregroundColor: theme.colorScheme.primary,
-      ),
-    );
-  }
-
-  Widget _choiceChip(BuildContext context, {required String label, required bool selected, required VoidCallback onTap}) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+    return Dialog(
+      alignment: Alignment.bottomCenter,
+      insetPadding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      shape: Theme.of(context).dialogTheme.shape,
+      backgroundColor: Theme.of(context).dialogTheme.backgroundColor,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? theme.colorScheme.primary.withOpacity(0.14) : theme.colorScheme.surfaceContainerHighest.withOpacity(0.35),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: selected ? theme.colorScheme.primary.withOpacity(0.35) : Colors.transparent),
-        ),
-        child: Text(label, style: TextStyle(fontWeight: FontWeight.w700, color: selected ? theme.colorScheme.primary : theme.textTheme.bodyLarge?.color)),
-      ),
-    );
-  }
-
-  Widget _switchRow(BuildContext context, {required String title, required bool value, required ValueChanged<bool> onChanged}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.35),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700))),
-          Switch(value: value, onChanged: onChanged),
-        ],
-      ),
-    );
-  }
-
-  Widget _colorRow(BuildContext context, {required String title, required Color? color, required VoidCallback onTap}) {
-    final show = color ?? Colors.grey[300]!;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.35),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * (isKeyboardOpen ? 0.9 : 0.7)),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700))),
-            CircleAvatar(radius: 10, backgroundColor: show),
-            const SizedBox(width: 6),
-            const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 20),
+            Flexible(child: content),
+            const SizedBox(height: 28),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                if (!hideCancel)
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        foregroundColor: buttonColor,
+                        textStyle: const TextStyle(fontSize: 16),
+                      ),
+                      child: const Text("取消"),
+                    ),
+                  ),
+                if (!hideCancel) const SizedBox(width: 16),
+                Expanded(
+                  child: TextButton(
+                    onPressed: onConfirm,
+                    style: TextButton.styleFrom(
+                      foregroundColor: buttonColor,
+                      textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    child: Text(confirmText),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _sliderRow(
+  Widget _buildInput(BuildContext context, TextEditingController ctrl, String label) {
+    return TextField(
+      controller: ctrl,
+      decoration: InputDecoration(
+        labelText: label,
+        isDense: true,
+        fillColor: Theme.of(context).scaffoldBackgroundColor,
+        filled: true,
+        border: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFancySlider(
     BuildContext context, {
     required String label,
     required double value,
-    required double min,
     required double max,
     required ValueChanged<double> onChanged,
   }) {
-    const step = 0.5;
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    const double step = 0.5;
+    final int divisions = (max / step).round();
     double snap(double v) => (v / step).round() * step;
+    final double displayValue = snap(value);
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.35),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: [
-          Row(
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700))),
-              Text(snap(value).toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.w800)),
+              Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(displayValue.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
-          Slider(
-            value: value,
-            min: min,
-            max: max,
-            divisions: ((max - min) / step).round(),
-            onChanged: onChanged,
-            onChangeEnd: (v) => onChanged(snap(v)),
+        ),
+        SizedBox(
+          height: 48,
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 12,
+              trackShape: const RoundedRectSliderTrackShape(),
+              activeTrackColor: primaryColor,
+              inactiveTrackColor: primaryColor.withOpacity(0.15),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12.0, elevation: 4.0),
+              thumbColor: Colors.white,
+              overlayColor: Colors.white.withOpacity(0.3),
+              tickMarkShape: SliderTickMarkShape.noTickMark,
+            ),
+            child: Slider(
+              value: value,
+              min: 0.0,
+              max: max,
+              divisions: divisions,
+              onChanged: onChanged,
+              onChangeEnd: (v) => onChanged(snap(v)),
+            ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  TextField _input(BuildContext context, {required TextEditingController controller, required String label, required String hint}) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        isDense: true,
-        filled: true,
-        fillColor: Theme.of(context).scaffoldBackgroundColor,
-        border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide.none),
-      ),
-    );
-  }
-
-  String _modeText(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.system:
-        return "跟随系统";
-      case ThemeMode.light:
-        return "浅色模式";
-      case ThemeMode.dark:
-        return "深色模式";
-    }
-  }
-
-  void _toast(BuildContext context, String text) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-  }
-
-  // ============================================================
-  // HEX 颜色输入（保留，但样式干净）
-  // ============================================================
-
-  void _showHexColorPicker(BuildContext context, String title, Color? currentColor, ValueChanged<Color?> onSelect) {
+  void _importBackupFromUrl(BuildContext context) {
     final ctrl = TextEditingController();
-    if (currentColor != null) {
-      ctrl.text = currentColor.value.toRadixString(16).toUpperCase().padLeft(8, '0');
-    }
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text("输入 HEX（$title）"),
-        content: TextField(
-          controller: ctrl,
-          decoration: const InputDecoration(
-            labelText: "HEX",
-            hintText: "AARRGGBB 或 RRGGBB",
-            border: OutlineInputBorder(),
-          ),
-        ),
+        title: const Text("云端备份 URL"),
+        content: TextField(controller: ctrl, decoration: const InputDecoration(hintText: "https://.../backup.json")),
         actions: [
-          TextButton(
-            onPressed: () {
-              onSelect(null);
-              Navigator.pop(ctx);
-            },
-            child: const Text("恢复默认"),
-          ),
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
           ElevatedButton(
-            onPressed: () {
-              try {
-                String hex = ctrl.text.trim().replaceAll("#", "");
-                if (hex.length == 6) hex = "FF$hex";
-                if (hex.length == 8) {
-                  final val = int.parse(hex, radix: 16);
-                  onSelect(Color(val));
-                  Navigator.pop(ctx);
-                } else {
-                  _toast(context, "格式错误：输入 6位 或 8位 HEX");
-                }
-              } catch (_) {
-                _toast(context, "颜色解析失败");
-              }
+            onPressed: () async {
+              final ok = await context.read<AppState>().importBackupFromUrl(ctrl.text.trim());
+              if (ctx.mounted) Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(ok ? "✅ 已恢复" : "❌ 失败")),
+              );
             },
-            child: const Text("确定"),
+            child: const Text("拉取并恢复"),
           ),
         ],
+      ),
+    );
+  }
+
+  void _importSourceFromUrl(BuildContext context) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("图源配置 URL"),
+        content: TextField(controller: ctrl, decoration: const InputDecoration(hintText: "https://.../source.json")),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+          ElevatedButton(
+            onPressed: () async {
+              final ok = await context.read<AppState>().importSourceFromUrl(ctrl.text.trim());
+              if (ctx.mounted) Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(ok ? "✅ 图源已导入" : "❌ 导入失败")),
+              );
+            },
+            child: const Text("导入"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThemeRadio(BuildContext context, String label, ThemeMode value, ThemeMode groupValue, ValueChanged<ThemeMode> onChanged) {
+    return InkWell(
+      onTap: () => onChanged(value),
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Radio<ThemeMode>(
+              value: value,
+              groupValue: groupValue,
+              onChanged: (v) => onChanged(v!),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+              activeColor: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 4),
+            Text(label),
+          ],
+        ),
       ),
     );
   }
