@@ -10,8 +10,6 @@ import 'pages/home_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // 移除 SSL 忽略逻辑，恢复标准安全检查
-
   final appState = AppState();
   await appState.init();
 
@@ -49,24 +47,31 @@ class MyApp extends StatelessWidget {
     return DynamicColorBuilder(
       builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
         // === 1. 统一颜色 ===
-        const lightBg = Color(0xFFF1F1F3);
-        const lightSurface = Color(0xFFFFFDFD);
+        const lightBgDefault = Color(0xFFF1F1F3);
+        const lightSurfaceDefault = Color(0xFFFFFDFD);
         
-        final darkBg = appState.useAmoled ? Colors.black : const Color(0xFF121212);
-        final darkSurface = appState.useAmoled ? const Color(0xFF1A1A1A) : const Color(0xFF2C2C2C);
+        final darkBgDefault = appState.useAmoled ? Colors.black : const Color(0xFF121212);
+        final darkSurfaceDefault = appState.useAmoled ? const Color(0xFF1A1A1A) : const Color(0xFF2C2C2C);
 
         ColorScheme lightScheme;
         ColorScheme darkScheme;
 
         if (lightDynamic != null && appState.useMaterialYou) {
           lightScheme = lightDynamic.harmonized();
-          lightScheme = lightScheme.copyWith(surface: lightSurface, surfaceContainerHighest: lightSurface);
+          lightScheme = lightScheme.copyWith(surface: lightSurfaceDefault, surfaceContainerHighest: lightSurfaceDefault);
           darkScheme = darkDynamic?.harmonized() ?? const ColorScheme.dark();
-          darkScheme = darkScheme.copyWith(surface: darkSurface, surfaceContainerHighest: darkSurface);
+          darkScheme = darkScheme.copyWith(surface: darkSurfaceDefault, surfaceContainerHighest: darkSurfaceDefault);
         } else {
-          lightScheme = ColorScheme.fromSeed(seedColor: Colors.blue, surface: lightSurface);
-          darkScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark, surface: darkSurface);
+          lightScheme = ColorScheme.fromSeed(seedColor: Colors.blue, surface: lightSurfaceDefault);
+          darkScheme = ColorScheme.fromSeed(seedColor: Colors.blue, brightness: Brightness.dark, surface: darkSurfaceDefault);
         }
+
+        // === 获取最终颜色 (优先使用自定义) ===
+        final effectiveLightBg = appState.customScaffoldColor ?? lightBgDefault;
+        final effectiveDarkBg = appState.customScaffoldColor ?? darkBgDefault;
+        
+        final effectiveLightCard = appState.customCardColor ?? lightSurfaceDefault;
+        final effectiveDarkCard = appState.customCardColor ?? darkSurfaceDefault;
 
         // === 2. 统一形状 (动态读取设置) ===
         final commonShape = RoundedRectangleBorder(
@@ -91,7 +96,7 @@ class MyApp extends StatelessWidget {
 
         // === 5. 统一弹窗样式 ===
         final dialogThemeLight = DialogThemeData(
-          backgroundColor: lightSurface,
+          backgroundColor: effectiveLightCard,
           elevation: 0,
           shape: commonShape,
           alignment: Alignment.bottomCenter, 
@@ -101,7 +106,7 @@ class MyApp extends StatelessWidget {
         );
         
         final dialogThemeDark = DialogThemeData(
-          backgroundColor: darkSurface,
+          backgroundColor: effectiveDarkCard,
           elevation: 0,
           shape: commonShape,
           alignment: Alignment.bottomCenter, 
@@ -126,19 +131,19 @@ class MyApp extends StatelessWidget {
           theme: ThemeData(
             useMaterial3: true,
             colorScheme: lightScheme,
-            scaffoldBackgroundColor: lightBg,
+            scaffoldBackgroundColor: effectiveLightBg, // 应用自定义背景
             textTheme: appTextTheme,
             pageTransitionsTheme: pageTransitions,
 
             appBarTheme: AppBarTheme(
-              backgroundColor: lightBg,
+              backgroundColor: effectiveLightBg, // 应用自定义背景
               scrolledUnderElevation: 0,
               titleTextStyle: const TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold),
               iconTheme: const IconThemeData(color: Colors.black),
             ),
             
             cardTheme: CardThemeData(
-              color: lightSurface, 
+              color: effectiveLightCard, // 应用自定义卡片色
               elevation: 0, 
               margin: EdgeInsets.zero, 
               shape: commonShape
@@ -155,8 +160,8 @@ class MyApp extends StatelessWidget {
             ),
             
             bottomSheetTheme: BottomSheetThemeData(
-              backgroundColor: lightSurface,
-              modalBackgroundColor: lightSurface,
+              backgroundColor: effectiveLightCard,
+              modalBackgroundColor: effectiveLightCard,
               shape: commonShape,
             ),
             
@@ -172,19 +177,19 @@ class MyApp extends StatelessWidget {
           darkTheme: ThemeData(
             useMaterial3: true,
             colorScheme: darkScheme,
-            scaffoldBackgroundColor: darkBg,
+            scaffoldBackgroundColor: effectiveDarkBg, // 应用自定义背景
             textTheme: appTextTheme.apply(bodyColor: Colors.white, displayColor: Colors.white),
             pageTransitionsTheme: pageTransitions,
 
             appBarTheme: AppBarTheme(
-              backgroundColor: darkBg,
+              backgroundColor: effectiveDarkBg, // 应用自定义背景
               scrolledUnderElevation: 0,
               titleTextStyle: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
               iconTheme: const IconThemeData(color: Colors.white),
             ),
             
             cardTheme: CardThemeData(
-              color: darkSurface, 
+              color: effectiveDarkCard, // 应用自定义卡片色
               elevation: 0, 
               margin: EdgeInsets.zero, 
               shape: commonShape
@@ -201,8 +206,8 @@ class MyApp extends StatelessWidget {
             ),
             
             bottomSheetTheme: BottomSheetThemeData(
-              backgroundColor: darkSurface,
-              modalBackgroundColor: darkSurface,
+              backgroundColor: effectiveDarkCard,
+              modalBackgroundColor: effectiveDarkCard,
               shape: commonShape,
             ),
             
