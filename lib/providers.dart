@@ -1,10 +1,10 @@
 // lib/providers.dart
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/source_config.dart';
 import 'models/wallpaper.dart';
-import 'package:http/http.dart' as http;
 
 // === 全局常量：统一 User-Agent ===
 const Map<String, String> kAppHeaders = {
@@ -17,44 +17,14 @@ const Map<String, String> kAppHeaders = {
 // === 备份键 ===
 const String kBackupKey = 'app_backup_v1';
 
+// === 云端配置键 ===
+const String kCloudGithubRawUrlKey = 'cloud_github_raw_url_v1';
+const String kCloudWebdavUrlKey = 'cloud_webdav_url_v1'; // 建议填“完整文件 URL”，比如 https://xxx/dav/backup.json
+const String kCloudWebdavUserKey = 'cloud_webdav_user_v1';
+const String kCloudWebdavPassKey = 'cloud_webdav_pass_v1';
+
 class AppState extends ChangeNotifier {
   SharedPreferences? _prefs;
-
-  // ============================================================
-// ☁️ 从云端 URL 恢复【完整备份】
-// ============================================================
-Future<bool> importBackupFromUrl(String url) async {
-  try {
-    final uri = Uri.parse(url);
-    final resp = await http.get(uri, headers: kAppHeaders);
-
-    if (resp.statusCode != 200) return false;
-
-    final jsonString = resp.body;
-    return await importBackupJson(jsonString);
-  } catch (e) {
-    debugPrint("importBackupFromUrl failed: $e");
-    return false;
-  }
-}
-
-// ============================================================
-// ☁️ 从云端 URL 导入【单个图源 SourceConfig】
-// ============================================================
-Future<bool> importSourceFromUrl(String url) async {
-  try {
-    final uri = Uri.parse(url);
-    final resp = await http.get(uri, headers: kAppHeaders);
-
-    if (resp.statusCode != 200) return false;
-
-    final jsonString = resp.body;
-    return importSourceConfig(jsonString);
-  } catch (e) {
-    debugPrint("importSourceFromUrl failed: $e");
-    return false;
-  }
-} 
 
   // 默认图源 - Wallhaven
   List<SourceConfig> _sources = [
@@ -144,6 +114,64 @@ Future<bool> importSourceFromUrl(String url) async {
   Color? get customScaffoldColor => _customScaffoldColor;
   Color? get customCardColor => _customCardColor;
 
+  // === 云端配置（GitHub Raw + WebDAV）===
+  String _githubRawUrl = "";
+  String _webdavUrl = "";
+  String _webdavUser = "";
+  String _webdavPass = "";
+
+  String get githubRawUrl => _githubRawUrl;
+  String get webdavUrl => _webdavUrl;
+  String get webdavUser => _webdavUser;
+  String get webdavPass => _webdavPass;
+
+  void setGithubRawUrl(String v) {
+    _githubRawUrl = v.trim();
+    if (_githubRawUrl.isEmpty) {
+      _prefs?.remove(kCloudGithubRawUrlKey);
+    } else {
+      _prefs?.setString(kCloudGithubRawUrlKey, _githubRawUrl);
+    }
+    _autoBackup();
+    notifyListeners();
+  }
+
+  void setWebdavUrl(String v) {
+    _webdavUrl = v.trim();
+    if (_webdavUrl.isEmpty) {
+      _prefs?.remove(kCloudWebdavUrlKey);
+    } else {
+      _prefs?.setString(kCloudWebdavUrlKey, _webdavUrl);
+    }
+    _autoBackup();
+    notifyListeners();
+  }
+
+  void setWebdavUser(String v) {
+    _webdavUser = v;
+    if (_webdavUser.isEmpty) {
+      _prefs?.remove(kCloudWebdavUserKey);
+    } else {
+      _prefs?.setString(kCloudWebdavUserKey, _webdavUser);
+    }
+    _autoBackup();
+    notifyListeners();
+  }
+
+  void setWebdavPass(String v) {
+    _webdavPass = v;
+    if (_webdavPass.isEmpty) {
+      _prefs?.remove(kCloudWebdavPassKey);
+    } else {
+      _prefs?.setString(kCloudWebdavPassKey, _webdavPass);
+    }
+    _autoBackup();
+    notifyListeners();
+  }
+
+  bool get hasGithubRaw => _githubRawUrl.trim().isNotEmpty;
+  bool get hasWebdav => _webdavUrl.trim().isNotEmpty;
+
   // === 备份节流 ===
   DateTime _lastBackupWrite = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -199,6 +227,12 @@ Future<bool> importSourceFromUrl(String url) async {
 
     // 4) 当前源筛选
     _loadFiltersForCurrentSource();
+
+    // 5) 云端配置
+    _githubRawUrl = _prefs?.getString(kCloudGithubRawUrlKey) ?? "";
+    _webdavUrl = _prefs?.getString(kCloudWebdavUrlKey) ?? "";
+    _webdavUser = _prefs?.getString(kCloudWebdavUserKey) ?? "";
+    _webdavPass = _prefs?.getString(kCloudWebdavPassKey) ?? "";
 
     notifyListeners();
   }
@@ -493,6 +527,84 @@ Future<bool> importSourceFromUrl(String url) async {
   /// 读取“上次自动备份”的 JSON（没有就空）
   String? getLastBackupJson() {
     return _prefs?.getString(kBackupKey);
+  }
+
+  // ============================================================
+  // ✅ 云端：从 URL 导入（你要的“接口”）
+  // ============================================================
+
+  Future<String?> _fetchText(String url) async {
+    try {
+      final dio = Dio();
+      final resp = await dio.get(
+        url,
+        options: Options(
+          headers: {
+            ...kAppHeaders,
+            "Accept": "application/json,text/plain,*/*",
+          },
+          responseType: ResponseType.plain,
+          followRedirects: true,
+          validateStatus: (c) => c != null && c >= 200 && c < 400,
+        ),
+      );
+      return resp.data?.toString();
+    } catch (e) {
+      debugPrint("_fetchText failed: $e");
+      return null;
+    }
+  }
+
+  /// ✅ 云端恢复：给个 URL，拉备份 JSON，直接恢复
+  Future<bool> importBackupFromUrl(String url) async {
+    final u = url.trim();
+    if (u.isEmpty) return false;
+    final text = await _fetchText(u);
+    if (text == null || text.trim().isEmpty) return false;
+    return importBackupJson(text);
+  }
+
+  /// ✅ 云端导入图源：给个 URL，拉 SourceConfig JSON，添加到 sources
+  Future<bool> importSourceFromUrl(String url) async {
+    final u = url.trim();
+    if (u.isEmpty) return false;
+    final text = await _fetchText(u);
+    if (text == null || text.trim().isEmpty) return false;
+    return importSourceConfig(text);
+  }
+
+  /// ✅ 云端恢复（按设置）：优先 GitHub Raw；没有就用 WebDAV GET
+  Future<bool> restoreFromCloud() async {
+    final url = hasGithubRaw ? _githubRawUrl : _webdavUrl;
+    if (url.trim().isEmpty) return false;
+    return importBackupFromUrl(url);
+  }
+
+  /// ✅ 云端备份（WebDAV PUT）：把当前备份推到 webdavUrl（需要你填完整文件 URL）
+  Future<bool> syncBackupToWebdav() async {
+    if (!hasWebdav) return false;
+    try {
+      final json = exportBackupJson();
+      final dio = Dio();
+      final resp = await dio.put(
+        _webdavUrl,
+        data: utf8.encode(json),
+        options: Options(
+          headers: {
+            ...kAppHeaders,
+            "Content-Type": "application/json; charset=utf-8",
+            if (_webdavUser.isNotEmpty || _webdavPass.isNotEmpty)
+              "Authorization": "Basic ${base64Encode(utf8.encode("$_webdavUser:$_webdavPass"))}",
+          },
+          followRedirects: true,
+          validateStatus: (c) => c != null && c >= 200 && c < 300,
+        ),
+      );
+      return (resp.statusCode ?? 0) >= 200 && (resp.statusCode ?? 0) < 300;
+    } catch (e) {
+      debugPrint("syncBackupToWebdav failed: $e");
+      return false;
+    }
   }
 
   // === 内部：构建备份结构 ===
