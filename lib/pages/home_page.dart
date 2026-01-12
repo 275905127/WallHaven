@@ -1,4 +1,4 @@
-import 'dart:math';
+Import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -110,13 +110,13 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // === 直链模式 (保留筛选参数逻辑) ===
+  // === 🚀 升级版直链模式：支持筛选参数 ===
   Future<void> _fetchDirectMode(dynamic currentSource) async {
     int batchSize = 5; 
     List<Wallpaper> newItems = [];
     final appState = context.read<AppState>();
     
-    // 1. 构建参数字符串
+    // 1. 构建参数字符串 (把筛选条件拼接到 URL 里)
     StringBuffer paramBuffer = StringBuffer();
     appState.activeParams.forEach((key, value) {
       if (value != null && value.toString().isNotEmpty) {
@@ -130,7 +130,7 @@ class _HomePageState extends State<HomePage> {
       final randomId = "${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000000)}";
       final separator = currentSource.baseUrl.contains('?') ? '&' : '?';
       
-      // 2. 拼接完整 URL
+      // 2. 拼接完整 URL: BaseURL + 随机数 + 筛选参数
       final directUrl = "${currentSource.baseUrl}${separator}cache_buster=${_page}_${i}_$randomId$paramString";
       
       double randomRatio = 0.6 + Random().nextDouble(); 
@@ -164,13 +164,10 @@ class _HomePageState extends State<HomePage> {
       queryParams[currentSource.apiKeyParam] = currentSource.apiKey;
     }
 
-    // === ✨ 核心修改：使用合并后的 Headers (解决 403) ===
-    final headers = context.read<AppState>().getHeaders();
-
     var response = await Dio().get(
       currentSource.baseUrl,
       queryParameters: queryParams,
-      options: Options(headers: headers), // 使用动态 Headers
+      options: Options(headers: kAppHeaders), 
     );
 
     if (response.statusCode == 200) {
@@ -217,7 +214,7 @@ class _HomePageState extends State<HomePage> {
             views: item['views'] ?? 0,
             favorites: item['favorites'] ?? 0,
             aspectRatio: ratio,
-            purity: item['purity'] ?? 'sfw',
+            purity: item['purity'] ?? 'sfw', // 解析分级
             metadata: item is Map<String, dynamic> ? item : {},
           );
         }).where((w) => w.thumbUrl.isNotEmpty).toList();
@@ -358,30 +355,35 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // === 核心优化：参考图风格 (无边框 SFW + Stack 布局) ===
   Widget _buildWallpaperItem(Wallpaper wallpaper) {
     final appState = context.read<AppState>();
     final double radius = appState.homeCornerRadius;
     final colorScheme = Theme.of(context).colorScheme;
 
+    // 1. 判断是否是 Wallhaven 源
     final isWallhaven = appState.currentSource.baseUrl.contains('wallhaven');
     
+    // 2. 边框逻辑优化：SFW 无边框，Sketchy/NSFW 有边框
     Color? borderColor;
     if (isWallhaven) {
       if (wallpaper.purity == 'sketchy') {
-        borderColor = const Color(0xFFE6E649); 
+        borderColor = const Color(0xFFE6E649); // 黄色
       } else if (wallpaper.purity == 'nsfw') {
-        borderColor = const Color(0xFFFF3333); 
+        borderColor = const Color(0xFFFF3333); // 红色
       }
+      // SFW 保持 null -> 无边框，视觉减负
     }
 
-    // === ✨ 核心修改：Headers 接入 & 骨架屏 ===
     return GestureDetector(
       onTap: () {
         Navigator.push(context, MaterialPageRoute(builder: (_) => ImageDetailPage(wallpaper: wallpaper)));
       },
+      // 使用 Stack 将边框“浮”在图片上方，解决圆角缝隙问题
       child: Stack(
         fit: StackFit.passthrough,
         children: [
+          // 底层：图片主体
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(radius), 
@@ -398,12 +400,12 @@ class _HomePageState extends State<HomePage> {
                   tag: wallpaper.id,
                   child: CachedNetworkImage(
                     imageUrl: wallpaper.thumbUrl,
-                    // 1. 使用动态 Headers
-                    httpHeaders: appState.getHeaders(), 
+                    httpHeaders: kAppHeaders,
                     fit: BoxFit.cover,
                     fadeInDuration: const Duration(milliseconds: 300),
-                    // 2. 使用呼吸骨架屏代替原来的空容器
-                    placeholder: (context, url) => const SkeletonPlaceholder(),
+                    placeholder: (context, url) => Container(
+                      color: colorScheme.surfaceContainerHighest,
+                    ),
                     errorWidget: (context, url, error) => Container(
                       color: colorScheme.surfaceContainerHighest,
                       child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
@@ -414,68 +416,23 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
 
+          // 顶层：边框叠加层 (仅当有颜色时显示)
           if (borderColor != null)
             Positioned.fill(
-              child: IgnorePointer(
+              child: IgnorePointer( // 确保点击穿透
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(radius),
                     border: Border.all(
                       color: borderColor, 
-                      width: 1.5,
-                      strokeAlign: BorderSide.strokeAlignInside,
+                      width: 1.5, // 细边框，精致
+                      strokeAlign: BorderSide.strokeAlignInside, // 向内对齐，无溢出
                     ),
                   ),
                 ),
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-// === ✨ 新增组件：呼吸闪烁骨架屏 (Shimmer Skeleton) ===
-// 无需外部依赖，使用 Flutter 原生动画实现高质感加载效果
-class SkeletonPlaceholder extends StatefulWidget {
-  const SkeletonPlaceholder({super.key});
-
-  @override
-  State<SkeletonPlaceholder> createState() => _SkeletonPlaceholderState();
-}
-
-class _SkeletonPlaceholderState extends State<SkeletonPlaceholder> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    // 循环呼吸动画
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
-    _animation = Tween<double>(begin: 0.3, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // 动态适配深浅色模式的骨架颜色
-    final baseColor = isDark ? Colors.grey[800] : Colors.grey[300];
-    
-    return FadeTransition(
-      opacity: _animation,
-      child: Container(
-        color: baseColor,
-        child: Center(
-          // 可选：加个淡淡的 Logo 或图标
-          child: Icon(Icons.image, color: isDark ? Colors.grey[700] : Colors.grey[400], size: 24),
-        ),
       ),
     );
   }
