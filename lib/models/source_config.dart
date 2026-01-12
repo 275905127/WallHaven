@@ -1,3 +1,5 @@
+// lib/models/source_config.dart
+
 // 定义单个选项
 class FilterOption {
   final String label; // 显示的名字，如 "动漫"
@@ -6,15 +8,15 @@ class FilterOption {
   FilterOption({required this.label, required this.value});
 
   Map<String, dynamic> toJson() => {'label': label, 'value': value};
-  factory FilterOption.fromJson(Map<String, dynamic> json) => 
+  factory FilterOption.fromJson(Map<String, dynamic> json) =>
       FilterOption(label: json['label'], value: json['value']);
 }
 
 // 定义一组筛选 (如 "分类" 组)
 class FilterGroup {
-  final String title;     // 标题，如 "分类"
+  final String title; // 标题，如 "分类"
   final String paramName; // URL参数名，如 "categories"
-  final String type;      // 类型：'radio' (单选), 'checkbox' (多选-逗号分隔), 'bitmask' (Wallhaven专用)
+  final String type; // 'radio' / 'bitmask'
   final List<FilterOption> options;
 
   FilterGroup({
@@ -25,11 +27,11 @@ class FilterGroup {
   });
 
   Map<String, dynamic> toJson() => {
-    'title': title,
-    'paramName': paramName,
-    'type': type,
-    'options': options.map((e) => e.toJson()).toList(),
-  };
+        'title': title,
+        'paramName': paramName,
+        'type': type,
+        'options': options.map((e) => e.toJson()).toList(),
+      };
 
   factory FilterGroup.fromJson(Map<String, dynamic> json) {
     return FilterGroup(
@@ -44,16 +46,20 @@ class FilterGroup {
 class SourceConfig {
   final String name;
   final String baseUrl;
+
   final String apiKeyParam;
   final String apiKey;
-  
+
   final String listKey;
   final String thumbKey;
   final String fullKey;
   final String idKey;
 
-  // === 核心变化：不再是死板的 filterType，而是动态的 filters 列表 ===
-  final List<FilterGroup> filters; 
+  // ✅ 新增：每个源自己的 headers（用于 Nekos.best 这类）
+  final Map<String, String> headers;
+
+  // 动态 filters
+  final List<FilterGroup> filters;
 
   SourceConfig({
     required this.name,
@@ -64,22 +70,32 @@ class SourceConfig {
     this.thumbKey = 'thumbs.large',
     this.fullKey = 'path',
     this.idKey = 'id',
-    this.filters = const [], // 默认为空
+    this.headers = const {},
+    this.filters = const [],
   });
 
   Map<String, dynamic> toJson() => {
-    'name': name,
-    'baseUrl': baseUrl,
-    'apiKeyParam': apiKeyParam,
-    'apiKey': apiKey,
-    'listKey': listKey,
-    'thumbKey': thumbKey,
-    'fullKey': fullKey,
-    'idKey': idKey,
-    'filters': filters.map((e) => e.toJson()).toList(),
-  };
+        'name': name,
+        'baseUrl': baseUrl,
+        'apiKeyParam': apiKeyParam,
+        'apiKey': apiKey,
+        'listKey': listKey,
+        'thumbKey': thumbKey,
+        'fullKey': fullKey,
+        'idKey': idKey,
+        'headers': headers,
+        'filters': filters.map((e) => e.toJson()).toList(),
+      };
 
   factory SourceConfig.fromJson(Map<String, dynamic> json) {
+    Map<String, String> parsedHeaders = {};
+    final h = json['headers'];
+    if (h is Map) {
+      h.forEach((k, v) {
+        if (k != null && v != null) parsedHeaders[k.toString()] = v.toString();
+      });
+    }
+
     return SourceConfig(
       name: json['name'],
       baseUrl: json['baseUrl'],
@@ -89,7 +105,8 @@ class SourceConfig {
       thumbKey: json['thumbKey'] ?? 'thumbs.large',
       fullKey: json['fullKey'] ?? 'path',
       idKey: json['idKey'] ?? 'id',
-      filters: json['filters'] != null 
+      headers: parsedHeaders,
+      filters: json['filters'] != null
           ? (json['filters'] as List).map((e) => FilterGroup.fromJson(e)).toList()
           : [],
     );
