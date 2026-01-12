@@ -46,6 +46,7 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
     
     try {
       final url = "https://wallhaven.cc/api/v1/w/${widget.wallpaper.id}";
+      // 使用动态 Headers
       final headers = appState.getHeaders();
       final response = await Dio().get(url, options: Options(headers: headers));
       
@@ -84,13 +85,18 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ 保存成功"), backgroundColor: Colors.green, behavior: SnackBarBehavior.floating),
+          const SnackBar(
+            content: Text("✅ 保存成功"), 
+            backgroundColor: Colors.white, 
+            behavior: SnackBarBehavior.floating,
+            contentTextStyle: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ 保存失败: $e"), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+          SnackBar(content: Text("❌ 保存失败: $e"), backgroundColor: Colors.redAccent),
         );
       }
     } finally {
@@ -113,7 +119,7 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
       backgroundColor: Colors.black, 
       body: Stack(
         children: [
-          // === 1. 图片层 ===
+          // === 1. 图片主体 ===
           Positioned.fill(
             child: GestureDetector(
               onTap: () => setState(() => _hideUI = !_hideUI), 
@@ -134,27 +140,36 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
             ),
           ),
 
-          // === 2. 顶部导航栏 ===
+          // === 2. 顶部透明渐变栏 (更柔和) ===
           AnimatedPositioned(
-            duration: const Duration(milliseconds: 250),
+            duration: const Duration(milliseconds: 300),
             curve: Curves.easeOut,
             top: _hideUI ? -100 : 0,
             left: 0,
             right: 0,
             child: Container(
-              padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top, left: 8, right: 8, bottom: 20),
+              padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top, left: 16, right: 16, bottom: 20),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.black87, Colors.transparent],
+                  colors: [Colors.black54, Colors.transparent],
                 ),
               ),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 24),
-                    onPressed: () => Navigator.pop(context),
+                  // 圆形磨砂返回键
+                  ClipOval(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        color: Colors.white.withOpacity(0.1),
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ),
+                    ),
                   ),
                   const Spacer(),
                 ],
@@ -162,33 +177,34 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
             ),
           ),
 
-          // === 3. 底部悬浮岛 (视觉核心优化) ===
+          // === 3. 底部晶莹剔透悬浮岛 (核心修改) ===
           AnimatedPositioned(
-            duration: const Duration(milliseconds: 350),
+            duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutCubic,
-            bottom: _hideUI ? -200 : 34, 
+            bottom: _hideUI ? -200 : 32, 
             left: 20,
             right: 20,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(32), // 更圆润的圆角
+              borderRadius: BorderRadius.circular(28),
               child: BackdropFilter(
-                // 增加模糊度，更有质感
-                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20), 
+                // 1. 强力模糊
+                filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25), 
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    // 降低不透明度，更通透
-                    color: const Color(0xFF1A1A1A).withOpacity(0.4), 
-                    // 极细的边框，若隐若现
-                    border: Border.all(color: Colors.white.withOpacity(0.08), width: 1), 
+                    // 2. 关键：用微透的白色，而不是黑色！这样在黑底上才会有玻璃感
+                    color: Colors.white.withOpacity(0.08), 
+                    // 3. 亮白细边框，勾勒轮廓
+                    border: Border.all(color: Colors.white.withOpacity(0.15), width: 1), 
+                    borderRadius: BorderRadius.circular(28),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // 第一行：信息 + 核心操作
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // 左侧信息
+                          // 左侧：参数信息
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -197,18 +213,20 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
                                   _getResolution(), 
                                   style: const TextStyle(
                                     color: Colors.white, 
-                                    fontWeight: FontWeight.w600, 
-                                    fontSize: 17,
+                                    fontWeight: FontWeight.bold, 
+                                    fontSize: 18,
+                                    fontFamily: 'Roboto', 
                                     letterSpacing: 0.5
                                   )
                                 ),
                                 const SizedBox(height: 6),
                                 Row(
                                   children: [
+                                    // 胶囊样式的标签
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.1),
+                                        color: Colors.white.withOpacity(0.15),
                                         borderRadius: BorderRadius.circular(6)
                                       ),
                                       child: Text(
@@ -219,7 +237,7 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
                                     const SizedBox(width: 8),
                                     Text(
                                       _getUploaderName(), 
-                                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                                      style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13),
                                       maxLines: 1, overflow: TextOverflow.ellipsis
                                     ),
                                   ],
@@ -228,58 +246,70 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
                             ),
                           ),
                           
-                          // 收藏按钮
-                          Consumer<AppState>(
-                            builder: (ctx, state, _) {
-                              final isFav = state.isFavorite(widget.wallpaper);
-                              return IconButton(
-                                icon: Icon(
-                                  isFav ? Icons.favorite : Icons.favorite_border, 
-                                  color: isFav ? const Color(0xFFFF453A) : Colors.white, // iOS 风格红
-                                  size: 28
-                                ),
-                                onPressed: () => state.toggleFavorite(widget.wallpaper),
-                              );
-                            }
-                          ),
-                          
-                          const SizedBox(width: 16),
-                          
-                          // 下载按钮 (高亮设计)
-                          Material(
-                            color: Colors.white, // 纯白背景
-                            shape: const CircleBorder(),
-                            clipBehavior: Clip.antiAlias,
-                            child: InkWell(
-                              onTap: _saveImage,
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: _isDownloading 
-                                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black))
-                                  : const Icon(Icons.arrow_downward_rounded, color: Colors.black, size: 24),
+                          // 右侧：收藏 + 下载
+                          Row(
+                            children: [
+                              // 收藏按钮
+                              Consumer<AppState>(
+                                builder: (ctx, state, _) {
+                                  final isFav = state.isFavorite(widget.wallpaper);
+                                  return IconButton(
+                                    icon: Icon(
+                                      isFav ? Icons.favorite : Icons.favorite_border, 
+                                      color: isFav ? const Color(0xFFFF3B30) : Colors.white70, 
+                                      size: 26
+                                    ),
+                                    onPressed: () => state.toggleFavorite(widget.wallpaper),
+                                  );
+                                }
                               ),
-                            ),
+                              const SizedBox(width: 12),
+                              
+                              // 下载按钮：纯白圆形，强烈对比
+                              Material(
+                                color: Colors.white, 
+                                shape: const CircleBorder(),
+                                elevation: 4,
+                                child: InkWell(
+                                  onTap: _saveImage,
+                                  customBorder: const CircleBorder(),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: _isDownloading 
+                                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                                      : const Icon(Icons.arrow_downward, color: Colors.black, size: 24),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
                       
-                      // 如果是 Wallhaven 源，显示相似图片入口
+                      // 第二行：相似图片 (仅 Wallhaven)
                       if (appState.currentSource.baseUrl.contains('wallhaven')) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
                         GestureDetector(
                           onTap: _searchSimilar,
                           child: Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                             decoration: BoxDecoration(
+                              // 更浅的半透明白
                               color: Colors.white.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(16)
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.white.withOpacity(0.05))
                             ),
-                            child: const Center(
-                              child: Text(
-                                "查找相似图片", 
-                                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)
-                              ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.image_search, color: Colors.white70, size: 18),
+                                SizedBox(width: 8),
+                                Text(
+                                  "查找相似图片", 
+                                  style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500)
+                                ),
+                              ],
                             ),
                           ),
                         )
@@ -305,7 +335,7 @@ class _ImageDetailPageState extends State<ImageDetailPage> with SingleTickerProv
   String _getResolution() {
     if (widget.wallpaper.resolution.isNotEmpty) return widget.wallpaper.resolution;
     if (_details['dimension_x'] != null) return "${_details['dimension_x']} × ${_details['dimension_y']}";
-    return "Wallpaper";
+    return "Details";
   }
 
   String _getFileSize() {
