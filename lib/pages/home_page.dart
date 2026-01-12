@@ -113,9 +113,9 @@ class _HomePageState extends State<HomePage> {
 
   // === 🚀 直链模式：一次请求拿到最终直链 + 真实比例（降低频率防封） ===
   Future<void> _fetchDirectMode(dynamic currentSource) async {
-  const int batchSize = 2; // 👈 你说会封：别贪，先稳住
+  const int batchSize = 8; // 👈 你说会封：别贪，先稳住
   const int headerBytes = 32768; // 32KB：够解析 jpg/png/webp 头部
-  const Duration perItemDelay = Duration(milliseconds: 450); // 👈 降频，防封
+  const Duration perItemDelay = Duration(milliseconds: 220); // 👈 降频，防封
 
   final appState = context.read<AppState>();
 
@@ -341,6 +341,8 @@ class _HomePageState extends State<HomePage> {
     });
   }
 }
+  // ✅ 整批冷却：防止滚动触发下一轮太快（防封关键）
+  await Future.delayed(const Duration(milliseconds: 900));
 
   Future<void> _fetchApiMode(dynamic currentSource, Map<String, dynamic> activeParams) async {
     final Map<String, dynamic> queryParams = Map.from(activeParams);
