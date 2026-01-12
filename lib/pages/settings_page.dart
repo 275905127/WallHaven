@@ -1,7 +1,4 @@
-// lib/pages/settings_page.dart
 import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -23,264 +20,319 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
-    final theme = Theme.of(context);
-    final textColor = theme.brightness == Brightness.dark ? Colors.white : Colors.black;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // ChatGPT 标志性的背景色
+    final Color backgroundColor = isDark ? Colors.black : const Color(0xFFF2F2F7);
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            title: Text("设置", style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
-            elevation: 0,
-            centerTitle: false,
-            iconTheme: IconThemeData(color: textColor),
-            backgroundColor: theme.scaffoldBackgroundColor,
-          ),
-          SliverList(
-            delegate: SliverChildListDelegate([
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // ===== 顶部：当前图源 =====
-                    _buildCard(
-                      context,
-                      child: Padding(
-                        padding: const EdgeInsets.all(18),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                const Text("当前图源", style: TextStyle(color: Colors.grey, fontSize: 13)),
-                                const SizedBox(height: 8),
-                                Text(
-                                  appState.currentSource.name,
-                                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: textColor),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  appState.currentSource.baseUrl,
-                                  style: const TextStyle(fontSize: 11, color: Colors.grey, overflow: TextOverflow.ellipsis),
-                                  maxLines: 1,
-                                ),
-                              ]),
-                            ),
-                            const SizedBox(width: 12),
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primaryContainer.withOpacity(0.35),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Icon(Icons.hub, color: theme.colorScheme.primary),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        backgroundColor: backgroundColor,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: Icon(Icons.close, color: isDark ? Colors.white : Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text("设置", 
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black, 
+            fontWeight: FontWeight.bold, 
+            fontSize: 17
+          )
+        ),
+      ),
+      body: ListView(
+        physics: const BouncingScrollPhysics(),
+        children: [
+          // === 1. 复刻版顶部个人资料区 ===
+          _buildChatGPTProfileHeader(),
 
-                    const SizedBox(height: 14),
-
-                    // ===== 外观设置（收纳为一个入口）=====
-                    _buildSectionTitle("外观设置"),
-                    _buildCard(
-                      context,
-                      child: Column(
-                        children: [
-                          _buildTile(
-                            context,
-                            title: "颜色模式",
-                            subtitle: _modeText(appState.themeMode),
-                            icon: Icons.brightness_6_outlined,
-                            trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-                            onTap: () => _showAppearanceSheet(context, appState),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // ===== 图源设置 =====
-                    _buildSectionTitle("图源设置"),
-                    _buildCard(
-                      context,
-                      child: _buildExpansion(
-                        context,
-                        title: "图源管理",
-                        subtitle: "管理已添加图源 / 添加图源 / 导入图源配置",
-                        icon: Icons.source_outlined,
-                        children: [
-                          // 已添加图源（展开列表）
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                const Text("已添加的图源", style: TextStyle(fontWeight: FontWeight.w700)),
-                                const SizedBox(height: 8),
-                                ...List.generate(appState.sources.length, (index) {
-                                  final s = appState.sources[index];
-                                  final isCurrent = appState.currentSource == s;
-                                  return _miniListTile(
-                                    context,
-                                    title: s.name,
-                                    subtitle: s.baseUrl,
-                                    leading: isCurrent ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                                    leadingColor: isCurrent ? Theme.of(context).colorScheme.primary : Colors.grey,
-                                    onTap: () => appState.setSource(index),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          tooltip: "编辑",
-                                          icon: const Icon(Icons.edit, size: 18, color: Colors.grey),
-                                          onPressed: () => _showSourceConfigDialog(context, appState, existingSource: s, index: index),
-                                        ),
-                                        if (appState.sources.length > 1)
-                                          IconButton(
-                                            tooltip: "删除",
-                                            icon: const Icon(Icons.delete_outline, size: 18, color: Colors.grey),
-                                            onPressed: () => _confirmDelete(context, appState, index),
-                                          ),
-                                      ],
-                                    ),
-                                  );
-                                }),
-                              ],
-                            ),
-                          ),
-                          const Divider(height: 1),
-                          // 添加图源（展开<自定义图源><导入图源配置>）
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                const Text("添加图源", style: TextStyle(fontWeight: FontWeight.w700)),
-                                const SizedBox(height: 10),
-                                _actionButton(
-                                  context,
-                                  icon: Icons.add,
-                                  label: "自定义图源",
-                                  onTap: () => _showSourceConfigDialog(context, appState),
-                                ),
-                                const SizedBox(height: 10),
-                                _actionButton(
-                                  context,
-                                  icon: Icons.file_download_outlined,
-                                  label: "导入图源配置（粘贴 JSON）",
-                                  onTap: () => _showImportDialog(context, appState),
-                                ),
-                                const SizedBox(height: 10),
-                                _actionButton(
-                                  context,
-                                  icon: Icons.cloud_sync,
-                                  label: "从云端导入图源（URL）",
-                                  onTap: () => _importSourceFromUrl(context),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // ===== 我的收藏（暂时单着）=====
-                    _buildSectionTitle("内容"),
-                    _buildCard(
-                      context,
-                      child: _buildTile(
-                        context,
-                        title: "我的收藏",
-                        subtitle: "查看已收藏的壁纸",
-                        icon: Icons.bookmark_outline,
-                        trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritesPage())),
-                      ),
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // ===== 备份与恢复（二级）=====
-                    _buildSectionTitle("备份与恢复"),
-                    _buildCard(
-                      context,
-                      child: _buildExpansion(
-                        context,
-                        title: "备份与恢复",
-                        subtitle: "本地 + 云端（GitHub Raw / WebDAV）",
-                        icon: Icons.backup_outlined,
-                        children: [
-                          // 二级：云端设置
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                            child: _subHeader("云端设置"),
-                          ),
-                          _buildTile(
-                            context,
-                            title: "配置云端",
-                            subtitle: "WebDAV（文件 URL/账号/密码）+ GitHub Raw（只读）",
-                            icon: Icons.cloud_outlined,
-                            trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-                            onTap: () => _showCloudConfigSheet(context),
-                          ),
-                          const Divider(height: 1),
-
-                          // 二级：备份（本地+云端同步备份）
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                            child: _subHeader("备份"),
-                          ),
-                          _buildTile(
-                            context,
-                            title: "备份（本地 + 云端）",
-                            subtitle: "优先 WebDAV；未配置就只本地（复制 JSON）",
-                            icon: Icons.upload_file,
-                            onTap: () => _backupLocalAndMaybeCloud(context),
-                          ),
-                          const Divider(height: 1),
-
-                          // 二级：恢复（选择云端还是本地）
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                            child: _subHeader("恢复"),
-                          ),
-                          _buildTile(
-                            context,
-                            title: "从云端恢复",
-                            subtitle: "优先 GitHub Raw；否则 WebDAV",
-                            icon: Icons.cloud_download_outlined,
-                            onTap: () => _restoreFromCloud(context),
-                          ),
-                          _buildTile(
-                            context,
-                            title: "从本地恢复（粘贴 JSON）",
-                            subtitle: "手动粘贴备份 JSON 直接恢复",
-                            icon: Icons.download,
-                            onTap: () => _importBackup(context),
-                          ),
-                          _buildTile(
-                            context,
-                            title: "恢复到上次自动备份",
-                            subtitle: "从本机 SharedPreferences: app_backup_v1",
-                            icon: Icons.restore,
-                            onTap: () => _restoreLastBackup(context),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+          // === 2. 当前状态分组 ===
+          _buildSectionTitle("当前状态"),
+          _buildGroupCard(context, [
+            _buildTile(
+              context,
+              title: "当前图源",
+              subtitle: appState.currentSource.name,
+              icon: Icons.hub,
+              trailing: Text(
+                appState.currentSource.baseUrl.length > 20 
+                  ? "${appState.currentSource.baseUrl.substring(0, 17)}..." 
+                  : appState.currentSource.baseUrl,
+                style: const TextStyle(fontSize: 11, color: Colors.grey)
               ),
-            ]),
-          ),
+              isLast: true,
+            ),
+          ]),
+
+          // === 3. 个性化分组 ===
+          _buildSectionTitle("个性化"),
+          _buildGroupCard(context, [
+            _buildTile(
+              context,
+              title: "外观设置",
+              subtitle: "颜色模式、取色、圆角",
+              icon: Icons.brightness_6_outlined,
+              onTap: () => _showAppearanceSheet(context, appState),
+            ),
+            _buildTile(
+              context,
+              title: "我的收藏",
+              subtitle: "查看已收藏的壁纸",
+              icon: Icons.bookmark_outline,
+              isLast: true,
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritesPage())),
+            ),
+          ]),
+
+          // === 4. 图源管理分组 ===
+          _buildSectionTitle("数据管理"),
+          _buildGroupCard(context, [
+            _buildExpansionTile(
+              context,
+              title: "图源列表",
+              subtitle: "管理已添加的 ${appState.sources.length} 个源",
+              icon: Icons.source_outlined,
+              children: [
+                ...List.generate(appState.sources.length, (index) {
+                  final s = appState.sources[index];
+                  final isCurrent = appState.currentSource == s;
+                  return _miniListTile(
+                    context,
+                    title: s.name,
+                    subtitle: s.baseUrl,
+                    leading: isCurrent ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                    leadingColor: isCurrent ? Theme.of(context).colorScheme.primary : Colors.grey,
+                    onTap: () => appState.setSource(index),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, size: 18),
+                          onPressed: () => _showSourceConfigDialog(context, appState, existingSource: s, index: index),
+                        ),
+                        if (appState.sources.length > 1)
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 18, color: Colors.grey),
+                            onPressed: () => _confirmDelete(context, appState, index),
+                          ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+            _buildTile(
+              context,
+              title: "添加图源",
+              subtitle: "自定义、JSON 或 URL 导入",
+              icon: Icons.add_circle_outline,
+              isLast: true,
+              onTap: () => _showAddSourceOptions(context, appState),
+            ),
+          ]),
+
+          // === 5. 备份与恢复 ===
+          _buildSectionTitle("备份与恢复"),
+          _buildGroupCard(context, [
+            _buildTile(
+              context,
+              title: "云端配置",
+              subtitle: "WebDAV / GitHub Raw 地址",
+              icon: Icons.cloud_outlined,
+              onTap: () => _showCloudConfigSheet(context),
+            ),
+            _buildTile(
+              context,
+              title: "同步与备份",
+              subtitle: "本地 + 云端同步备份",
+              icon: Icons.sync,
+              onTap: () => _backupLocalAndMaybeCloud(context),
+            ),
+            _buildTile(
+              context,
+              title: "数据恢复",
+              subtitle: "从云端、本地或上次备份恢复",
+              icon: Icons.restore,
+              isLast: true,
+              onTap: () => _showRestoreOptions(context, appState),
+            ),
+          ]),
+
+          const SizedBox(height: 40),
         ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // UI 复刻组件
+  // ============================================================
+
+  Widget _buildChatGPTProfileHeader() {
+    return Column(
+      children: [
+        const SizedBox(height: 20),
+        const CircleAvatar(
+          radius: 40,
+          backgroundColor: Color(0xFFEBC412),
+          child: Text("27", style: TextStyle(fontSize: 28, color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+        const SizedBox(height: 12),
+        const Text("星河 於长野", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+        const Text("275905127", style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: 12),
+        OutlinedButton(
+          onPressed: () {},
+          style: OutlinedButton.styleFrom(
+            shape: const StadiumBorder(),
+            side: BorderSide(color: Colors.grey.shade300),
+          ),
+          child: const Text("编辑个人资料", style: TextStyle(color: Colors.black87, fontSize: 13)),
+        ),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle(String text) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      child: Text(text.toUpperCase(), 
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)
+      ),
+    );
+  }
+
+  Widget _buildGroupCard(BuildContext context, List<Widget> children) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _buildTile(BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    Widget? trailing,
+    bool isLast = false,
+    VoidCallback? onTap,
+  }) {
+    return Column(
+      children: [
+        ListTile(
+          onTap: onTap,
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+          ),
+          title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+          subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          trailing: trailing ?? const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+        ),
+        if (!isLast)
+          Padding(
+            padding: const EdgeInsets.only(left: 60),
+            child: Divider(height: 1, thickness: 0.5, color: Colors.grey.withOpacity(0.1)),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildExpansionTile(BuildContext context, {
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+        ),
+        title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        children: children,
+      ),
+    );
+  }
+
+  // ============================================================
+  // 底部 Sheet 与对话框整合 (原逻辑函数)
+  // ============================================================
+
+  void _showAddSourceOptions(BuildContext context, AppState state) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit), 
+              title: const Text("手动自定义图源"), 
+              onTap: () { Navigator.pop(ctx); _showSourceConfigDialog(context, state); }
+            ),
+            ListTile(
+              leading: const Icon(Icons.paste), 
+              title: const Text("导入图源配置 (粘贴 JSON)"), 
+              onTap: () { Navigator.pop(ctx); _showImportDialog(context, state); }
+            ),
+            ListTile(
+              leading: const Icon(Icons.cloud_sync), 
+              title: const Text("从云端导入 (URL)"), 
+              onTap: () { Navigator.pop(ctx); _importSourceFromUrl(context); }
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRestoreOptions(BuildContext context, AppState state) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.cloud_download), 
+              title: const Text("从云端恢复"), 
+              onTap: () { Navigator.pop(ctx); _restoreFromCloud(context); }
+            ),
+            ListTile(
+              leading: const Icon(Icons.paste), 
+              title: const Text("从本地恢复 (粘贴 JSON)"), 
+              onTap: () { Navigator.pop(ctx); _importBackup(context); }
+            ),
+            ListTile(
+              leading: const Icon(Icons.restore), 
+              title: const Text("恢复到上次自动备份"), 
+              onTap: () { Navigator.pop(ctx); _restoreLastBackup(context); }
+            ),
+          ],
+        ),
       ),
     );
   }
