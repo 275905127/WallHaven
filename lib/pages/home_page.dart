@@ -110,15 +110,29 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  // === 🚀 升级版直链模式：支持筛选参数 ===
   Future<void> _fetchDirectMode(dynamic currentSource) async {
     int batchSize = 5; 
     List<Wallpaper> newItems = [];
+    final appState = context.read<AppState>();
+    
+    // 1. 构建参数字符串 (把筛选条件拼接到 URL 里)
+    StringBuffer paramBuffer = StringBuffer();
+    appState.activeParams.forEach((key, value) {
+      if (value != null && value.toString().isNotEmpty) {
+        paramBuffer.write("&$key=$value");
+      }
+    });
+    String paramString = paramBuffer.toString();
     
     for (int i = 0; i < batchSize; i++) {
       if (!mounted) return;
       final randomId = "${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000000)}";
       final separator = currentSource.baseUrl.contains('?') ? '&' : '?';
-      final directUrl = "${currentSource.baseUrl}${separator}cache_buster=${_page}_${i}_$randomId";
+      
+      // 2. 拼接完整 URL: BaseURL + 随机数 + 筛选参数
+      final directUrl = "${currentSource.baseUrl}${separator}cache_buster=${_page}_${i}_$randomId$paramString";
+      
       double randomRatio = 0.6 + Random().nextDouble(); 
 
       newItems.add(Wallpaper(
@@ -341,7 +355,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // === 核心优化：Stack 布局解决圆角缝隙 + 精简边框逻辑 ===
+  // === 核心优化：参考图风格 (无边框 SFW + Stack 布局) ===
   Widget _buildWallpaperItem(Wallpaper wallpaper) {
     final appState = context.read<AppState>();
     final double radius = appState.homeCornerRadius;
@@ -350,7 +364,7 @@ class _HomePageState extends State<HomePage> {
     // 1. 判断是否是 Wallhaven 源
     final isWallhaven = appState.currentSource.baseUrl.contains('wallhaven');
     
-    // 2. 边框逻辑优化：只有 Sketchy 和 NSFW 显示边框，SFW (默认) 不显示
+    // 2. 边框逻辑优化：SFW 无边框，Sketchy/NSFW 有边框
     Color? borderColor;
     if (isWallhaven) {
       if (wallpaper.purity == 'sketchy') {
@@ -358,7 +372,7 @@ class _HomePageState extends State<HomePage> {
       } else if (wallpaper.purity == 'nsfw') {
         borderColor = const Color(0xFFFF3333); // 红色
       }
-      // SFW 保持 null -> 无边框
+      // SFW 保持 null -> 无边框，视觉减负
     }
 
     return GestureDetector(
@@ -411,8 +425,8 @@ class _HomePageState extends State<HomePage> {
                     borderRadius: BorderRadius.circular(radius),
                     border: Border.all(
                       color: borderColor, 
-                      width: 1.5, // 更精致的边框宽度
-                      strokeAlign: BorderSide.strokeAlignInside, // 关键：边框向内对齐，避免溢出圆角
+                      width: 1.5, // 细边框，精致
+                      strokeAlign: BorderSide.strokeAlignInside, // 向内对齐，无溢出
                     ),
                   ),
                 ),
