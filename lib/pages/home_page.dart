@@ -2,19 +2,18 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cupertino_icons/cupertino_icons.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../models/wallpaper.dart';
 import '../providers.dart';
+import 'settings_page.dart';
 import 'filter_page.dart';
 import 'image_detail_page.dart';
-import 'settings_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -33,9 +32,9 @@ class _HomePageState extends State<HomePage> {
   String? _lastSourceHash;
   DateTime _lastFetchTime = DateTime.fromMillisecondsSinceEpoch(0);
 
-  // ✅ 防 Nekos.best / 类似源：被 403/429 后短暂熄火，别继续刷去送死
+  // ✅ Nekos.best 熄火冷却（只影响 nekos.best）
   DateTime? _rateLimitedUntil;
-  String? _lastRateLimitToastKey;
+  String? _lastToastKey;
 
   @override
   void initState() {
@@ -52,17 +51,16 @@ class _HomePageState extends State<HomePage> {
 
   void _onScroll() {
     if (!_hasMore || _isLoading) return;
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
       _fetchWallpapers();
     }
   }
 
   dynamic _getValueByPath(dynamic json, String path) {
     if (path.isEmpty) return json;
-    final keys = path.split('.');
+    List<String> keys = path.split('.');
     dynamic current = json;
-    for (final key in keys) {
+    for (String key in keys) {
       if (current is Map && current.containsKey(key)) {
         current = current[key];
       } else {
@@ -72,12 +70,31 @@ class _HomePageState extends State<HomePage> {
     return current;
   }
 
-  bool _isNekosBest(String url) => url.contains('nekos.best');
+  bool _isNekosBest(dynamic baseUrl) {
+    final u = baseUrl?.toString() ?? '';
+    return u.contains('nekos.best');
+  }
+
+  Map<String, String> _extractSourceHeaders(dynamic currentSource) {
+    try {
+      final h = (currentSource as dynamic).headers;
+      if (h is Map) {
+        final out = <String, String>{};
+        h.forEach((k, v) {
+          if (k != null && v != null) out[k.toString()] = v.toString();
+        });
+        return out;
+      }
+    } catch (_) {
+      // ignore
+    }
+    return {};
+  }
 
   void _toastOnce(String key, String msg) {
     if (!mounted) return;
-    if (_lastRateLimitToastKey == key) return;
-    _lastRateLimitToastKey = key;
+    if (_lastToastKey == key) return;
+    _lastToastKey = key;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
     );
@@ -86,32 +103,29 @@ class _HomePageState extends State<HomePage> {
   Future<void> _fetchWallpapers({bool refresh = false}) async {
     if (_isLoading) return;
 
-    // ✅ 若刚被 403/429，直接别请求了
-    if (!refresh && _rateLimitedUntil != null) {
+    final appState = context.read<AppState>();
+    final currentSource = appState.currentSource;
+
+    // ✅ 只对 Nekos.best：冷却期内直接不请求
+    if (!refresh && _isNekosBest(currentSource.baseUrl) && _rateLimitedUntil != null) {
       final now = DateTime.now();
       if (now.isBefore(_rateLimitedUntil!)) {
         final remain = _rateLimitedUntil!.difference(now).inSeconds;
-        _toastOnce(
-          'rl_${_rateLimitedUntil!.millisecondsSinceEpoch}',
-          "被限流了，等 $remain 秒再刷",
-        );
+        _toastOnce('nekos_rl_${_rateLimitedUntil!.millisecondsSinceEpoch}', "Nekos.best 在限流/风控，等 $remain 秒再刷");
         return;
       } else {
         _rateLimitedUntil = null;
       }
     }
 
-    // ✅ 你原来的 1 秒节流保留
-    if (!refresh && DateTime.now().difference(_lastFetchTime).inMilliseconds < 900) {
+    if (!refresh && DateTime.now().difference(_lastFetchTime).inSeconds < 1) {
       return;
     }
     _lastFetchTime = DateTime.now();
 
-    final appState = context.read<AppState>();
-    final currentSource = appState.currentSource;
     final activeParams = appState.activeParams;
 
-    final currentHash = "${currentSource.baseUrl}|${activeParams.toString()}";
+    String currentHash = "${currentSource.baseUrl}|${activeParams.toString()}";
 
     if (refresh || _lastSourceHash != currentHash) {
       if (mounted) {
@@ -121,7 +135,7 @@ class _HomePageState extends State<HomePage> {
           _lastSourceHash = currentHash;
           _hasMore = true;
           _rateLimitedUntil = null;
-          _lastRateLimitToastKey = null;
+          _lastToastKey = null;
         });
       }
     }
@@ -140,10 +154,7 @@ class _HomePageState extends State<HomePage> {
       debugPrint("Load Error: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("加载失败: $e"),
-            duration: const Duration(seconds: 2),
-          ),
+          SnackBar(content: Text("加载失败: $e"), duration: const Duration(seconds: 2)),
         );
       }
     } finally {
@@ -151,28 +162,26 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // === ✅ 直链模式：一次请求拿到最终直链 + 真实比例（你这段我整理成稳定能跑的） ===
+  // === 🚀 直链模式：一次请求拿到最终直链 + 真实比例（降低频率防封） ===
   Future<void> _fetchDirectMode(dynamic currentSource) async {
     const int batchSize = 8;
-    const int headerBytes = 32768; // 32KB
+    const int headerBytes = 32768;
     const Duration perItemDelay = Duration(milliseconds: 220);
-    const Duration batchCooldown = Duration(milliseconds: 900);
 
     final appState = context.read<AppState>();
 
-    // 1) 拼参数（筛选）
-    final paramBuffer = StringBuffer();
+    // 1) 构建参数字符串
+    final StringBuffer paramBuffer = StringBuffer();
     appState.activeParams.forEach((key, value) {
       if (value != null && value.toString().isNotEmpty) {
         paramBuffer.write("&$key=$value");
       }
     });
-    final paramString = paramBuffer.toString();
+    final String paramString = paramBuffer.toString();
 
     final dio = Dio();
 
     (int, int)? parseImageSize(Uint8List b) {
-      // PNG
       bool isPng() =>
           b.length > 24 &&
           b[0] == 0x89 &&
@@ -184,8 +193,7 @@ class _HomePageState extends State<HomePage> {
           b[6] == 0x1A &&
           b[7] == 0x0A;
 
-      int readBe32(int o) =>
-          (b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3];
+      int readBe32(int o) => (b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3];
 
       if (isPng()) {
         final w = readBe32(16);
@@ -193,7 +201,6 @@ class _HomePageState extends State<HomePage> {
         if (w > 0 && h > 0) return (w, h);
       }
 
-      // JPEG
       bool isJpg() => b.length > 3 && b[0] == 0xFF && b[1] == 0xD8;
       if (isJpg()) {
         int i = 2;
@@ -202,13 +209,12 @@ class _HomePageState extends State<HomePage> {
             i++;
             continue;
           }
-          final marker = b[i + 1];
-          final isSof =
-              (marker >= 0xC0 && marker <= 0xCF) && marker != 0xC4 && marker != 0xC8 && marker != 0xCC;
-          final len = (b[i + 2] << 8) | b[i + 3];
+          int marker = b[i + 1];
+          bool isSof = (marker >= 0xC0 && marker <= 0xCF) && marker != 0xC4 && marker != 0xC8 && marker != 0xCC;
+          int len = (b[i + 2] << 8) | b[i + 3];
           if (len < 2) break;
 
-          if (isSof && i + 8 < b.length) {
+          if (isSof && i + 7 < b.length) {
             final h = (b[i + 5] << 8) | b[i + 6];
             final w = (b[i + 7] << 8) | b[i + 8];
             if (w > 0 && h > 0) return (w, h);
@@ -218,7 +224,6 @@ class _HomePageState extends State<HomePage> {
         }
       }
 
-      // WEBP (VP8X/VP8L)
       bool isWebp() =>
           b.length > 30 &&
           b[0] == 0x52 &&
@@ -230,16 +235,16 @@ class _HomePageState extends State<HomePage> {
           b[10] == 0x42 &&
           b[11] == 0x50;
       if (isWebp()) {
-        for (int i = 12; i + 18 < b.length; i++) {
-          // VP8X
+        for (int i = 12; i + 16 < b.length; i++) {
           if (b[i] == 0x56 && b[i + 1] == 0x50 && b[i + 2] == 0x38 && b[i + 3] == 0x58) {
-            final wMinus1 = b[i + 12] | (b[i + 13] << 8) | (b[i + 14] << 16);
-            final hMinus1 = b[i + 15] | (b[i + 16] << 8) | (b[i + 17] << 16);
-            final w = wMinus1 + 1;
-            final h = hMinus1 + 1;
-            if (w > 0 && h > 0) return (w, h);
+            if (i + 18 < b.length) {
+              int wMinus1 = b[i + 12] | (b[i + 13] << 8) | (b[i + 14] << 16);
+              int hMinus1 = b[i + 15] | (b[i + 16] << 8) | (b[i + 17] << 16);
+              final w = wMinus1 + 1;
+              final h = hMinus1 + 1;
+              if (w > 0 && h > 0) return (w, h);
+            }
           }
-          // VP8L
           if (b[i] == 0x56 && b[i + 1] == 0x50 && b[i + 2] == 0x38 && b[i + 3] == 0x4C) {
             final p = i + 8;
             if (p + 5 < b.length && b[p] == 0x2F) {
@@ -274,7 +279,6 @@ class _HomePageState extends State<HomePage> {
 
       final finalUrl = resp.realUri.toString();
       final ct = resp.headers.value('content-type') ?? '';
-
       if (ct.startsWith('image/')) {
         final bytes = Uint8List.fromList(resp.data as List<int>);
         final sz = parseImageSize(bytes);
@@ -286,7 +290,6 @@ class _HomePageState extends State<HomePage> {
         return (finalUrl, 1.0);
       }
 
-      // JSON：抽 url 再 Range 一次
       try {
         final text = utf8.decode(resp.data as List<int>);
         final dynamic j = jsonDecode(text);
@@ -336,28 +339,24 @@ class _HomePageState extends State<HomePage> {
     for (int i = 0; i < batchSize; i++) {
       if (!mounted) return;
 
-      final randomId =
-          "${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000000)}";
+      final randomId = "${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000000)}";
       final separator = currentSource.baseUrl.contains('?') ? '&' : '?';
 
-      final requestUrl =
-          "${currentSource.baseUrl}${separator}cache_buster=${_page}_${i}_$randomId$paramString";
+      final requestUrl = "${currentSource.baseUrl}${separator}cache_buster=${_page}_${i}_$randomId$paramString";
 
       final resolved = await resolveFinalUrlAndRatio(requestUrl);
       final finalUrl = resolved.$1;
       final ratio = resolved.$2;
 
-      newItems.add(
-        Wallpaper(
-          id: "direct_${finalUrl.hashCode}",
-          thumbUrl: finalUrl,
-          fullSizeUrl: finalUrl,
-          resolution: "Random",
-          aspectRatio: ratio,
-          purity: 'sfw',
-          metadata: {"source_request_url": requestUrl},
-        ),
-      );
+      newItems.add(Wallpaper(
+        id: "direct_${finalUrl.hashCode}",
+        thumbUrl: finalUrl,
+        fullSizeUrl: finalUrl,
+        resolution: "Random",
+        aspectRatio: ratio,
+        purity: 'sfw',
+        metadata: {"source_request_url": requestUrl},
+      ));
 
       await Future.delayed(perItemDelay);
     }
@@ -369,61 +368,64 @@ class _HomePageState extends State<HomePage> {
       });
     }
 
-    await Future.delayed(batchCooldown);
+    await Future.delayed(const Duration(milliseconds: 900));
   }
 
-  // === ✅ API 模式：重点修 Nekos.best 403 不再“直接抛异常 + 白屏” ===
   Future<void> _fetchApiMode(dynamic currentSource, Map<String, dynamic> activeParams) async {
+    final bool isNekos = _isNekosBest(currentSource.baseUrl);
+
     final Map<String, dynamic> queryParams = Map.from(activeParams);
-    queryParams['page'] = _page;
+
+    // ✅ 只对 nekos.best：它不分页，别塞 page（更稳） 2
+    if (!isNekos) {
+      queryParams['page'] = _page;
+    }
 
     if (currentSource.apiKey.isNotEmpty) {
       queryParams[currentSource.apiKeyParam] = currentSource.apiKey;
     }
 
-    final bool isNekos = _isNekosBest(currentSource.baseUrl);
+    // ✅ 合并配置 headers（你 JSON 里的 headers 真正生效）
+    final sourceHeaders = _extractSourceHeaders(currentSource);
 
-    final dio = Dio();
-
-    // Nekos.best：给它一个更像“正常 API 客户端”的头（别用你那种图片 Accept 去打 JSON）
+    // ✅ 只对 nekos.best：强制像 API 请求（避免拿“图片 Accept”去打 JSON）
     final headers = <String, String>{
       ...kAppHeaders,
-      if (isNekos) "Accept": "application/json",
-      if (isNekos) "Referer": "https://nekos.best/",
-      if (isNekos) "Origin": "https://nekos.best",
+      ...sourceHeaders,
+      if (isNekos) "Accept": sourceHeaders["Accept"] ?? "application/json",
+      if (isNekos) "Referer": sourceHeaders["Referer"] ?? "https://nekos.best/",
+      if (isNekos) "Origin": sourceHeaders["Origin"] ?? "https://nekos.best",
     };
+
+    final dio = Dio();
 
     final response = await dio.get(
       currentSource.baseUrl,
       queryParameters: queryParams,
       options: Options(
         headers: headers,
-        // ✅ 关键：403/429 不抛异常，交给我们自己处理
+        // ✅ 403/429 不要直接 throw，让我们自己兜底
         validateStatus: (code) => code != null && code >= 200 && code < 500,
       ),
     );
 
     final code = response.statusCode ?? 0;
 
-    // ✅ Nekos.best：403/429 -> 熄火一会儿，别继续刷
+    // ✅ 只对 nekos.best：403/429 熄火冷却（不炸 UI）
     if (isNekos && (code == 403 || code == 429)) {
-      // 403：可能是 WAF/风控；429：明确限流
-      final seconds = code == 429 ? 30 : 45;
+      final seconds = (code == 429) ? 30 : 45;
       _rateLimitedUntil = DateTime.now().add(Duration(seconds: seconds));
-      _toastOnce("nekos_$code", "Nekos.best 把你挡了($code)，先歇 $seconds 秒");
-      if (mounted) setState(() => _hasMore = false);
+      _toastOnce("nekos_$code", "Nekos.best 挡了你（$code），先歇 $seconds 秒");
       return;
     }
 
     if (code != 200) {
-      // 其他非 200：别白屏，至少让 UI 继续跑
-      debugPrint("API status=$code");
+      debugPrint("API status=$code, url=${currentSource.baseUrl}");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("接口返回 $code"), duration: const Duration(seconds: 2)),
         );
       }
-      // 这里不直接 _hasMore=false（除非你想一错就停）
       return;
     }
 
@@ -436,57 +438,56 @@ class _HomePageState extends State<HomePage> {
       listData = [rawData];
     }
 
-    if (listData.isEmpty) {
-      if (mounted) setState(() => _hasMore = false);
-      return;
-    }
+    if (listData.isNotEmpty) {
+      List<Wallpaper> newWallpapers = listData.map((item) {
+        String thumb = _getValueByPath(item, currentSource.thumbKey) ?? "";
+        String full = _getValueByPath(item, currentSource.fullKey) ?? thumb;
+        String id = _getValueByPath(item, currentSource.idKey)?.toString() ?? full.hashCode.toString();
 
-    final newWallpapers = listData.map((item) {
-      final thumb = _getValueByPath(item, currentSource.thumbKey) ?? "";
-      final full = _getValueByPath(item, currentSource.fullKey) ?? thumb;
-      final id = _getValueByPath(item, currentSource.idKey)?.toString() ??
-          full.hashCode.toString();
-
-      double ratio = 1.0;
-      try {
-        final w = item['dimension_x'] ?? item['width'];
-        final h = item['dimension_y'] ?? item['height'];
-        if (w != null && h != null) {
-          ratio = (w as num) / (h as num);
-        } else if (item['ratio'] != null) {
-          ratio = double.tryParse(item['ratio'].toString()) ?? 1.0;
+        double ratio = 1.0;
+        try {
+          var w = item['dimension_x'] ?? item['width'];
+          var h = item['dimension_y'] ?? item['height'];
+          if (w != null && h != null) {
+            ratio = (w as num) / (h as num);
+          } else if (item['ratio'] != null) {
+            ratio = double.tryParse(item['ratio'].toString()) ?? 1.0;
+          }
+        } catch (_) {
+          ratio = 1.0;
         }
-      } catch (_) {
-        ratio = 1.0;
+
+        ratio = ratio.isFinite ? ratio.clamp(0.35, 2.2).toDouble() : 1.0;
+
+        String resolution = "";
+        if (item['dimension_x'] != null && item['dimension_y'] != null) {
+          resolution = "${item['dimension_x']}x${item['dimension_y']}";
+        } else if (item['resolution'] != null) {
+          resolution = item['resolution'].toString();
+        }
+
+        return Wallpaper(
+          id: id,
+          thumbUrl: thumb,
+          fullSizeUrl: full,
+          resolution: resolution,
+          views: item['views'] ?? 0,
+          favorites: item['favorites'] ?? 0,
+          aspectRatio: ratio,
+          purity: item['purity'] ?? 'sfw',
+          metadata: item is Map<String, dynamic> ? item : {},
+        );
+      }).where((w) => w.thumbUrl.isNotEmpty).toList();
+
+      if (mounted) {
+        setState(() {
+          _wallpapers.addAll(newWallpapers);
+          // ✅ 只对非 nekos.best 才递增页码
+          if (!isNekos) _page++;
+        });
       }
-
-      String resolution = "";
-      if (item['dimension_x'] != null && item['dimension_y'] != null) {
-        resolution = "${item['dimension_x']}x${item['dimension_y']}";
-      } else if (item['resolution'] != null) {
-        resolution = item['resolution'].toString();
-      }
-
-      final safeRatio = ratio.isFinite ? ratio.clamp(0.35, 2.2).toDouble() : 1.0;
-
-      return Wallpaper(
-        id: id,
-        thumbUrl: thumb,
-        fullSizeUrl: full,
-        resolution: resolution,
-        views: item['views'] ?? 0,
-        favorites: item['favorites'] ?? 0,
-        aspectRatio: safeRatio,
-        purity: item['purity'] ?? 'sfw',
-        metadata: item is Map<String, dynamic> ? item : {},
-      );
-    }).where((w) => w.thumbUrl.isNotEmpty).toList();
-
-    if (mounted) {
-      setState(() {
-        _wallpapers.addAll(newWallpapers);
-        _page++;
-      });
+    } else {
+      if (mounted) setState(() => _hasMore = false);
     }
   }
 
@@ -499,8 +500,7 @@ class _HomePageState extends State<HomePage> {
     final appState = context.watch<AppState>();
 
     if (_lastSourceHash != null &&
-        _lastSourceHash !=
-            "${appState.currentSource.baseUrl}|${appState.activeParams.toString()}") {
+        _lastSourceHash != "${appState.currentSource.baseUrl}|${appState.activeParams.toString()}") {
       Future.microtask(() => _fetchWallpapers(refresh: true));
     }
 
@@ -508,9 +508,7 @@ class _HomePageState extends State<HomePage> {
       body: SafeArea(
         child: CustomScrollView(
           controller: _scrollController,
-          physics: const BouncingScrollPhysics(
-            parent: AlwaysScrollableScrollPhysics(),
-          ),
+          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           slivers: [
             SliverAppBar(
               pinned: false,
@@ -531,28 +529,20 @@ class _HomePageState extends State<HomePage> {
                   icon: const Icon(Icons.filter_alt_outlined),
                   tooltip: "筛选",
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const FilterPage()),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const FilterPage()));
                   },
                 ),
                 IconButton(
                   icon: const Icon(Icons.settings_outlined),
                   tooltip: "设置",
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SettingsPage()),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
                   },
                 ),
                 const SizedBox(width: 8),
               ],
             ),
-            CupertinoSliverRefreshControl(
-              onRefresh: _handleRefresh,
-            ),
+            CupertinoSliverRefreshControl(onRefresh: _handleRefresh),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               sliver: SliverMasonryGrid.count(
@@ -572,8 +562,7 @@ class _HomePageState extends State<HomePage> {
                   child: _isLoading
                       ? const CircularProgressIndicator.adaptive()
                       : (!_hasMore && _wallpapers.isNotEmpty)
-                          ? const Text("--- 我是有底线的 ---",
-                              style: TextStyle(color: Colors.grey))
+                          ? const Text("--- 我是有底线的 ---", style: TextStyle(color: Colors.grey))
                           : const SizedBox.shrink(),
                 ),
               ),
@@ -584,11 +573,7 @@ class _HomePageState extends State<HomePage> {
       floatingActionButton: _wallpapers.length > 20
           ? FloatingActionButton.small(
               onPressed: () {
-                _scrollController.animateTo(
-                  0,
-                  duration: const Duration(milliseconds: 500),
-                  curve: Curves.easeOut,
-                );
+                _scrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeOut);
               },
               child: const Icon(Icons.arrow_upward),
             )
@@ -621,6 +606,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // === 核心优化：参考图风格 (无边框 SFW + Stack 布局) ===
   Widget _buildWallpaperItem(Wallpaper wallpaper) {
     final appState = context.read<AppState>();
     final double radius = appState.homeCornerRadius;
@@ -639,10 +625,7 @@ class _HomePageState extends State<HomePage> {
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => ImageDetailPage(wallpaper: wallpaper)),
-        );
+        Navigator.push(context, MaterialPageRoute(builder: (_) => ImageDetailPage(wallpaper: wallpaper)));
       },
       child: Stack(
         fit: StackFit.passthrough,
@@ -652,11 +635,7 @@ class _HomePageState extends State<HomePage> {
               borderRadius: BorderRadius.circular(radius),
               color: colorScheme.surfaceContainerHighest,
               boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                )
+                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
               ],
             ),
             child: ClipRRect(
