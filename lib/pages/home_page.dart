@@ -1,10 +1,10 @@
 import 'dart:math';
-import 'package:flutter/cupertino.dart'; // 引入 Cupertino 库用于非悬浮刷新
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart'; // 保留优化
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../models/wallpaper.dart';
 import '../providers.dart';
@@ -127,7 +127,8 @@ class _HomePageState extends State<HomePage> {
         fullSizeUrl: directUrl,
         resolution: "Random",
         aspectRatio: randomRatio,
-        metadata: {}, // 直链模式没有 metadata
+        purity: 'sfw', // 直链默认 sfw
+        metadata: {},
       ));
     }
     
@@ -184,7 +185,6 @@ class _HomePageState extends State<HomePage> {
             ratio = 1.0;
           }
           
-          // 尝试获取分辨率字符串
           String resolution = "";
           if (item['dimension_x'] != null && item['dimension_y'] != null) {
             resolution = "${item['dimension_x']}x${item['dimension_y']}";
@@ -200,7 +200,8 @@ class _HomePageState extends State<HomePage> {
             views: item['views'] ?? 0,
             favorites: item['favorites'] ?? 0,
             aspectRatio: ratio,
-            metadata: item is Map<String, dynamic> ? item : {}, // 存储原始数据
+            purity: item['purity'] ?? 'sfw', // 解析分级
+            metadata: item is Map<String, dynamic> ? item : {},
           );
         }).where((w) => w.thumbUrl.isNotEmpty).toList();
 
@@ -231,12 +232,10 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       body: SafeArea(
-        // === 移除 RefreshIndicator，改用 CustomScrollView 内部的刷新控件 ===
         child: CustomScrollView(
           controller: _scrollController,
           physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           slivers: [
-            // === 1. App Bar ===
             SliverAppBar(
               pinned: false,
               floating: true,
@@ -253,7 +252,6 @@ class _HomePageState extends State<HomePage> {
                   },
                 ),
                 IconButton(
-                  // === 修改：筛选图标改为 Outline 风格 ===
                   icon: const Icon(Icons.filter_alt_outlined),
                   tooltip: "筛选",
                   onPressed: () {
@@ -271,12 +269,10 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
 
-            // === 2. 替代的刷新控件 (解决白色悬浮球问题) ===
             CupertinoSliverRefreshControl(
               onRefresh: _handleRefresh,
             ),
 
-            // === 3. 瀑布流列表 ===
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               sliver: SliverMasonryGrid.count(
@@ -290,7 +286,6 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             
-            // === 4. 底部 Loading 状态 (用于分页) ===
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
@@ -346,13 +341,43 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // === 辅助方法：获取分级颜色 ===
+  Color _getPurityColor(String purity) {
+    switch (purity.toLowerCase()) {
+      case 'sketchy':
+        return const Color(0xFFE6E649); // 黄色/金色
+      case 'nsfw':
+        return const Color(0xFFE23838); // 红色
+      case 'sfw':
+      default:
+        return const Color(0xFF42A5F5); // 默认蓝色或官网的绿色，这里用官网SFW类似的绿色或保持主题色
+        // Wallhaven 官网 SFW 其实通常没有强烈的边框，或者用绿色。
+        // 这里为了明显区分，暂用 Wallhaven 风格绿色：
+        // return const Color(0xFF99CC33); 
+    }
+  }
+
+  // 是否仅 Wallhaven 才显示边框？你提到 "首页图片复刻上图中分级对应的颜色边框...只针对 Wallhaven"。
+  // 我们可以通过判断 baseUrl 是否包含 wallhaven 来处理，或者直接根据 purity 值（非 Wallhaven 可能没这个值）
+  
   Widget _buildWallpaperItem(Wallpaper wallpaper) {
-    final double radius = context.read<AppState>().homeCornerRadius;
+    final appState = context.read<AppState>();
+    final double radius = appState.homeCornerRadius;
     final colorScheme = Theme.of(context).colorScheme;
+
+    // 判断是否是 Wallhaven 源 (简单判断 url)
+    final isWallhaven = appState.currentSource.baseUrl.contains('wallhaven');
+    
+    // 只有 Wallhaven 源且 purity 有效时才显示边框
+    Color? borderColor;
+    if (isWallhaven) {
+      if (wallpaper.purity == 'sketchy') borderColor = const Color(0xFFEEEE11);
+      else if (wallpaper.purity == 'nsfw') borderColor = const Color(0xFFFF0033);
+      else if (wallpaper.purity == 'sfw') borderColor = const Color(0xFF99CC33);
+    }
 
     return GestureDetector(
       onTap: () {
-        // === 修改：传递整个 Wallpaper 对象 ===
         Navigator.push(context, MaterialPageRoute(builder: (_) => ImageDetailPage(wallpaper: wallpaper)));
       },
       child: Container(
@@ -362,14 +387,15 @@ class _HomePageState extends State<HomePage> {
           boxShadow: [
              BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
           ],
+          // === 边框逻辑 ===
+          border: borderColor != null ? Border.all(color: borderColor, width: 2) : null,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(radius), 
+          borderRadius: BorderRadius.circular(radius), // 减去边框宽度，或者保持一致
           child: AspectRatio(
             aspectRatio: wallpaper.aspectRatio, 
             child: Hero(
               tag: wallpaper.id,
-              // === 保留：CachedNetworkImage ===
               child: CachedNetworkImage(
                 imageUrl: wallpaper.thumbUrl,
                 httpHeaders: kAppHeaders,
