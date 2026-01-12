@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart'; 
 import 'package:permission_handler/permission_handler.dart';
+import '../providers.dart'; // 引入 kAppHeaders
 
 class ImageDetailPage extends StatefulWidget {
   final String imageUrl;
@@ -22,10 +23,7 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
   bool _isFavorited = false;
   bool _isDownloading = false;
 
-  // === 统一的伪装头 (与主页保持一致) ===
-  final Map<String, String> _headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  };
+  // 移除了本地定义的 _headers
 
   Future<void> _saveImage() async {
     if (_isDownloading) return;
@@ -38,12 +36,12 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
         await Gal.requestAccess();
       }
 
-      // 2. 下载图片数据 (关键修复：添加 Headers)
+      // 2. 下载图片数据 (使用全局 headers)
       var response = await Dio().get(
         widget.imageUrl,
         options: Options(
           responseType: ResponseType.bytes,
-          headers: _headers, // <--- 必须加这个，否则下载会报 403 错误
+          headers: kAppHeaders, // 使用全局 kAppHeaders
         ),
       );
 
@@ -91,9 +89,8 @@ class _ImageDetailPageState extends State<ImageDetailPage> {
               child: Image.network(
                 widget.imageUrl,
                 fit: BoxFit.contain,
-                // === 关键修复：大图浏览也需要伪装头 ===
-                headers: _headers,
-                // =================================
+                // 使用全局 headers
+                headers: kAppHeaders,
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
                   return Center(
