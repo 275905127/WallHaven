@@ -28,12 +28,7 @@ class _HomePageState extends State<HomePage> {
   // 防抖动时间锁
   DateTime _lastFetchTime = DateTime.fromMillisecondsSinceEpoch(0);
 
-  // === 🛡️ 更新：更现代的 User-Agent，尝试绕过 VPN 拦截 ===
-  final Map<String, String> _headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-  };
+  // 移除了本地定义的 _headers，统一使用 providers.dart 中的 kAppHeaders
 
   @override
   void initState() {
@@ -145,7 +140,7 @@ class _HomePageState extends State<HomePage> {
       var response = await Dio().get(
         currentSource.baseUrl,
         queryParameters: queryParams,
-        options: Options(headers: _headers), 
+        options: Options(headers: kAppHeaders), // 使用全局 kAppHeaders
       );
 
       if (response.statusCode == 200) {
@@ -319,7 +314,7 @@ class _HomePageState extends State<HomePage> {
               child: Image.network(
                 wallpaper.thumbUrl,
                 fit: BoxFit.cover,
-                headers: _headers, 
+                headers: kAppHeaders, // 使用全局 kAppHeaders
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
                   return Container(color: Colors.transparent);
