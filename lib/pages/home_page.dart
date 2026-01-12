@@ -110,7 +110,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // === 直链模式 (保留) ===
   Future<void> _fetchDirectMode(dynamic currentSource) async {
     int batchSize = 5; 
     List<Wallpaper> newItems = [];
@@ -128,7 +127,7 @@ class _HomePageState extends State<HomePage> {
         fullSizeUrl: directUrl,
         resolution: "Random",
         aspectRatio: randomRatio,
-        purity: 'sfw', // 直链默认 SFW
+        purity: 'sfw', // 直链默认 sfw
         metadata: {},
       ));
     }
@@ -143,7 +142,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // === API 模式 (保留) ===
   Future<void> _fetchApiMode(dynamic currentSource, Map<String, dynamic> activeParams) async {
     final Map<String, dynamic> queryParams = Map.from(activeParams);
     queryParams['page'] = _page;
@@ -202,7 +200,7 @@ class _HomePageState extends State<HomePage> {
             views: item['views'] ?? 0,
             favorites: item['favorites'] ?? 0,
             aspectRatio: ratio,
-            purity: item['purity'] ?? 'sfw', // 确保解析了 purity
+            purity: item['purity'] ?? 'sfw', // 解析分级
             metadata: item is Map<String, dynamic> ? item : {},
           );
         }).where((w) => w.thumbUrl.isNotEmpty).toList();
@@ -343,7 +341,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // === 核心优化：Stack 布局 + 智能边框 ===
+  // === 核心优化：Stack 布局解决圆角缝隙 + 精简边框逻辑 ===
   Widget _buildWallpaperItem(Wallpaper wallpaper) {
     final appState = context.read<AppState>();
     final double radius = appState.homeCornerRadius;
@@ -360,14 +358,14 @@ class _HomePageState extends State<HomePage> {
       } else if (wallpaper.purity == 'nsfw') {
         borderColor = const Color(0xFFFF3333); // 红色
       }
-      // SFW 不赋值，保持 null -> 无边框
+      // SFW 保持 null -> 无边框
     }
 
     return GestureDetector(
       onTap: () {
         Navigator.push(context, MaterialPageRoute(builder: (_) => ImageDetailPage(wallpaper: wallpaper)));
       },
-      // === 结构优化：使用 Stack 解决圆角缝隙问题 ===
+      // 使用 Stack 将边框“浮”在图片上方，解决圆角缝隙问题
       child: Stack(
         fit: StackFit.passthrough,
         children: [
@@ -375,7 +373,7 @@ class _HomePageState extends State<HomePage> {
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(radius), 
-              color: colorScheme.surfaceContainerHighest, // 骨架背景色
+              color: colorScheme.surfaceContainerHighest,
               boxShadow: [
                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
               ],
@@ -391,25 +389,30 @@ class _HomePageState extends State<HomePage> {
                     httpHeaders: kAppHeaders,
                     fit: BoxFit.cover,
                     fadeInDuration: const Duration(milliseconds: 300),
-                    placeholder: (context, url) => Container(color: colorScheme.surfaceContainerHighest),
-                    errorWidget: (context, url, error) => const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                    placeholder: (context, url) => Container(
+                      color: colorScheme.surfaceContainerHighest,
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      color: colorScheme.surfaceContainerHighest,
+                      child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                    ),
                   ),
                 ),
               ),
             ),
           ),
 
-          // 顶层：边框叠加层 (仅在有颜色时显示)
+          // 顶层：边框叠加层 (仅当有颜色时显示)
           if (borderColor != null)
             Positioned.fill(
-              child: IgnorePointer( // 防止遮挡点击事件
+              child: IgnorePointer( // 确保点击穿透
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(radius),
                     border: Border.all(
                       color: borderColor, 
-                      width: 1.5, // 边框宽度
-                      strokeAlign: BorderSide.strokeAlignInside, // 关键：边框向内画，防止超出圆角
+                      width: 1.5, // 更精致的边框宽度
+                      strokeAlign: BorderSide.strokeAlignInside, // 关键：边框向内对齐，避免溢出圆角
                     ),
                   ),
                 ),
