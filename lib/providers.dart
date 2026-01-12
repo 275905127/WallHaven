@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/source_config.dart';
 import 'models/wallpaper.dart';
+import 'package:http/http.dart' as http;
 
 // === 全局常量：统一 User-Agent ===
 const Map<String, String> kAppHeaders = {
@@ -18,6 +19,42 @@ const String kBackupKey = 'app_backup_v1';
 
 class AppState extends ChangeNotifier {
   SharedPreferences? _prefs;
+
+  // ============================================================
+// ☁️ 从云端 URL 恢复【完整备份】
+// ============================================================
+Future<bool> importBackupFromUrl(String url) async {
+  try {
+    final uri = Uri.parse(url);
+    final resp = await http.get(uri, headers: kAppHeaders);
+
+    if (resp.statusCode != 200) return false;
+
+    final jsonString = resp.body;
+    return await importBackupJson(jsonString);
+  } catch (e) {
+    debugPrint("importBackupFromUrl failed: $e");
+    return false;
+  }
+}
+
+// ============================================================
+// ☁️ 从云端 URL 导入【单个图源 SourceConfig】
+// ============================================================
+Future<bool> importSourceFromUrl(String url) async {
+  try {
+    final uri = Uri.parse(url);
+    final resp = await http.get(uri, headers: kAppHeaders);
+
+    if (resp.statusCode != 200) return false;
+
+    final jsonString = resp.body;
+    return importSourceConfig(jsonString);
+  } catch (e) {
+    debugPrint("importSourceFromUrl failed: $e");
+    return false;
+  }
+} 
 
   // 默认图源 - Wallhaven
   List<SourceConfig> _sources = [
