@@ -1,4 +1,4 @@
-Import 'dart:math';
+import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -110,29 +110,15 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // === 🚀 升级版直链模式：支持筛选参数 ===
   Future<void> _fetchDirectMode(dynamic currentSource) async {
     int batchSize = 5; 
     List<Wallpaper> newItems = [];
-    final appState = context.read<AppState>();
-    
-    // 1. 构建参数字符串 (把筛选条件拼接到 URL 里)
-    StringBuffer paramBuffer = StringBuffer();
-    appState.activeParams.forEach((key, value) {
-      if (value != null && value.toString().isNotEmpty) {
-        paramBuffer.write("&$key=$value");
-      }
-    });
-    String paramString = paramBuffer.toString();
     
     for (int i = 0; i < batchSize; i++) {
       if (!mounted) return;
       final randomId = "${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000000)}";
       final separator = currentSource.baseUrl.contains('?') ? '&' : '?';
-      
-      // 2. 拼接完整 URL: BaseURL + 随机数 + 筛选参数
-      final directUrl = "${currentSource.baseUrl}${separator}cache_buster=${_page}_${i}_$randomId$paramString";
-      
+      final directUrl = "${currentSource.baseUrl}${separator}cache_buster=${_page}_${i}_$randomId";
       double randomRatio = 0.6 + Random().nextDouble(); 
 
       newItems.add(Wallpaper(
@@ -355,84 +341,77 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // === 核心优化：参考图风格 (无边框 SFW + Stack 布局) ===
+  // === 辅助方法：获取分级颜色 ===
+  Color _getPurityColor(String purity) {
+    switch (purity.toLowerCase()) {
+      case 'sketchy':
+        return const Color(0xFFE6E649); // 黄色/金色
+      case 'nsfw':
+        return const Color(0xFFE23838); // 红色
+      case 'sfw':
+      default:
+        return const Color(0xFF42A5F5); // 默认蓝色或官网的绿色，这里用官网SFW类似的绿色或保持主题色
+        // Wallhaven 官网 SFW 其实通常没有强烈的边框，或者用绿色。
+        // 这里为了明显区分，暂用 Wallhaven 风格绿色：
+        // return const Color(0xFF99CC33); 
+    }
+  }
+
+  // 是否仅 Wallhaven 才显示边框？你提到 "首页图片复刻上图中分级对应的颜色边框...只针对 Wallhaven"。
+  // 我们可以通过判断 baseUrl 是否包含 wallhaven 来处理，或者直接根据 purity 值（非 Wallhaven 可能没这个值）
+  
   Widget _buildWallpaperItem(Wallpaper wallpaper) {
     final appState = context.read<AppState>();
     final double radius = appState.homeCornerRadius;
     final colorScheme = Theme.of(context).colorScheme;
 
-    // 1. 判断是否是 Wallhaven 源
+    // 判断是否是 Wallhaven 源 (简单判断 url)
     final isWallhaven = appState.currentSource.baseUrl.contains('wallhaven');
     
-    // 2. 边框逻辑优化：SFW 无边框，Sketchy/NSFW 有边框
+    // 只有 Wallhaven 源且 purity 有效时才显示边框
     Color? borderColor;
     if (isWallhaven) {
-      if (wallpaper.purity == 'sketchy') {
-        borderColor = const Color(0xFFE6E649); // 黄色
-      } else if (wallpaper.purity == 'nsfw') {
-        borderColor = const Color(0xFFFF3333); // 红色
-      }
-      // SFW 保持 null -> 无边框，视觉减负
+      if (wallpaper.purity == 'sketchy') borderColor = const Color(0xFFEEEE11);
+      else if (wallpaper.purity == 'nsfw') borderColor = const Color(0xFFFF0033);
+      else if (wallpaper.purity == 'sfw') borderColor = const Color(0xFF99CC33);
     }
 
     return GestureDetector(
       onTap: () {
         Navigator.push(context, MaterialPageRoute(builder: (_) => ImageDetailPage(wallpaper: wallpaper)));
       },
-      // 使用 Stack 将边框“浮”在图片上方，解决圆角缝隙问题
-      child: Stack(
-        fit: StackFit.passthrough,
-        children: [
-          // 底层：图片主体
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(radius), 
-              color: colorScheme.surfaceContainerHighest,
-              boxShadow: [
-                 BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(radius),
-              child: AspectRatio(
-                aspectRatio: wallpaper.aspectRatio, 
-                child: Hero(
-                  tag: wallpaper.id,
-                  child: CachedNetworkImage(
-                    imageUrl: wallpaper.thumbUrl,
-                    httpHeaders: kAppHeaders,
-                    fit: BoxFit.cover,
-                    fadeInDuration: const Duration(milliseconds: 300),
-                    placeholder: (context, url) => Container(
-                      color: colorScheme.surfaceContainerHighest,
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      color: colorScheme.surfaceContainerHighest,
-                      child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
-                    ),
-                  ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius), 
+          color: colorScheme.surfaceContainerHighest,
+          boxShadow: [
+             BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
+          ],
+          // === 边框逻辑 ===
+          border: borderColor != null ? Border.all(color: borderColor, width: 2) : null,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(radius), // 减去边框宽度，或者保持一致
+          child: AspectRatio(
+            aspectRatio: wallpaper.aspectRatio, 
+            child: Hero(
+              tag: wallpaper.id,
+              child: CachedNetworkImage(
+                imageUrl: wallpaper.thumbUrl,
+                httpHeaders: kAppHeaders,
+                fit: BoxFit.cover,
+                fadeInDuration: const Duration(milliseconds: 300),
+                placeholder: (context, url) => Container(
+                  color: colorScheme.surfaceContainerHighest,
+                ),
+                errorWidget: (context, url, error) => Container(
+                  color: colorScheme.surfaceContainerHighest,
+                  child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
                 ),
               ),
             ),
           ),
-
-          // 顶层：边框叠加层 (仅当有颜色时显示)
-          if (borderColor != null)
-            Positioned.fill(
-              child: IgnorePointer( // 确保点击穿透
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(radius),
-                    border: Border.all(
-                      color: borderColor, 
-                      width: 1.5, // 细边框，精致
-                      strokeAlign: BorderSide.strokeAlignInside, // 向内对齐，无溢出
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }
