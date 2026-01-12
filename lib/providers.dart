@@ -19,19 +19,16 @@ class AppState extends ChangeNotifier {
       name: 'Wallhaven',
       baseUrl: 'https://wallhaven.cc/api/v1/search',
       filters: [
-        // 1. 分类 (Categories)
         FilterGroup(title: '分类 (Categories)', paramName: 'categories', type: 'bitmask', options: [
             FilterOption(label: '常规', value: 'General'),
             FilterOption(label: '动漫', value: 'Anime'),
             FilterOption(label: '人物', value: 'People'),
         ]),
-        // 2. 分级 (Purity)
         FilterGroup(title: '分级 (Purity)', paramName: 'purity', type: 'bitmask', options: [
             FilterOption(label: 'SFW', value: 'SFW'),
             FilterOption(label: 'Sketchy', value: 'Sketchy'),
             FilterOption(label: 'NSFW', value: 'NSFW'),
         ]),
-        // 3. 排序 (Sorting)
         FilterGroup(title: '排序 (Sorting)', paramName: 'sorting', type: 'radio', options: [
             FilterOption(label: '最新', value: 'date_added'),
             FilterOption(label: '相关', value: 'relevance'),
@@ -40,12 +37,10 @@ class AppState extends ChangeNotifier {
             FilterOption(label: '收藏', value: 'favorites'),
             FilterOption(label: '排行', value: 'toplist'),
         ]),
-        // 4. 顺序 (Order)
         FilterGroup(title: '顺序 (Order)', paramName: 'order', type: 'radio', options: [
             FilterOption(label: '降序', value: 'desc'),
             FilterOption(label: '升序', value: 'asc'),
         ]),
-        // 5. 排行榜时间范围 (Toplist Range) - 仅在排序为 Toplist 时有效
         FilterGroup(title: '排行榜范围 (Top Range)', paramName: 'topRange', type: 'radio', options: [
             FilterOption(label: '1天', value: '1d'),
             FilterOption(label: '3天', value: '3d'),
@@ -55,14 +50,12 @@ class AppState extends ChangeNotifier {
             FilterOption(label: '6月', value: '6M'),
             FilterOption(label: '1年', value: '1y'),
         ]),
-        // 6. 分辨率 (Resolution)
         FilterGroup(title: '分辨率 (At Least)', paramName: 'atleast', type: 'radio', options: [
             FilterOption(label: '任意', value: ''),
             FilterOption(label: '1920x1080', value: '1920x1080'),
             FilterOption(label: '2560x1440', value: '2560x1440'),
             FilterOption(label: '3840x2160 (4K)', value: '3840x2160'),
         ]),
-        // 7. 比例 (Ratios)
         FilterGroup(title: '比例 (Ratios)', paramName: 'ratios', type: 'radio', options: [
             FilterOption(label: '任意', value: ''),
             FilterOption(label: '横屏', value: 'landscape'),
@@ -92,12 +85,19 @@ class AppState extends ChangeNotifier {
   double _cornerRadius = 24.0; 
   double _homeCornerRadius = 12.0;
 
+  // === 新增：自定义颜色 ===
+  Color? _customScaffoldColor;
+  Color? _customCardColor;
+
   ThemeMode get themeMode => _themeMode;
   bool get useMaterialYou => _useMaterialYou;
   bool get useAmoled => _useAmoled;
   Locale get locale => _locale;
   double get cornerRadius => _cornerRadius;
   double get homeCornerRadius => _homeCornerRadius;
+  
+  Color? get customScaffoldColor => _customScaffoldColor;
+  Color? get customCardColor => _customCardColor;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
@@ -112,6 +112,13 @@ class AppState extends ChangeNotifier {
 
     _cornerRadius = _prefs?.getDouble('corner_radius') ?? 24.0;
     _homeCornerRadius = _prefs?.getDouble('home_corner_radius') ?? 12.0;
+
+    // 读取自定义颜色
+    int? scaffoldColorVal = _prefs?.getInt('custom_scaffold_color');
+    if (scaffoldColorVal != null) _customScaffoldColor = Color(scaffoldColorVal);
+    
+    int? cardColorVal = _prefs?.getInt('custom_card_color');
+    if (cardColorVal != null) _customCardColor = Color(cardColorVal);
 
     String? savedSources = _prefs?.getString('generic_sources_v2');
     if (savedSources != null) {
@@ -195,4 +202,25 @@ class AppState extends ChangeNotifier {
   
   void setCornerRadius(double value) { _cornerRadius = value; _prefs?.setDouble('corner_radius', value); notifyListeners(); }
   void setHomeCornerRadius(double value) { _homeCornerRadius = value; _prefs?.setDouble('home_corner_radius', value); notifyListeners(); }
+
+  // === 设置自定义颜色 ===
+  void setCustomScaffoldColor(Color? color) {
+    _customScaffoldColor = color;
+    if (color == null) {
+      _prefs?.remove('custom_scaffold_color');
+    } else {
+      _prefs?.setInt('custom_scaffold_color', color.value);
+    }
+    notifyListeners();
+  }
+
+  void setCustomCardColor(Color? color) {
+    _customCardColor = color;
+    if (color == null) {
+      _prefs?.remove('custom_card_color');
+    } else {
+      _prefs?.setInt('custom_card_color', color.value);
+    }
+    notifyListeners();
+  }
 }
