@@ -1,18 +1,20 @@
+import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
+
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cupertino_icons/cupertino_icons.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:dio/dio.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'dart:convert';
-import 'dart:typed_data';
 
 import '../models/wallpaper.dart';
 import '../providers.dart';
-import 'settings_page.dart';
 import 'filter_page.dart';
 import 'image_detail_page.dart';
+import 'settings_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -27,7 +29,7 @@ class _HomePageState extends State<HomePage> {
   bool _hasMore = true;
   int _page = 1;
   final ScrollController _scrollController = ScrollController();
-  
+
   String? _lastSourceHash;
   DateTime _lastFetchTime = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -76,7 +78,7 @@ class _HomePageState extends State<HomePage> {
     final appState = context.read<AppState>();
     final currentSource = appState.currentSource;
     final activeParams = appState.activeParams;
-    
+
     String currentHash = "${currentSource.baseUrl}|${activeParams.toString()}";
 
     if (refresh || _lastSourceHash != currentHash) {
@@ -103,251 +105,304 @@ class _HomePageState extends State<HomePage> {
     } catch (e) {
       debugPrint("Load Error: $e");
       if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text("加载失败: $e"), duration: const Duration(seconds: 2)),
-         );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("加载失败: $e"), duration: const Duration(seconds: 2)),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // === 🚀 直链模式：一次请求拿到最终直链 + 真实比例（降低频率防封） ===
+  // === 🚀 直链模式：Luvbree 专用“轻量模式”减少空白块；其他源继续用 Range 取真实比例 ===
   Future<void> _fetchDirectMode(dynamic currentSource) async {
-  const int batchSize = 8; // 👈 你说会封：别贪，先稳住
-  const int headerBytes = 32768; // 32KB：够解析 jpg/png/webp 头部
-  const Duration perItemDelay = Duration(milliseconds: 220); // 👈 降频，防封
+    // 你说 Luvbree 会封：它每张图如果“预读 + 显示”就变成 2 次请求，很容易 403/429 -> 空白块
+    // 所以：Luvbree 不做 Range 预读真实比例，只锁定最终直链 + 用分桶 ratio 撑瀑布流
+    final bool isLuvbree = (currentSource.baseUrl as String).contains('luvbree.com');
 
-  final appState = context.read<AppState>();
+    const int headerBytes = 32768; // 32KB
+    final int batchSize = isLuvbree ? 8 : 8;
+    final Duration perItemDelay = isLuvbree
+        ? const Duration(milliseconds: 260) // Luvbree 稍微更保守
+        : const Duration(milliseconds: 220);
 
-  // 1) 构建参数字符串
-  final StringBuffer paramBuffer = StringBuffer();
-  appState.activeParams.forEach((key, value) {
-    if (value != null && value.toString().isNotEmpty) {
-      paramBuffer.write("&$key=$value");
-    }
-  });
-  final String paramString = paramBuffer.toString();
+    final Duration batchCooldown = isLuvbree
+        ? const Duration(milliseconds: 1200) // Luvbree 更容易被打，整批冷却更长
+        : const Duration(milliseconds: 900);
 
-  final dio = Dio();
+    final appState = context.read<AppState>();
 
-  // 解析宽高：返回 (w,h) 或 null
-  (int, int)? parseImageSize(Uint8List b) {
-    // --- PNG ---
-    bool isPng() =>
-        b.length > 24 &&
-        b[0] == 0x89 &&
-        b[1] == 0x50 &&
-        b[2] == 0x4E &&
-        b[3] == 0x47 &&
-        b[4] == 0x0D &&
-        b[5] == 0x0A &&
-        b[6] == 0x1A &&
-        b[7] == 0x0A;
-
-    int readBe32(int o) =>
-        (b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3];
-
-    if (isPng()) {
-      // IHDR width/height 在 offset 16..23
-      final w = readBe32(16);
-      final h = readBe32(20);
-      if (w > 0 && h > 0) return (w, h);
-    }
-
-    // --- JPEG ---
-    bool isJpg() => b.length > 3 && b[0] == 0xFF && b[1] == 0xD8;
-    if (isJpg()) {
-      int i = 2;
-      while (i + 9 < b.length) {
-        if (b[i] != 0xFF) {
-          i++;
-          continue;
-        }
-        int marker = b[i + 1];
-        // SOF0/1/2/3/5/6/7/9/10/11/13/14/15
-        bool isSof = (marker >= 0xC0 && marker <= 0xCF) && marker != 0xC4 && marker != 0xC8 && marker != 0xCC;
-        int len = (b[i + 2] << 8) | b[i + 3];
-        if (len < 2) break;
-
-        if (isSof && i + 7 < b.length) {
-          final h = (b[i + 5] << 8) | b[i + 6];
-          final w = (b[i + 7] << 8) | b[i + 8];
-          if (w > 0 && h > 0) return (w, h);
-          break;
-        }
-        i += 2 + len;
+    // 1) 构建参数字符串
+    final StringBuffer paramBuffer = StringBuffer();
+    appState.activeParams.forEach((key, value) {
+      if (value != null && value.toString().isNotEmpty) {
+        paramBuffer.write("&$key=$value");
       }
+    });
+    final String paramString = paramBuffer.toString();
+
+    final dio = Dio();
+
+    double bucketRatio(String seed) {
+      // 三桶：竖/方/横。稳定点：用 seed hash 决定桶，别每次 Random 乱抖
+      final h = seed.hashCode.abs() % 100;
+      if (h < 45) return 0.66;
+      if (h < 75) return 1.0;
+      return 1.5;
     }
 
-    // --- WEBP (只处理 VP8X / VP8L，够覆盖大部分) ---
-    bool isWebp() =>
-        b.length > 30 &&
-        b[0] == 0x52 &&
-        b[1] == 0x49 &&
-        b[2] == 0x46 &&
-        b[3] == 0x46 && // RIFF
-        b[8] == 0x57 &&
-        b[9] == 0x45 &&
-        b[10] == 0x42 &&
-        b[11] == 0x50; // WEBP
-    if (isWebp()) {
-      // 找 VP8X chunk
-      for (int i = 12; i + 16 < b.length; i++) {
-        if (b[i] == 0x56 && b[i + 1] == 0x50 && b[i + 2] == 0x38 && b[i + 3] == 0x58) {
-          // VP8X: width-1 at i+12..i+14 (3 bytes LE), height-1 at i+15..i+17
-          if (i + 18 < b.length) {
+    (int, int)? parseImageSize(Uint8List b) {
+      // --- PNG ---
+      bool isPng() =>
+          b.length > 24 &&
+          b[0] == 0x89 &&
+          b[1] == 0x50 &&
+          b[2] == 0x4E &&
+          b[3] == 0x47 &&
+          b[4] == 0x0D &&
+          b[5] == 0x0A &&
+          b[6] == 0x1A &&
+          b[7] == 0x0A;
+
+      int readBe32(int o) => (b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3];
+
+      if (isPng()) {
+        final w = readBe32(16);
+        final h = readBe32(20);
+        if (w > 0 && h > 0) return (w, h);
+      }
+
+      // --- JPEG ---
+      bool isJpg() => b.length > 3 && b[0] == 0xFF && b[1] == 0xD8;
+      if (isJpg()) {
+        int i = 2;
+        while (i + 9 < b.length) {
+          if (b[i] != 0xFF) {
+            i++;
+            continue;
+          }
+          int marker = b[i + 1];
+          bool isSof = (marker >= 0xC0 && marker <= 0xCF) && marker != 0xC4 && marker != 0xC8 && marker != 0xCC;
+          int len = (b[i + 2] << 8) | b[i + 3];
+          if (len < 2) break;
+
+          if (isSof && i + 8 < b.length) {
+            final h = (b[i + 5] << 8) | b[i + 6];
+            final w = (b[i + 7] << 8) | b[i + 8];
+            if (w > 0 && h > 0) return (w, h);
+            break;
+          }
+          i += 2 + len;
+        }
+      }
+
+      // --- WEBP (VP8X / VP8L) ---
+      bool isWebp() =>
+          b.length > 30 &&
+          b[0] == 0x52 &&
+          b[1] == 0x49 &&
+          b[2] == 0x46 &&
+          b[3] == 0x46 &&
+          b[8] == 0x57 &&
+          b[9] == 0x45 &&
+          b[10] == 0x42 &&
+          b[11] == 0x50;
+      if (isWebp()) {
+        for (int i = 12; i + 18 < b.length; i++) {
+          // VP8X
+          if (b[i] == 0x56 && b[i + 1] == 0x50 && b[i + 2] == 0x38 && b[i + 3] == 0x58) {
             int wMinus1 = b[i + 12] | (b[i + 13] << 8) | (b[i + 14] << 16);
             int hMinus1 = b[i + 15] | (b[i + 16] << 8) | (b[i + 17] << 16);
             final w = wMinus1 + 1;
             final h = hMinus1 + 1;
             if (w > 0 && h > 0) return (w, h);
           }
-        }
-        // 找 VP8L chunk
-        if (b[i] == 0x56 && b[i + 1] == 0x50 && b[i + 2] == 0x38 && b[i + 3] == 0x4C) {
-          // VP8L: signature 0x2f at chunk payload start (i+8)
-          final p = i + 8;
-          if (p + 5 < b.length && b[p] == 0x2F) {
-            final b1 = b[p + 1];
-            final b2 = b[p + 2];
-            final b3 = b[p + 3];
-            final b4 = b[p + 4];
-            final w = 1 + ((b1 | (b2 << 8)) & 0x3FFF);
-            final h = 1 + (((b2 >> 6) | (b3 << 2) | (b4 << 10)) & 0x3FFF);
-            if (w > 0 && h > 0) return (w, h);
+          // VP8L
+          if (b[i] == 0x56 && b[i + 1] == 0x50 && b[i + 2] == 0x38 && b[i + 3] == 0x4C) {
+            final p = i + 8;
+            if (p + 5 < b.length && b[p] == 0x2F) {
+              final b1 = b[p + 1];
+              final b2 = b[p + 2];
+              final b3 = b[p + 3];
+              final b4 = b[p + 4];
+              final w = 1 + ((b1 | (b2 << 8)) & 0x3FFF);
+              final h = 1 + (((b2 >> 6) | (b3 << 2) | (b4 << 10)) & 0x3FFF);
+              if (w > 0 && h > 0) return (w, h);
+            }
           }
         }
       }
+
+      return null;
     }
 
-    return null;
-  }
+    // 轻量锁直链：不 Range，不解比例（Luvbree 专用）
+    Future<String> resolveFinalUrlLight(String requestUrl) async {
+      final resp = await dio.get(
+        requestUrl,
+        options: Options(
+          headers: kAppHeaders,
+          responseType: ResponseType.bytes, // JSON 很小，bytes 够用；如果是 302->image 也能拿 realUri
+          followRedirects: true,
+          validateStatus: (code) => code != null && code >= 200 && code < 400,
+        ),
+      );
 
-  Future<(String finalUrl, double ratio)> resolveFinalUrlAndRatio(String requestUrl) async {
-    final resp = await dio.get(
-      requestUrl,
-      options: Options(
-        headers: {
-          ...kAppHeaders,
-          // 只取头部，减轻压力 + 更快得到宽高
-          "Range": "bytes=0-${headerBytes - 1}",
-        },
-        responseType: ResponseType.bytes,
-        followRedirects: true,
-        validateStatus: (code) => code != null && code >= 200 && code < 400,
-      ),
-    );
-
-    // 1) 最终直链（关键：固定住，后面不会再抽奖）
-    final finalUrl = resp.realUri.toString();
-
-    // 2) 如果直接是图片 bytes：从头部解析宽高
-    final ct = resp.headers.value('content-type') ?? '';
-    if (ct.startsWith('image/')) {
-      final bytes = Uint8List.fromList(resp.data as List<int>);
-      final sz = parseImageSize(bytes);
-      if (sz != null) {
-        final r = sz.$1 / sz.$2;
-        // 防极端值（避免 Masonry 被奇怪比例搞炸）
-        final ratio = r.isFinite ? r.clamp(0.35, 2.2) : 1.0;
-        return (finalUrl, ratio.toDouble());
+      final ct = resp.headers.value('content-type') ?? '';
+      if (ct.startsWith('image/')) {
+        return resp.realUri.toString();
       }
+
+      // JSON：提取 url（Luvbree 很可能走这条）
+      try {
+        final text = utf8.decode(resp.data as List<int>);
+        final dynamic j = jsonDecode(text);
+        if (j is Map) {
+          final u = j['url']?.toString();
+          if (u != null && u.startsWith('http')) return u;
+          final u2 = j['data'] is Map ? j['data']['url']?.toString() : null;
+          if (u2 != null && u2.startsWith('http')) return u2;
+        }
+      } catch (_) {
+        // ignore
+      }
+
+      return resp.realUri.toString();
+    }
+
+    // 非 Luvbree：一次 Range 拿 finalUrl + 真实比例
+    Future<(String finalUrl, double ratio)> resolveFinalUrlAndRatioRange(String requestUrl) async {
+      final resp = await dio.get(
+        requestUrl,
+        options: Options(
+          headers: {
+            ...kAppHeaders,
+            "Range": "bytes=0-${headerBytes - 1}",
+          },
+          responseType: ResponseType.bytes,
+          followRedirects: true,
+          validateStatus: (code) => code != null && code >= 200 && code < 400,
+        ),
+      );
+
+      final finalUrl = resp.realUri.toString();
+      final ct = resp.headers.value('content-type') ?? '';
+
+      if (ct.startsWith('image/')) {
+        final bytes = Uint8List.fromList(resp.data as List<int>);
+        final sz = parseImageSize(bytes);
+        if (sz != null) {
+          final r = sz.$1 / sz.$2;
+          final ratio = r.isFinite ? r.clamp(0.35, 2.2) : 1.0;
+          return (finalUrl, ratio.toDouble());
+        }
+        return (finalUrl, 1.0);
+      }
+
+      // JSON：提取 url，再 Range 一次（仅 JSON 情况）
+      try {
+        final text = utf8.decode(resp.data as List<int>);
+        final dynamic j = jsonDecode(text);
+
+        String? extracted;
+        if (j is Map) {
+          extracted ??= j['url']?.toString();
+          extracted ??= j['image']?.toString();
+          if (j['data'] is Map) {
+            extracted ??= j['data']['url']?.toString();
+            extracted ??= j['data']['image']?.toString();
+            extracted ??= j['data']['path']?.toString();
+          }
+        }
+
+        if (extracted != null && extracted.startsWith('http')) {
+          final resp2 = await dio.get(
+            extracted,
+            options: Options(
+              headers: {
+                ...kAppHeaders,
+                "Range": "bytes=0-${headerBytes - 1}",
+              },
+              responseType: ResponseType.bytes,
+              followRedirects: true,
+              validateStatus: (code) => code != null && code >= 200 && code < 400,
+            ),
+          );
+
+          final final2 = resp2.realUri.toString();
+          final bytes2 = Uint8List.fromList(resp2.data as List<int>);
+          final sz2 = parseImageSize(bytes2);
+          if (sz2 != null) {
+            final r = sz2.$1 / sz2.$2;
+            final ratio = r.isFinite ? r.clamp(0.35, 2.2) : 1.0;
+            return (final2, ratio.toDouble());
+          }
+          return (final2, 1.0);
+        }
+      } catch (_) {
+        // ignore
+      }
+
       return (finalUrl, 1.0);
     }
 
-    // 3) 如果是 JSON：尝试提取 url，再用 Range 抓头部算比例（再来一次，但只在 JSON 情况）
-    try {
-      final text = utf8.decode(resp.data as List<int>);
-      final dynamic j = jsonDecode(text);
+    final List<Wallpaper> newItems = [];
 
-      String? extracted;
-      if (j is Map) {
-        extracted ??= j['url']?.toString();
-        extracted ??= j['image']?.toString();
-        if (j['data'] is Map) {
-          extracted ??= j['data']['url']?.toString();
-          extracted ??= j['data']['image']?.toString();
-          extracted ??= j['data']['path']?.toString();
-        }
+    for (int i = 0; i < batchSize; i++) {
+      if (!mounted) return;
+
+      final randomId = "${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000000)}";
+      final separator = (currentSource.baseUrl as String).contains('?') ? '&' : '?';
+
+      final requestUrl =
+          "${currentSource.baseUrl}$separator"
+          "cache_buster=${_page}_${i}_$randomId"
+          "$paramString";
+
+      String finalUrl;
+      double ratio;
+
+      if (isLuvbree) {
+        // ✅ Luvbree：轻量锁直链 + 分桶 ratio（减少请求次数，显著降低空白块）
+        finalUrl = await resolveFinalUrlLight(requestUrl);
+        ratio = bucketRatio(finalUrl);
+      } else {
+        // ✅ 其他直链：Range 取真实比例
+        final resolved = await resolveFinalUrlAndRatioRange(requestUrl);
+        finalUrl = resolved.$1;
+        ratio = resolved.$2;
       }
 
-      if (extracted != null && extracted.startsWith('http')) {
-        final resp2 = await dio.get(
-          extracted,
-          options: Options(
-            headers: {
-              ...kAppHeaders,
-              "Range": "bytes=0-${headerBytes - 1}",
-            },
-            responseType: ResponseType.bytes,
-            followRedirects: true,
-            validateStatus: (code) => code != null && code >= 200 && code < 400,
-          ),
-        );
+      // id 尽量稳定且不容易撞：把 finalUrl + page/i 混一下
+      final stableId = "direct_${finalUrl.hashCode}_${_page}_$i";
 
-        final final2 = resp2.realUri.toString();
-        final bytes2 = Uint8List.fromList(resp2.data as List<int>);
-        final sz2 = parseImageSize(bytes2);
-        if (sz2 != null) {
-          final r = sz2.$1 / sz2.$2;
-          final ratio = r.isFinite ? r.clamp(0.35, 2.2) : 1.0;
-          return (final2, ratio.toDouble());
-        }
-        return (final2, 1.0);
-      }
-    } catch (_) {
-      // ignore
+      newItems.add(Wallpaper(
+        id: stableId,
+        thumbUrl: finalUrl,
+        fullSizeUrl: finalUrl,
+        resolution: "Random",
+        aspectRatio: ratio,
+        purity: 'sfw',
+        metadata: {"source_request_url": requestUrl},
+      ));
+
+      await Future.delayed(perItemDelay);
     }
 
-    // 兜底：至少固定最终 URL
-    return (finalUrl, 1.0);
+    if (mounted) {
+      setState(() {
+        _wallpapers.addAll(newItems);
+        _page++;
+      });
+    }
+
+    await Future.delayed(batchCooldown);
   }
 
-  final List<Wallpaper> newItems = [];
-
-  for (int i = 0; i < batchSize; i++) {
-    if (!mounted) return;
-
-    final randomId = "${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(1000000)}";
-    final separator = currentSource.baseUrl.contains('?') ? '&' : '?';
-
-    // 抽奖机 URL（只用一次）
-    final requestUrl =
-        "${currentSource.baseUrl}${separator}cache_buster=${_page}_${i}_$randomId$paramString";
-
-    // ✅ 一次请求（Range）拿到最终直链 + 真实比例
-    final resolved = await resolveFinalUrlAndRatio(requestUrl);
-    final finalUrl = resolved.$1;
-    final ratio = resolved.$2;
-
-    newItems.add(Wallpaper(
-      id: "direct_${finalUrl.hashCode}",
-      thumbUrl: finalUrl,
-      fullSizeUrl: finalUrl,
-      resolution: "Random",
-      aspectRatio: ratio,
-      purity: 'sfw',
-      metadata: {"source_request_url": requestUrl},
-    ));
-
-    // 👇 降频防封
-    await Future.delayed(perItemDelay);
-  }
-
-  if (mounted) {
-    setState(() {
-      _wallpapers.addAll(newItems);
-      _page++;
-    });
-  }
-  // ✅ 整批冷却：防止滚动触发下一轮太快（防封关键）
-  await Future.delayed(const Duration(milliseconds: 900));
-}
   Future<void> _fetchApiMode(dynamic currentSource, Map<String, dynamic> activeParams) async {
     final Map<String, dynamic> queryParams = Map.from(activeParams);
     queryParams['page'] = _page;
-    
+
     if (currentSource.apiKey.isNotEmpty) {
       queryParams[currentSource.apiKeyParam] = currentSource.apiKey;
     }
@@ -355,12 +410,12 @@ class _HomePageState extends State<HomePage> {
     var response = await Dio().get(
       currentSource.baseUrl,
       queryParameters: queryParams,
-      options: Options(headers: kAppHeaders), 
+      options: Options(headers: kAppHeaders),
     );
 
     if (response.statusCode == 200) {
       var rawData = _getValueByPath(response.data, currentSource.listKey);
-      
+
       List listData = [];
       if (rawData is List) {
         listData = rawData;
@@ -373,7 +428,7 @@ class _HomePageState extends State<HomePage> {
           String thumb = _getValueByPath(item, currentSource.thumbKey) ?? "";
           String full = _getValueByPath(item, currentSource.fullKey) ?? thumb;
           String id = _getValueByPath(item, currentSource.idKey)?.toString() ?? full.hashCode.toString();
-          
+
           double ratio = 1.0;
           try {
             var w = item['dimension_x'] ?? item['width'];
@@ -386,7 +441,7 @@ class _HomePageState extends State<HomePage> {
           } catch (e) {
             ratio = 1.0;
           }
-          
+
           String resolution = "";
           if (item['dimension_x'] != null && item['dimension_y'] != null) {
             resolution = "${item['dimension_x']}x${item['dimension_y']}";
@@ -402,7 +457,7 @@ class _HomePageState extends State<HomePage> {
             views: item['views'] ?? 0,
             favorites: item['favorites'] ?? 0,
             aspectRatio: ratio,
-            purity: item['purity'] ?? 'sfw', // 解析分级
+            purity: item['purity'] ?? 'sfw',
             metadata: item is Map<String, dynamic> ? item : {},
           );
         }).where((w) => w.thumbUrl.isNotEmpty).toList();
@@ -410,11 +465,11 @@ class _HomePageState extends State<HomePage> {
         if (mounted) {
           setState(() {
             _wallpapers.addAll(newWallpapers);
-            _page++; 
+            _page++;
           });
         }
       } else {
-         if (mounted) setState(() => _hasMore = false);
+        if (mounted) setState(() => _hasMore = false);
       }
     }
   }
@@ -427,9 +482,9 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
 
-    if (_lastSourceHash != null && 
+    if (_lastSourceHash != null &&
         _lastSourceHash != "${appState.currentSource.baseUrl}|${appState.activeParams.toString()}") {
-       Future.microtask(() => _fetchWallpapers(refresh: true));
+      Future.microtask(() => _fetchWallpapers(refresh: true));
     }
 
     return Scaffold(
@@ -470,11 +525,7 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(width: 8),
               ],
             ),
-
-            CupertinoSliverRefreshControl(
-              onRefresh: _handleRefresh,
-            ),
-
+            CupertinoSliverRefreshControl(onRefresh: _handleRefresh),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               sliver: SliverMasonryGrid.count(
@@ -487,14 +538,13 @@ class _HomePageState extends State<HomePage> {
                 },
               ),
             ),
-            
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
                 child: Center(
-                  child: _isLoading 
+                  child: _isLoading
                       ? const CircularProgressIndicator.adaptive()
-                      : (!_hasMore && _wallpapers.isNotEmpty) 
+                      : (!_hasMore && _wallpapers.isNotEmpty)
                           ? const Text("--- 我是有底线的 ---", style: TextStyle(color: Colors.grey))
                           : const SizedBox.shrink(),
                 ),
@@ -503,12 +553,14 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-      floatingActionButton: _wallpapers.length > 20 ? FloatingActionButton.small(
-        onPressed: () {
-          _scrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeOut);
-        },
-        child: const Icon(Icons.arrow_upward),
-      ) : null,
+      floatingActionButton: _wallpapers.length > 20
+          ? FloatingActionButton.small(
+              onPressed: () {
+                _scrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeOut);
+              },
+              child: const Icon(Icons.arrow_upward),
+            )
+          : null,
     );
   }
 
@@ -520,8 +572,8 @@ class _HomePageState extends State<HomePage> {
         return AlertDialog(
           contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
           content: TextField(
-            controller: ctrl, 
-            autofocus: true, 
+            controller: ctrl,
+            autofocus: true,
             decoration: const InputDecoration(
               hintText: "输入关键字搜索...",
               border: OutlineInputBorder(),
@@ -529,61 +581,49 @@ class _HomePageState extends State<HomePage> {
             onSubmitted: (v) => Navigator.pop(ctx, v),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx), 
-              child: const Text("取消")
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text), 
-              child: const Text("搜索")
-            )
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+            TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text("搜索")),
           ],
         );
-      }
+      },
     );
   }
 
-  // === 核心优化：参考图风格 (无边框 SFW + Stack 布局) ===
   Widget _buildWallpaperItem(Wallpaper wallpaper) {
     final appState = context.read<AppState>();
     final double radius = appState.homeCornerRadius;
     final colorScheme = Theme.of(context).colorScheme;
 
-    // 1. 判断是否是 Wallhaven 源
     final isWallhaven = appState.currentSource.baseUrl.contains('wallhaven');
-    
-    // 2. 边框逻辑优化：SFW 无边框，Sketchy/NSFW 有边框
+
     Color? borderColor;
     if (isWallhaven) {
       if (wallpaper.purity == 'sketchy') {
-        borderColor = const Color(0xFFE6E649); // 黄色
+        borderColor = const Color(0xFFE6E649);
       } else if (wallpaper.purity == 'nsfw') {
-        borderColor = const Color(0xFFFF3333); // 红色
+        borderColor = const Color(0xFFFF3333);
       }
-      // SFW 保持 null -> 无边框，视觉减负
     }
 
     return GestureDetector(
       onTap: () {
         Navigator.push(context, MaterialPageRoute(builder: (_) => ImageDetailPage(wallpaper: wallpaper)));
       },
-      // 使用 Stack 将边框“浮”在图片上方，解决圆角缝隙问题
       child: Stack(
         fit: StackFit.passthrough,
         children: [
-          // 底层：图片主体
           Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(radius), 
+              borderRadius: BorderRadius.circular(radius),
               color: colorScheme.surfaceContainerHighest,
               boxShadow: [
-                 BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))
+                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2)),
               ],
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(radius),
               child: AspectRatio(
-                aspectRatio: wallpaper.aspectRatio, 
+                aspectRatio: wallpaper.aspectRatio,
                 child: Hero(
                   tag: wallpaper.id,
                   child: CachedNetworkImage(
@@ -591,9 +631,7 @@ class _HomePageState extends State<HomePage> {
                     httpHeaders: kAppHeaders,
                     fit: BoxFit.cover,
                     fadeInDuration: const Duration(milliseconds: 300),
-                    placeholder: (context, url) => Container(
-                      color: colorScheme.surfaceContainerHighest,
-                    ),
+                    placeholder: (context, url) => Container(color: colorScheme.surfaceContainerHighest),
                     errorWidget: (context, url, error) => Container(
                       color: colorScheme.surfaceContainerHighest,
                       child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
@@ -603,18 +641,16 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
           ),
-
-          // 顶层：边框叠加层 (仅当有颜色时显示)
           if (borderColor != null)
             Positioned.fill(
-              child: IgnorePointer( // 确保点击穿透
+              child: IgnorePointer(
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(radius),
                     border: Border.all(
-                      color: borderColor, 
-                      width: 1.5, // 细边框，精致
-                      strokeAlign: BorderSide.strokeAlignInside, // 向内对齐，无溢出
+                      color: borderColor,
+                      width: 1.5,
+                      strokeAlign: BorderSide.strokeAlignInside,
                     ),
                   ),
                 ),
