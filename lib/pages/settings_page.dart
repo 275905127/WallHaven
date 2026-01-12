@@ -67,7 +67,7 @@ class SettingsPage extends StatelessWidget {
                         children: [
                           _buildTile(
                             context,
-                            title: appState.locale.languageCode == 'zh' ? "主题" : "Theme",
+                            title: appState.locale.languageCode == 'zh' ? "主题与外观" : "Theme & Appearance",
                             subtitle: _getThemeSubtitle(appState),
                             icon: Icons.palette_outlined,
                             onTap: () => _showThemeDialog(context, appState),
@@ -110,6 +110,135 @@ class SettingsPage extends StatelessWidget {
   }
 
   // --- 弹窗逻辑 ---
+
+  void _showThemeDialog(BuildContext context, AppState state) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        ThemeMode tempMode = state.themeMode;
+        bool tempMaterialYou = state.useMaterialYou;
+        bool tempAmoled = state.useAmoled;
+        double tempGlobalRadius = state.cornerRadius;
+        double tempHomeRadius = state.homeCornerRadius;
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final dynamicShape = RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(tempGlobalRadius),
+            );
+
+            return _buildBottomDialog(
+              context, title: "外观设置",
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildThemeRadio(context, "跟随系统", ThemeMode.system, tempMode, (v) => setState(() => tempMode = v)),
+                          _buildThemeRadio(context, "浅色", ThemeMode.light, tempMode, (v) => setState(() => tempMode = v)),
+                          _buildThemeRadio(context, "深色", ThemeMode.dark, tempMode, (v) => setState(() => tempMode = v)),
+                        ],
+                      ),
+                    ),
+
+                    const Divider(height: 24),
+                    SwitchListTile(title: const Text("动态取色"), value: tempMaterialYou, shape: dynamicShape, onChanged: (v) => setState(() => tempMaterialYou = v)),
+                    SwitchListTile(title: const Text("纯黑背景 (AMOLED)"), value: tempAmoled, shape: dynamicShape, onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)),
+                    
+                    const Divider(height: 24),
+                    // === 新增：自定义颜色入口 ===
+                    ListTile(
+                      title: const Text("自定义背景颜色"),
+                      trailing: CircleAvatar(backgroundColor: state.customScaffoldColor ?? Colors.grey[300], radius: 12),
+                      shape: dynamicShape,
+                      onTap: () => _showColorPicker(context, "选择背景颜色", state.customScaffoldColor, (c) {
+                        state.setCustomScaffoldColor(c);
+                        Navigator.pop(context); // 选完关闭颜色选择器，回到外观设置
+                      }),
+                    ),
+                    ListTile(
+                      title: const Text("自定义卡片颜色"),
+                      trailing: CircleAvatar(backgroundColor: state.customCardColor ?? Colors.grey[300], radius: 12),
+                      shape: dynamicShape,
+                      onTap: () => _showColorPicker(context, "选择卡片颜色", state.customCardColor, (c) {
+                        state.setCustomCardColor(c);
+                        Navigator.pop(context);
+                      }),
+                    ),
+
+                    const Divider(height: 24),
+                    const SizedBox(height: 8),
+                    _buildFancySlider(context, label: "全局圆角", value: tempGlobalRadius, max: 40.0, onChanged: (v) => setState(() => tempGlobalRadius = v)),
+                    const SizedBox(height: 12),
+                    _buildFancySlider(context, label: "首页图片", value: tempHomeRadius, max: 40.0, onChanged: (v) => setState(() => tempHomeRadius = v)),
+                  ],
+                ),
+              ),
+              onConfirm: () { 
+                state.setThemeMode(tempMode); 
+                state.setMaterialYou(tempMaterialYou); 
+                state.setAmoled(tempAmoled);
+                state.setCornerRadius(tempGlobalRadius);
+                state.setHomeCornerRadius(tempHomeRadius);
+                Navigator.pop(context); 
+              }
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // === 简单的颜色选择器 ===
+  void _showColorPicker(BuildContext context, String title, Color? currentColor, ValueChanged<Color?> onSelect) {
+    // 预设颜色列表
+    final List<Color> presets = [
+      Colors.black, const Color(0xFF121212), const Color(0xFF1A1A1A), const Color(0xFF2C2C2C), // 深色系
+      Colors.white, const Color(0xFFF1F1F3), const Color(0xFFFFFDFD), Colors.grey[200]!, // 浅色系
+      Colors.deepPurple[900]!, Colors.indigo[900]!, const Color(0xFF001F24), const Color(0xFF1F0000), // 彩色深色
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: GridView.builder(
+            shrinkWrap: true,
+            itemCount: presets.length + 1, // +1 是“恢复默认”
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 10, mainAxisSpacing: 10),
+            itemBuilder: (ctx, index) {
+              if (index == 0) {
+                return InkWell(
+                  onTap: () => onSelect(null),
+                  borderRadius: BorderRadius.circular(50),
+                  child: Container(
+                    decoration: BoxDecoration(border: Border.all(color: Colors.grey), shape: BoxShape.circle),
+                    child: const Icon(Icons.format_color_reset, color: Colors.grey),
+                  ),
+                );
+              }
+              final color = presets[index - 1];
+              return InkWell(
+                onTap: () => onSelect(color),
+                borderRadius: BorderRadius.circular(50),
+                child: Container(
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: Colors.grey.withOpacity(0.3))),
+                  child: currentColor?.value == color.value ? const Icon(Icons.check, color: Colors.white) : null,
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消"))],
+      ),
+    );
+  }
 
   // 1. 图源管理
   void _showSourceManagerDialog(BuildContext context) {
@@ -268,7 +397,6 @@ class SettingsPage extends StatelessWidget {
 
                   _buildInput(context, apiKeyCtrl, "API Key (可选)"),
                   
-                  // === 高级配置按钮优化 ===
                   Padding(
                     padding: const EdgeInsets.only(top: 24, bottom: 12),
                     child: InkWell(
@@ -330,7 +458,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // === 筛选规则编辑器 ===
   Future<List<FilterGroup>?> _openFilterEditor(BuildContext context, List<FilterGroup> currentFilters) {
     return showDialog<List<FilterGroup>>(
       context: context,
@@ -430,7 +557,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // === 单个筛选组编辑器 ===
   Future<FilterGroup?> _openGroupEditor(BuildContext context, FilterGroup? group) {
     final titleCtrl = TextEditingController(text: group?.title);
     final paramCtrl = TextEditingController(text: group?.paramName);
@@ -525,92 +651,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // --- 外观设置 ---
-  void _showThemeDialog(BuildContext context, AppState state) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        ThemeMode tempMode = state.themeMode;
-        bool tempMaterialYou = state.useMaterialYou;
-        bool tempAmoled = state.useAmoled;
-        double tempGlobalRadius = state.cornerRadius;
-        double tempHomeRadius = state.homeCornerRadius;
-
-        return StatefulBuilder(
-          builder: (context, setState) {
-            final dynamicShape = RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(tempGlobalRadius),
-            );
-
-            return _buildBottomDialog(
-              context, title: "外观设置",
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildThemeRadio(context, "跟随系统", ThemeMode.system, tempMode, (v) => setState(() => tempMode = v)),
-                          _buildThemeRadio(context, "浅色", ThemeMode.light, tempMode, (v) => setState(() => tempMode = v)),
-                          _buildThemeRadio(context, "深色", ThemeMode.dark, tempMode, (v) => setState(() => tempMode = v)),
-                        ],
-                      ),
-                    ),
-
-                    const Divider(height: 24),
-                    SwitchListTile(title: const Text("动态取色"), value: tempMaterialYou, shape: dynamicShape, onChanged: (v) => setState(() => tempMaterialYou = v)),
-                    SwitchListTile(title: const Text("纯黑背景 (AMOLED)"), value: tempAmoled, shape: dynamicShape, onChanged: tempMode == ThemeMode.light ? null : (v) => setState(() => tempAmoled = v)),
-                    const Divider(height: 24),
-                    const SizedBox(height: 8),
-                    _buildFancySlider(context, label: "全局圆角", value: tempGlobalRadius, max: 40.0, onChanged: (v) => setState(() => tempGlobalRadius = v)),
-                    const SizedBox(height: 12),
-                    _buildFancySlider(context, label: "首页图片", value: tempHomeRadius, max: 40.0, onChanged: (v) => setState(() => tempHomeRadius = v)),
-                  ],
-                ),
-              ),
-              onConfirm: () { 
-                state.setThemeMode(tempMode); 
-                state.setMaterialYou(tempMaterialYou); 
-                state.setAmoled(tempAmoled);
-                state.setCornerRadius(tempGlobalRadius);
-                state.setHomeCornerRadius(tempHomeRadius);
-                Navigator.pop(context); 
-              }
-            );
-          },
-        );
-      },
-    );
-  }
-  
-  Widget _buildThemeRadio(BuildContext context, String label, ThemeMode value, ThemeMode groupValue, ValueChanged<ThemeMode> onChanged) {
-    return InkWell(
-      onTap: () => onChanged(value),
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Radio<ThemeMode>(
-              value: value,
-              groupValue: groupValue,
-              onChanged: (v) => onChanged(v!),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-              activeColor: Theme.of(context).colorScheme.primary, 
-            ),
-            const SizedBox(width: 4),
-            Text(label),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _showLanguageDialog(BuildContext context, AppState state) {
     showDialog(
       context: context,
@@ -646,7 +686,6 @@ class SettingsPage extends StatelessWidget {
 
   // === 组件 ===
 
-  // 1. 弹窗容器（修复键盘挤压问题）
   Widget _buildBottomDialog(BuildContext context, {required String title, required Widget content, required VoidCallback onConfirm, String confirmText = "确定", bool hideCancel = false}) {
     final buttonColor = Theme.of(context).textTheme.bodyLarge?.color;
     final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
@@ -694,7 +733,6 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  // 2. 输入框（优化背景色）
   Widget _buildInput(BuildContext context, TextEditingController ctrl, String label) {
     return TextField(
       controller: ctrl,
@@ -711,64 +749,51 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildFancySlider(
-  BuildContext context, {
-  required String label,
-  required double value,
-  required double max,
-  required ValueChanged<double> onChanged,
-}) {
-  final primaryColor = Theme.of(context).colorScheme.primary;
+  Widget _buildFancySlider(BuildContext context, {required String label, required double value, required double max, required ValueChanged<double> onChanged}) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    const double step = 0.5;
+    final int divisions = (max / step).round();
+    double snap(double v) => (v / step).round() * step;
+    final double displayValue = snap(value);
 
-  const double step = 0.5; // 👈 这里控制步进（0.5 / 1 / 0.25 都改这一个）
-  final int divisions = (max / step).round();
-
-  double snap(double v) => (v / step).round() * step;
-
-  final double displayValue = snap(value);
-
-  return Column(
-    children: [
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(
-              displayValue.toStringAsFixed(1), // 👈 不再用 toInt()
-              style: const TextStyle(fontWeight: FontWeight.bold),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(displayValue.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 48,
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 12,
+              trackShape: const RoundedRectSliderTrackShape(),
+              activeTrackColor: primaryColor,
+              inactiveTrackColor: primaryColor.withOpacity(0.15),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12.0, elevation: 4.0),
+              thumbColor: Colors.white,
+              overlayColor: Colors.white.withOpacity(0.3),
+              tickMarkShape: SliderTickMarkShape.noTickMark,
             ),
-          ],
-        ),
-      ),
-      SizedBox(
-        height: 48,
-        child: SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            trackHeight: 12,
-            trackShape: const RoundedRectSliderTrackShape(),
-            activeTrackColor: primaryColor,
-            inactiveTrackColor: primaryColor.withOpacity(0.15),
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12.0, elevation: 4.0),
-            thumbColor: Colors.white,
-            overlayColor: Colors.white.withOpacity(0.3),
-            // 👇 想更丝滑就关刻度点（可选）
-            tickMarkShape: SliderTickMarkShape.noTickMark,
-          ),
-          child: Slider(
-            value: value,
-            min: 0.0,
-            max: max,
-            divisions: divisions, // 👈 自动按 max + step 算
-            onChanged: onChanged,
-            onChangeEnd: (v) => onChanged(snap(v)), // 👈 松手对齐到步进
+            child: Slider(
+              value: value,
+              min: 0.0,
+              max: max,
+              divisions: divisions, 
+              onChanged: onChanged,
+              onChangeEnd: (v) => onChanged(snap(v)),
+            ),
           ),
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
 
   Widget _buildCard(BuildContext context, {required Widget child}) { 
     final radius = context.read<AppState>().cornerRadius; 
@@ -777,6 +802,31 @@ class SettingsPage extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
       child: child 
     ); 
+  }
+
+  Widget _buildThemeRadio(BuildContext context, String label, ThemeMode value, ThemeMode groupValue, ValueChanged<ThemeMode> onChanged) {
+    return InkWell(
+      onTap: () => onChanged(value),
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Radio<ThemeMode>(
+              value: value,
+              groupValue: groupValue,
+              onChanged: (v) => onChanged(v!),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+              activeColor: Theme.of(context).colorScheme.primary, 
+            ),
+            const SizedBox(width: 4),
+            Text(label),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildTile(BuildContext context, {required String title, required String subtitle, required IconData icon, Widget? trailing, VoidCallback? onTap}) {
