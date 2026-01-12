@@ -132,6 +132,21 @@ class SettingsPage extends StatelessWidget {
                             icon: Icons.upload_file,
                             onTap: () => _exportBackup(context),
                           ),
+                          _buildTile(
+  context,
+  title: "从云端恢复备份",
+  subtitle: "通过 URL 拉取整包 JSON",
+  icon: Icons.cloud_download,
+  onTap: () => _importBackupFromUrl(context),
+),
+_divider(),
+_buildTile(
+  context,
+  title: "从云端导入图源",
+  subtitle: "通过 URL 导入 SourceConfig",
+  icon: Icons.cloud_sync,
+  onTap: () => _importSourceFromUrl(context),
+),
                           _divider(),
                           _buildTile(
                             context,
@@ -988,6 +1003,53 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
+  void _importBackupFromUrl(BuildContext context) {
+  final ctrl = TextEditingController();
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text("云端备份 URL"),
+      content: TextField(controller: ctrl, decoration: const InputDecoration(hintText: "https://.../backup.json")),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+        ElevatedButton(
+          onPressed: () async {
+            final ok = await context.read<AppState>().importBackupFromUrl(ctrl.text.trim());
+            if (ctx.mounted) Navigator.pop(ctx);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(ok ? "✅ 已恢复" : "❌ 失败")),
+            );
+          },
+          child: const Text("拉取并恢复"),
+        ),
+      ],
+    ),
+  );
+}
+
+void _importSourceFromUrl(BuildContext context) {
+  final ctrl = TextEditingController();
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text("图源配置 URL"),
+      content: TextField(controller: ctrl, decoration: const InputDecoration(hintText: "https://.../source.json")),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("取消")),
+        ElevatedButton(
+          onPressed: () async {
+            final ok = await context.read<AppState>().importSourceFromUrl(ctrl.text.trim());
+            if (ctx.mounted) Navigator.pop(ctx);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(ok ? "✅ 图源已导入" : "❌ 导入失败")),
+            );
+          },
+          child: const Text("导入"),
+        ),
+      ],
+    ),
+  );
+}
   Widget _buildThemeRadio(BuildContext context, String label, ThemeMode value, ThemeMode groupValue, ValueChanged<ThemeMode> onChanged) {
     return InkWell(
       onTap: () => onChanged(value),
