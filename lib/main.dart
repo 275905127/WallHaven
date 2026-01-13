@@ -17,16 +17,16 @@ class AppColors {
   // --- ☀️ 浅色模式颜色 ---
   static const Color lightBackground = Color(0xFFFFFFFF); // [浅色] 全局背景：纯白
   static const Color lightCard = Color(0xFFF3F3F3);       // [浅色] 卡片/按钮背景：浅灰
-  static const Color lightAlert = Color(0xFFFFFFFF);      // [浅色] 弹窗背景：纯白 (ChatGPT原版弹窗通常是白的)
+  static const Color lightAlert = Color(0xFFE5E5E5);      // [浅色] 弹窗背景：纯白 (ChatGPT原版弹窗通常是白的)
   static const Color lightMenu = Color(0xFFEBEBEB);       // [浅色] 重点色下拉菜单背景：浅灰
-  static const Color lightDivider = Color(0xFFE5E5E5);    // [浅色] 分割线颜色
+  static const Color lightDivider = Color(0xFFFFFFFF);    // [浅色] 分割线颜色
 
   // --- 🌙 深色模式颜色 ---
   static const Color darkBackground = Color(0xFF000000);  // [深色] 全局背景：纯黑
-  static const Color darkCard = Color(0xFF202123);        // [深色] 卡片/按钮背景：深炭灰 (参考 ChatGPT 网页版)
-  static const Color darkAlert = Color(0xFF2C2C2C);       // [深色] 弹窗背景：标准的深灰色 (你之前觉得发蓝是因为没用这个)
-  static const Color darkMenu = Color(0xFF2C2C2C);        // [深色] 重点色下拉菜单背景
-  static const Color darkDivider = Color(0xFF2C2C2C);     // [深色] 分割线颜色
+  static const Color darkCard = Color(0xFF414141);        // [深色] 卡片/按钮背景：深炭灰 (参考 ChatGPT 网页版)
+  static const Color darkAlert = Color(0xFF1B1B1B);       // [深色] 弹窗背景：标准的深灰色 (你之前觉得发蓝是因为没用这个)
+  static const Color darkMenu = Color(0xFF333333);        // [深色] 重点色下拉菜单背景
+  static const Color darkDivider = Color(0xFF000000);     // [深色] 分割线颜色
 
   // --- 品牌色 ---
   static const Color brandYellow = Color(0xFFD2AE00);     // 头像底色：暗黄色
