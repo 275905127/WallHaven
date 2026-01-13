@@ -28,7 +28,7 @@ dependencies:
   permission_handler: ^11.3.0
   
   # 保存图片
-  gal: ^2.3.0
+  # gal: ^2.3.0
   
   # 状态管理
   provider: ^6.1.1
