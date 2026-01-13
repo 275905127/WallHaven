@@ -4,7 +4,8 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.10.7
+  sdk: '>=3.0.0 <4.0.0'        # Dart 版本：只要是 3.0 以上都行
+  flutter: '>=3.10.7'          # Flutter 版本：要求 3.10.7 以上（这行是可选的）
 
 dependencies:
   flutter:
