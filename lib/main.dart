@@ -398,34 +398,42 @@ class _SettingsPageState extends State<SettingsPage> {
     return Scaffold(
       extendBodyBehindAppBar: true, 
       
-      appBar: AppBar(
+       appBar: AppBar(
         centerTitle: true,
         title: const Text('设置'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back), 
           onPressed: () => Navigator.pop(context),
         ),
+        
         backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent, // 移除表面色调
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         
-        // 🌟 渐变羽化背景
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: _isScrolled ? LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                theme.scaffoldBackgroundColor.withOpacity(0.80), // 顶部：80%不透明
-                theme.scaffoldBackgroundColor.withOpacity(0.80), 
-                theme.scaffoldBackgroundColor.withOpacity(0.0),  // 底部：完全透明
+                // 顶部：保持较高不透明度，保证状态栏和"设置"二字清晰
+                theme.scaffoldBackgroundColor.withOpacity(0.95), 
+                
+                // 底部：完全透明
+                theme.scaffoldBackgroundColor.withOpacity(0.0),  
               ],
-              stops: const [0.0, 0.85, 1.0], 
+              // 🌟 核心修改：
+              // 之前的写法是 [0.0, 0.85, 1.0]，导致最后一下变淡太急促。
+              // 现在改成 [0.4, 1.0]：
+              // 意思是：前 40% 的高度是实心的(保护标题)，后 60% 的高度都在慢慢变透明。
+              // 这样过渡极其平滑，绝对不会有"线"的感觉。
+              stops: const [0.4, 1.0], 
             ) : null,
           ),
         ),
       ),
+
       
       body: ListView(
         controller: _scrollController,
