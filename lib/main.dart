@@ -497,7 +497,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               SettingsItem(
                 // 🌟 使用新图标
-                icon: Icons.haptic_feedback, 
+                icon: Icons.vibration, 
                 title: "触觉反馈",
                 trailing: Switch(
                   value: _hapticFeedback, 
