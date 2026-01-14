@@ -1,4 +1,3 @@
-// lib/theme/app_theme.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'app_colors.dart';
@@ -6,7 +5,6 @@ import 'app_tokens.dart';
 
 class AppTheme {
   static SwitchThemeData _switchTheme(AppTokens tokens) {
-    // ✅ Switch：开/关分别取值 + 轨道描边（全走 tokens）
     return SwitchThemeData(
       thumbColor: MaterialStateProperty.resolveWith((states) {
         return states.contains(MaterialState.selected)
@@ -18,28 +16,24 @@ class AppTheme {
             ? tokens.switchTrackOn
             : tokens.switchTrackOff;
       }),
-      trackOutlineColor: MaterialStateProperty.resolveWith((_) => tokens.switchTrackOutline),
-      trackOutlineWidth: MaterialStateProperty.resolveWith((_) => tokens.switchTrackOutlineWidth),
+      trackOutlineColor:
+          MaterialStatePropertyAll(tokens.switchTrackOutline),
+      trackOutlineWidth:
+          MaterialStatePropertyAll(tokens.switchTrackOutlineWidth),
       overlayColor: const MaterialStatePropertyAll(Colors.transparent),
     );
   }
 
   static SliderThemeData _sliderTheme(AppTokens tokens) {
-    // ✅ Slider：前段/后段分色 + 圆点按 tokens（全走 tokens）
     return SliderThemeData(
       trackHeight: tokens.sliderTrackHeight,
-
       thumbColor: tokens.sliderThumb,
       disabledThumbColor: tokens.sliderThumb,
-
       overlayColor: Colors.transparent,
-
       activeTrackColor: tokens.sliderTrackActive,
       inactiveTrackColor: tokens.sliderTrackInactive,
-
       disabledActiveTrackColor: tokens.sliderTrackActive,
       disabledInactiveTrackColor: tokens.sliderTrackInactive,
-
       activeTickMarkColor: Colors.transparent,
       inactiveTickMarkColor: Colors.transparent,
     );
@@ -49,7 +43,7 @@ class AppTheme {
     Color accentColor, {
     Color? customBg,
     Color? customCard,
-    double cardRadius = 16.0,
+    double cardRadius = 16,
   }) {
     final tokens = AppTokens.light();
 
@@ -57,9 +51,11 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
 
-      scaffoldBackgroundColor: customBg ?? AppColors.lightBackground,
+      scaffoldBackgroundColor:
+          customBg ?? AppColors.lightBackground,
       cardColor: customCard ?? AppColors.lightCard,
-      dialogBackgroundColor: AppColors.lightAlert,
+
+      // ❗ dividerColor 只兜底，真正设计全部走 tokens
       dividerColor: AppColors.lightDivider,
 
       colorScheme: ColorScheme.fromSeed(
@@ -68,24 +64,21 @@ class AppTheme {
         primary: accentColor,
       ),
 
-      extensions: <ThemeExtension<dynamic>>[
-        tokens,
-      ],
+      extensions: [tokens],
 
       dialogTheme: DialogTheme(
         backgroundColor: AppColors.lightAlert,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(cardRadius)),
+          borderRadius: BorderRadius.circular(cardRadius),
         ),
       ),
 
       popupMenuTheme: PopupMenuThemeData(
         color: AppColors.lightMenu,
         surfaceTintColor: Colors.transparent,
-        textStyle: const TextStyle(color: Colors.black, fontSize: 16),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(cardRadius)),
+          borderRadius: BorderRadius.circular(cardRadius),
         ),
       ),
 
@@ -105,14 +98,8 @@ class AppTheme {
         ),
       ),
 
-      // ✅ 全局控件皮肤统一出口（只从 tokens 取值）
       switchTheme: _switchTheme(tokens),
       sliderTheme: _sliderTheme(tokens),
-
-      textTheme: const TextTheme(
-        bodyLarge: TextStyle(color: Colors.black),
-        bodyMedium: TextStyle(color: Color(0xFF8E8E93)),
-      ),
     );
   }
 
@@ -120,7 +107,7 @@ class AppTheme {
     Color accentColor, {
     Color? customBg,
     Color? customCard,
-    double cardRadius = 16.0,
+    double cardRadius = 16,
   }) {
     final tokens = AppTokens.dark();
 
@@ -128,9 +115,10 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
 
-      scaffoldBackgroundColor: customBg ?? AppColors.darkBackground,
+      scaffoldBackgroundColor:
+          customBg ?? AppColors.darkBackground,
       cardColor: customCard ?? AppColors.darkCard,
-      dialogBackgroundColor: AppColors.darkAlert,
+
       dividerColor: AppColors.darkDivider,
 
       colorScheme: ColorScheme.fromSeed(
@@ -139,24 +127,21 @@ class AppTheme {
         primary: accentColor,
       ),
 
-      extensions: <ThemeExtension<dynamic>>[
-        tokens,
-      ],
+      extensions: [tokens],
 
       dialogTheme: DialogTheme(
         backgroundColor: AppColors.darkAlert,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(cardRadius)),
+          borderRadius: BorderRadius.circular(cardRadius),
         ),
       ),
 
       popupMenuTheme: PopupMenuThemeData(
         color: AppColors.darkMenu,
         surfaceTintColor: Colors.transparent,
-        textStyle: const TextStyle(color: Colors.white, fontSize: 16),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(cardRadius)),
+          borderRadius: BorderRadius.circular(cardRadius),
         ),
       ),
 
@@ -178,11 +163,6 @@ class AppTheme {
 
       switchTheme: _switchTheme(tokens),
       sliderTheme: _sliderTheme(tokens),
-
-      textTheme: const TextTheme(
-        bodyLarge: TextStyle(color: Colors.white),
-        bodyMedium: TextStyle(color: Color(0xFF9E9E9E)),
-      ),
     );
   }
 }
