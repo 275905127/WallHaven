@@ -41,7 +41,7 @@ class WallhavenApi {
       }
       return [];
     } catch (e) {
-      debugPrint("Wallhaven API Error: $e");
+      print("Wallhaven API Error: $e");
       return [];
     }
   }
