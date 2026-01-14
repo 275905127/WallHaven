@@ -1,4 +1,6 @@
-// lib/main.dart
+// ⚠️ 警示：此文件是入口与交互基线，禁止随意挪动 Widget 树导致主题/右滑筛选失效。
+// ⚠️ 警示：筛选手势体验优先；不要强行加花色图标和高饱和颜色。
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -9,6 +11,8 @@ import 'theme/theme_store.dart';
 import 'widgets/foggy_app_bar.dart';
 import 'widgets/settings_widgets.dart';
 import 'pages/sub_pages.dart';
+import 'pages/filter_drawer.dart';
+import 'pages/wallpaper_detail_page.dart';
 import 'models/wallpaper.dart';
 import 'api/wallhaven_api.dart';
 
@@ -43,7 +47,7 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      themeMode: store.mode, // ✅ store 已做“二选一”接管
+      themeMode: store.mode,
       theme: AppTheme.light(
         store.accentColor,
         customBg: customBg,
@@ -69,11 +73,15 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   final ScrollController _scrollController = ScrollController();
   final List<Wallpaper> _wallpapers = [];
   int _page = 1;
   bool _isLoading = false;
   bool _isScrolled = false;
+
+  WallhavenFilters _filters = const WallhavenFilters();
 
   @override
   void initState() {
@@ -82,14 +90,19 @@ class _HomePageState extends State<HomePage> {
     _scrollController.addListener(() {
       if (_scrollController.offset > 0 && !_isScrolled) setState(() => _isScrolled = true);
       else if (_scrollController.offset <= 0 && _isScrolled) setState(() => _isScrolled = false);
-      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) _loadMore();
+
+      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+        _loadMore();
+      }
     });
   }
 
   Future<void> _initData() async {
     setState(() => _isLoading = true);
+    _page = 1;
+    _wallpapers.clear();
     await _fetchWallpapers();
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
   }
 
   Future<void> _loadMore() async {
@@ -97,29 +110,56 @@ class _HomePageState extends State<HomePage> {
     setState(() => _isLoading = true);
     _page++;
     await _fetchWallpapers();
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
   }
 
   Future<void> _fetchWallpapers() async {
     final store = ThemeScope.of(context);
+    final f = _filters;
+
     final newItems = await WallhavenApi.getWallpapers(
       baseUrl: store.currentSource.baseUrl,
       apiKey: store.currentSource.apiKey,
       page: _page,
+      sorting: f.sorting,
+      order: f.order,
+      categories: f.categories,
+      purity: f.purity,
+      resolutions: f.resolutions.isEmpty ? null : f.resolutions,
+      ratios: f.ratios.isEmpty ? null : f.ratios,
+      query: f.query.isEmpty ? null : f.query,
+      atleast: f.atleast.isEmpty ? null : f.atleast,
+      colors: f.colors.isEmpty ? null : f.colors,
+      topRange: (f.sorting == 'toplist') ? f.topRange : null,
     );
-    if (mounted) setState(() => _wallpapers.addAll(newItems));
+
+    if (!mounted) return;
+    setState(() => _wallpapers.addAll(newItems));
   }
 
   Future<void> _onRefresh() async {
-    _page = 1;
-    _wallpapers.clear();
     await _initData();
+  }
+
+  void _applyFilters(WallhavenFilters f) {
+    setState(() => _filters = f);
+    _initData();
+  }
+
+  void _resetFilters() {
+    setState(() => _filters = const WallhavenFilters());
+    _initData();
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  double _drawerWidth(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    return w * (2 / 3);
   }
 
   @override
@@ -129,9 +169,22 @@ class _HomePageState extends State<HomePage> {
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {
-        final theme = Theme.of(context); // ✅ 放进 builder，避免主题变化时拿旧值
+        final theme = Theme.of(context);
 
         return Scaffold(
+          key: _scaffoldKey,
+
+          // ✅ 右滑筛选：endDrawer + 允许右侧边缘拖拽打开
+          endDrawerEnableOpenDragGesture: true,
+          endDrawer: Drawer(
+            width: _drawerWidth(context),
+            child: FilterDrawer(
+              initial: _filters,
+              onApply: _applyFilters,
+              onReset: _resetFilters,
+            ),
+          ),
+
           extendBodyBehindAppBar: true,
           appBar: FoggyAppBar(
             title: const Text("Wallhaven Pro"),
@@ -147,6 +200,7 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(width: 8),
             ],
           ),
+
           body: _wallpapers.isEmpty && _isLoading
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
@@ -164,7 +218,15 @@ class _HomePageState extends State<HomePage> {
                       final double aspectRatio = (paper.width / paper.height).clamp(0.5, 2.0);
 
                       return GestureDetector(
-                        onTap: () => debugPrint("Clicked: ${paper.id}"),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => WallpaperDetailPage(
+                              id: paper.id,
+                              heroThumb: paper.thumb,
+                            ),
+                          ),
+                        ),
                         child: Container(
                           decoration: BoxDecoration(
                             color: theme.cardColor,
@@ -180,7 +242,10 @@ class _HomePageState extends State<HomePage> {
                                 color: theme.cardColor,
                                 child: const Center(child: Icon(Icons.image, color: Colors.grey)),
                               ),
-                              errorWidget: (context, url, error) => const Icon(Icons.error),
+                              errorWidget: (context, url, error) => Container(
+                                color: theme.cardColor,
+                                child: const Center(child: Icon(Icons.error, color: Colors.grey)),
+                              ),
                             ),
                           ),
                         ),
@@ -237,7 +302,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 Icon(source.isBuiltIn ? Icons.verified : Icons.link, color: theme.iconTheme.color, size: 20),
                 const SizedBox(width: 12),
                 Expanded(child: Text(source.name, style: const TextStyle(fontSize: 16))),
-                if (store.currentSource.id == source.id) Icon(Icons.check, color: store.accentColor),
+                if (store.currentSource.id == source.id) Icon(Icons.check, color: theme.iconTheme.color),
               ],
             ),
           );
