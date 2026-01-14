@@ -394,14 +394,14 @@ class _SettingsPageState extends State<SettingsPage> {
             end: Alignment.bottomCenter,
             colors: [
               // 1. 顶部：锁死高浓度 (0.96)
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.85),
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.90),
               
               // 2. 缓冲带起点：依然保持高浓度 (0.96) - 这里的 stop 是 0.5
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.80),
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.90),
               
               // 3. 慢速下滑：微降到 0.85 - 这里的 stop 是 0.7
               // (这一步是为了让眼睛适应变化，消除"分界线感")
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.75),
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.80),
               
               // 4. 加速下滑：降到 0.40 - 这里的 stop 是 0.9
               (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.30),
