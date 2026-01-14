@@ -1,3 +1,4 @@
+// lib/pages/sub_pages.dart
 import 'package:flutter/material.dart';
 import '../theme/theme_store.dart';
 import '../widgets/foggy_app_bar.dart';
@@ -31,51 +32,6 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
   void dispose() {
     _sc.dispose();
     super.dispose();
-  }
-
-  void _showAppearanceDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        final store = ThemeScope.of(context);
-        ThemeMode tempMode = store.mode;
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text("颜色模式"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildRadio(context, "系统 (默认)", ThemeMode.system, tempMode, (v) => setState(() => tempMode = v!)),
-                  _buildRadio(context, "浅色", ThemeMode.light, tempMode, (v) => setState(() => tempMode = v!)),
-                  _buildRadio(context, "深色", ThemeMode.dark, tempMode, (v) => setState(() => tempMode = v!)),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    store.setMode(tempMode);
-                    Navigator.pop(context);
-                  },
-                  child: const Text("确定"),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildRadio(BuildContext ctx, String title, ThemeMode val, ThemeMode group, ValueChanged<ThemeMode?> change) {
-    return RadioListTile<ThemeMode>(
-      title: Text(title),
-      value: val,
-      groupValue: group,
-      onChanged: change,
-      activeColor: Theme.of(ctx).colorScheme.primary,
-      contentPadding: EdgeInsets.zero,
-    );
   }
 
   String _getModeName(ThemeMode mode) {
@@ -202,13 +158,180 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
             min: 0.0,
             max: 40.0,
             divisions: 40,
-            activeColor: store.accentColor,
+            // ✅ 颜色/圆点/轨道厚度统一交给全局 SliderTheme（AppTheme）
             onChanged: onChanged,
             onChangeEnd: (_) => onSave(),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildColorModeCollapsible(BuildContext context, ThemeStore store) {
+    final theme = Theme.of(context);
+    final bool disabled = store.enableCustomColors;
+
+    // 规则：自定义颜色开启时，颜色模式不可选；并强制收起
+    final bool switchValue = disabled ? false : store.enableThemeMode;
+    final bool expanded = switchValue;
+
+    final double largeRadius = store.cardRadius;
+    final double smallRadius = 4.0;
+
+    final Color disabledTint = theme.brightness == Brightness.dark
+        ? Colors.white.withOpacity(0.35)
+        : Colors.black.withOpacity(0.35);
+
+    Widget header = Container(
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(largeRadius),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          // 点击整行：如果 disabled 则不响应；否则切换开关（并触发展开/收起）
+          onTap: disabled ? null : () => store.setEnableThemeMode(!store.enableThemeMode),
+          borderRadius: BorderRadius.circular(largeRadius),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Row(
+              children: [
+                Icon(Icons.wb_sunny_outlined, color: disabled ? disabledTint : theme.iconTheme.color, size: 24),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "颜色模式",
+                        style: TextStyle(fontSize: 16, color: disabled ? disabledTint : theme.textTheme.bodyLarge?.color),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        disabled
+                            ? "已被「自定义颜色」接管"
+                            : (store.enableThemeMode ? _getModeName(store.preferredMode) : "关闭：跟随系统"),
+                        style: TextStyle(fontSize: 13, color: disabled ? disabledTint : theme.textTheme.bodyMedium?.color),
+                      ),
+                    ],
+                  ),
+                ),
+                // 右侧开关：打开=展开，关闭=收起
+                Switch(
+                  value: switchValue,
+                  onChanged: disabled ? null : (v) => store.setEnableThemeMode(v),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (!expanded) return header;
+
+    // 展开区域（单独一块，但视觉上与 header 连起来）
+    Widget body = Container(
+      margin: const EdgeInsets.only(top: 2),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(smallRadius),
+          topRight: Radius.circular(smallRadius),
+          bottomLeft: Radius.circular(largeRadius),
+          bottomRight: Radius.circular(largeRadius),
+        ),
+      ),
+      child: Column(
+        children: [
+          RadioListTile<ThemeMode>(
+            title: const Text("系统 (默认)"),
+            value: ThemeMode.system,
+            groupValue: store.preferredMode,
+            onChanged: disabled ? null : (v) => store.setPreferredMode(v!),
+            activeColor: theme.colorScheme.primary,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+          const Divider(height: 1),
+          RadioListTile<ThemeMode>(
+            title: const Text("浅色"),
+            value: ThemeMode.light,
+            groupValue: store.preferredMode,
+            onChanged: disabled ? null : (v) => store.setPreferredMode(v!),
+            activeColor: theme.colorScheme.primary,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+          const Divider(height: 1),
+          RadioListTile<ThemeMode>(
+            title: const Text("深色"),
+            value: ThemeMode.dark,
+            groupValue: store.preferredMode,
+            onChanged: disabled ? null : (v) => store.setPreferredMode(v!),
+            activeColor: theme.colorScheme.primary,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+        ],
+      ),
+    );
+
+    // 为了更像 SettingsGroup：把 header 的下圆角变小，让连接更自然
+    header = Container(
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(largeRadius),
+          topRight: Radius.circular(largeRadius),
+          bottomLeft: Radius.circular(smallRadius),
+          bottomRight: Radius.circular(smallRadius),
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: disabled ? null : () => store.setEnableThemeMode(!store.enableThemeMode),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(largeRadius),
+            topRight: Radius.circular(largeRadius),
+            bottomLeft: Radius.circular(smallRadius),
+            bottomRight: Radius.circular(smallRadius),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Row(
+              children: [
+                Icon(Icons.wb_sunny_outlined, color: disabled ? disabledTint : theme.iconTheme.color, size: 24),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "颜色模式",
+                        style: TextStyle(fontSize: 16, color: disabled ? disabledTint : theme.textTheme.bodyLarge?.color),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        disabled
+                            ? "已被「自定义颜色」接管"
+                            : _getModeName(store.preferredMode),
+                        style: TextStyle(fontSize: 13, color: disabled ? disabledTint : theme.textTheme.bodyMedium?.color),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: switchValue,
+                  onChanged: disabled ? null : (v) => store.setEnableThemeMode(v),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    return Column(children: [header, body]);
   }
 
   @override
@@ -237,21 +360,20 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
             padding: const EdgeInsets.fromLTRB(16, 110, 16, 20),
             children: [
               const SectionHeader(title: "界面风格"),
+
+              // ✅ 颜色模式：折叠 + 开关控制展开/收起；自定义颜色开启时禁用
+              _buildColorModeCollapsible(context, store),
+
+              const SizedBox(height: 12),
+
               SettingsGroup(
                 items: [
                   SettingsItem(
-                    icon: Icons.wb_sunny_outlined,
-                    title: "颜色模式",
-                    subtitle: _getModeName(store.mode),
-                    onTap: () => _showAppearanceDialog(context),
-                  ),
-                  SettingsItem(
                     icon: Icons.palette_outlined,
-                    title: "启用自定义颜色",
+                    title: "自定义颜色", // ✅ 文案改名
                     trailing: Switch(
                       value: store.enableCustomColors,
                       onChanged: (val) => store.setEnableCustomColors(val),
-                      activeColor: store.accentColor,
                     ),
                     onTap: () => store.setEnableCustomColors(!store.enableCustomColors),
                   ),
@@ -272,8 +394,12 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
                             ? const Icon(Icons.auto_awesome, size: 14, color: Colors.grey)
                             : null,
                       ),
-                      onTap: () => _showHexColorDialog(context, "全局背景颜色", store.customBackgroundColor,
-                          (c) => store.setCustomBackgroundColor(c)),
+                      onTap: () => _showHexColorDialog(
+                        context,
+                        "全局背景颜色",
+                        store.customBackgroundColor,
+                        (c) => store.setCustomBackgroundColor(c),
+                      ),
                     ),
                     SettingsItem(
                       icon: Icons.dashboard_customize_outlined,
@@ -291,16 +417,22 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
                             ? const Icon(Icons.auto_awesome, size: 14, color: Colors.grey)
                             : null,
                       ),
-                      onTap: () => _showHexColorDialog(context, "卡片颜色", store.customCardColor, (c) => store.setCustomCardColor(c)),
+                      onTap: () => _showHexColorDialog(
+                        context,
+                        "卡片颜色",
+                        store.customCardColor,
+                        (c) => store.setCustomCardColor(c),
+                      ),
                     ),
                   ],
                 ],
               ),
+
               const SizedBox(height: 24),
               const SectionHeader(title: "圆角设置"),
               _buildRadiusSlider(context, "卡片圆角", store.cardRadius, (val) => store.setCardRadius(val), () => store.savePreferences()),
               const SizedBox(height: 12),
-              _buildRadiusSlider(context, "首页图片圆角", store.imageRadius, (val) => store.setImageRadius(val), () => store.savePreferences()),
+              _buildRadiusSlider(context, "图片圆角", store.imageRadius, (val) => store.setImageRadius(val), () => store.savePreferences()),
             ],
           ),
         );
@@ -426,7 +558,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                 source.copyWith(
                   name: source.isBuiltIn ? null : nameCtrl.text,
                   baseUrl: source.isBuiltIn ? null : urlCtrl.text,
-                  // ✅ 统一：空 = null（未配置），不再塞空串
                   username: userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim(),
                   apiKey: keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim(),
                 ),
