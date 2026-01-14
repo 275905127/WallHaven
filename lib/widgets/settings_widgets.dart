@@ -1,5 +1,7 @@
+// lib/widgets/settings_widgets.dart
 import 'package:flutter/material.dart';
 import '../theme/theme_store.dart';
+import '../theme/app_tokens.dart';
 
 class SettingsItem {
   final IconData icon;
@@ -34,52 +36,54 @@ class SectionHeader extends StatelessWidget {
 
 class SettingsGroup extends StatelessWidget {
   final List<SettingsItem> items;
-  static const double smallRadius = 4.0;
-
   const SettingsGroup({super.key, required this.items});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.extension<AppTokens>()!;
     final double largeRadius = ThemeScope.of(context).cardRadius;
+
+    BorderRadius _radiusFor(int index) {
+      final bool isFirst = index == 0;
+      final bool isLast = index == items.length - 1;
+      final bool isSingle = items.length == 1;
+
+      if (isSingle) return BorderRadius.circular(largeRadius);
+      if (isFirst) {
+        return BorderRadius.only(
+          topLeft: Radius.circular(largeRadius),
+          topRight: Radius.circular(largeRadius),
+          bottomLeft: Radius.circular(tokens.smallRadius),
+          bottomRight: Radius.circular(tokens.smallRadius),
+        );
+      }
+      if (isLast) {
+        return BorderRadius.only(
+          topLeft: Radius.circular(tokens.smallRadius),
+          topRight: Radius.circular(tokens.smallRadius),
+          bottomLeft: Radius.circular(largeRadius),
+          bottomRight: Radius.circular(largeRadius),
+        );
+      }
+      return BorderRadius.circular(tokens.smallRadius);
+    }
 
     return Column(
       children: List.generate(items.length, (index) {
         final item = items[index];
-        final bool isFirst = index == 0;
+        final br = _radiusFor(index);
         final bool isLast = index == items.length - 1;
-        final bool isSingle = items.length == 1;
-
-        BorderRadius borderRadius;
-        if (isSingle) {
-          borderRadius = BorderRadius.circular(largeRadius);
-        } else if (isFirst) {
-          borderRadius = BorderRadius.only(
-            topLeft: Radius.circular(largeRadius),
-            topRight: Radius.circular(largeRadius),
-            bottomLeft: const Radius.circular(smallRadius),
-            bottomRight: const Radius.circular(smallRadius),
-          );
-        } else if (isLast) {
-          borderRadius = BorderRadius.only(
-            topLeft: const Radius.circular(smallRadius),
-            topRight: const Radius.circular(smallRadius),
-            bottomLeft: Radius.circular(largeRadius),
-            bottomRight: Radius.circular(largeRadius),
-          );
-        } else {
-          borderRadius = const BorderRadius.all(Radius.circular(smallRadius));
-        }
 
         return Column(
           children: [
             Container(
-              decoration: BoxDecoration(color: theme.cardColor, borderRadius: borderRadius),
+              decoration: BoxDecoration(color: theme.cardColor, borderRadius: br),
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: item.onTap,
-                  borderRadius: borderRadius,
+                  borderRadius: br,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                     child: Row(
@@ -101,7 +105,7 @@ class SettingsGroup extends StatelessWidget {
                         item.trailing ??
                             Icon(
                               Icons.chevron_right,
-                              color: theme.brightness == Brightness.dark ? const Color(0xFF666666) : const Color(0xFFC7C7CC),
+                              color: tokens.chevronColor,
                             ),
                       ],
                     ),
@@ -109,7 +113,7 @@ class SettingsGroup extends StatelessWidget {
                 ),
               ),
             ),
-            if (!isLast) Container(height: 2, color: theme.dividerColor),
+            if (!isLast) Container(height: tokens.dividerThickness, color: tokens.dividerColor),
           ],
         );
       }),
