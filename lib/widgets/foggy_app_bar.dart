@@ -38,29 +38,28 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: 0,
       scrolledUnderElevation: 0,
       
-      // ⚠️ 严格保留原代码的 6 段式渐变参数
-      flexibleSpace: isScrolled 
-          ? Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    // [1]
-                    baseColor.withOpacity(0.94),
-                    // [2]
-                    baseColor.withOpacity(0.94),
-                    // [3]
-                    baseColor.withOpacity(0.90),
-                    // [4]
-                    baseColor.withOpacity(0.75),
-                    // [5]
-                    baseColor.withOpacity(0.50),
-                    // [6]
-                    baseColor.withOpacity(0.20),
-                    // [7]
-                    baseColor.withOpacity(0.0),
-                  ],
+      // 🌟 优化点：使用 AnimatedOpacity 实现呼吸渐变
+      flexibleSpace: AnimatedOpacity(
+        // 只要 isScrolled 变了，它自动会在 200ms 内做淡入淡出
+        opacity: isScrolled ? 1.0 : 0.0, 
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut, // 缓动曲线
+        
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                 // ... 你的 6 段式颜色 (保持不变)
+                 baseColor.withOpacity(0.94),
+                 baseColor.withOpacity(0.94),
+                 baseColor.withOpacity(0.90),
+                 baseColor.withOpacity(0.75),
+                 baseColor.withOpacity(0.50),
+                 baseColor.withOpacity(0.20),
+                 baseColor.withOpacity(0.0),
+              ],
                   // 6段式精密节点
                   stops: const [0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], 
                 ),
