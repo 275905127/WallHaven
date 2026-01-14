@@ -406,7 +406,7 @@ flexibleSpace: _isScrolled
               // 我们不用 Colors.transparent，而是用"背景色 + 0.0透明度"。
               // 这样保证了渐变过程中 RGB 值始终是纯净的白色（或黑色），只有透明度在变。
               // 彻底消除边缘发灰、发脏的问题！
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.0),
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.10),
             ],
             
             // 保持之前的黄金比例，这是解决"雾感"和"无缝"的最佳平衡
