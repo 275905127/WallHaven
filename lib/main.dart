@@ -6,18 +6,17 @@ import 'theme/app_theme.dart';
 import 'theme/theme_store.dart';
 import 'widgets/foggy_app_bar.dart';
 import 'widgets/settings_widgets.dart';
-import 'pages/sub_pages.dart'; // 引入二级页面
+import 'pages/sub_pages.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // 确保绑定初始化 (为了 SharedPreferences)
+  WidgetsFlutterBinding.ensureInitialized(); // 必须加，为了持久化
   
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent, 
     systemNavigationBarColor: Colors.transparent, 
   ));
   
-  final themeStore = ThemeStore(); // 创建 Store
-  // 注意：真实环境中 themeStore 初始化是异步的，这里为了简化直接运行
+  final themeStore = ThemeStore();
   
   runApp(
     ThemeScope(
@@ -46,14 +45,14 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// 首页保持不变，略...
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
   @override
   Widget build(BuildContext context) {
+    final store = ThemeScope.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Wallhaven Pro"), // 改个名字应景
+        title: const Text("Wallhaven Pro"),
         centerTitle: true,
         actions: [
           IconButton(
@@ -69,8 +68,7 @@ class HomePage extends StatelessWidget {
           children: [
             Icon(Icons.image_search, size: 64, color: Theme.of(context).disabledColor),
             const SizedBox(height: 16),
-            // 显示当前图源，验证状态管理
-            Text("当前源: ${ThemeScope.of(context).currentSource.name}", style: TextStyle(color: Theme.of(context).disabledColor, fontSize: 18)),
+            Text("当前源: ${store.currentSource.name}", style: TextStyle(color: Theme.of(context).disabledColor, fontSize: 18)),
           ],
         ),
       ),
@@ -100,39 +98,94 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  // 🌟 切换图源弹窗 (复用原有弹窗设计)
-  void _showSourceSelectionDialog(BuildContext context) async {
+  // 主题弹窗
+  void _showAppearanceDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final store = ThemeScope.of(context);
+        ThemeMode tempMode = store.mode;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("外观"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildRadio(context, "系统 (默认)", ThemeMode.system, tempMode, (v) => setState(() => tempMode = v!)),
+                  _buildRadio(context, "浅色", ThemeMode.light, tempMode, (v) => setState(() => tempMode = v!)),
+                  _buildRadio(context, "深色", ThemeMode.dark, tempMode, (v) => setState(() => tempMode = v!)),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () { store.setMode(tempMode); Navigator.pop(context); },
+                  child: const Text("确定"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildRadio(BuildContext ctx, String title, ThemeMode val, ThemeMode group, ValueChanged<ThemeMode?> change) {
+    return RadioListTile<ThemeMode>(
+      title: Text(title), value: val, groupValue: group, onChanged: change,
+      activeColor: Theme.of(ctx).colorScheme.primary, contentPadding: EdgeInsets.zero,
+    );
+  }
+
+  // 重点色菜单
+  void _showDynamicAccentMenu(BuildContext context) async {
+    final store = ThemeScope.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // 简化的位置计算
+    final result = await showMenu<Map<String, dynamic>>(
+      context: context,
+      position: const RelativeRect.fromLTRB(100, 100, 0, 0), // 简化处理
+      color: isDark ? AppColors.darkMenu : AppColors.lightMenu,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      items: [
+        {"c": Colors.blue, "n": "蓝色"}, {"c": Colors.green, "n": "绿色"},
+        {"c": Colors.orange, "n": "橙色"}, {"c": Colors.purple, "n": "紫色"},
+      ].map((e) => PopupMenuItem(
+        value: e,
+        child: Row(
+          children: [
+            Container(width: 24, height: 24, decoration: BoxDecoration(color: e['c'] as Color, shape: BoxShape.circle)),
+            const SizedBox(width: 12),
+            Text(e['n'] as String),
+          ],
+        ),
+      )).toList(),
+    );
+
+    if (result != null) {
+      store.setAccent(result['c'], result['n']);
+    }
+  }
+
+  // 切换图源弹窗
+  void _showSourceSelectionDialog(BuildContext context) {
     final store = ThemeScope.of(context);
     final theme = Theme.of(context);
     
-    // 动态计算弹窗位置逻辑略复杂，这里为了演示简化为直接中间弹窗，
-    // 或者用 showModalBottomSheet 也许更好？
-    // 但既然你要求"原有弹窗设计" (PopupMenu)，我们用 showMenu
-    
-    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final RelativeRect position = RelativeRect.fromLTRB(
-      100, overlay.size.height / 2, 0, 0 // 简化定位，真实场景需要 Context
-    );
-
-    // 这里其实更推荐用 SimpleDialog 来做图源切换，因为列表可能很长
     showDialog(
       context: context,
       builder: (context) => SimpleDialog(
         title: const Text("切换图源"),
         children: store.sources.map((source) {
           return SimpleDialogOption(
-            onPressed: () {
-              store.setSource(source);
-              Navigator.pop(context);
-            },
+            onPressed: () { store.setSource(source); Navigator.pop(context); },
             child: Row(
               children: [
-                Icon(source.isBuiltIn ? Icons.verified : Icons.link, color: theme.iconTheme.color),
+                Icon(source.isBuiltIn ? Icons.verified : Icons.link, color: theme.iconTheme.color, size: 20),
                 const SizedBox(width: 12),
-                Text(source.name),
-                const Spacer(),
-                if (store.currentSource.id == source.id)
-                  Icon(Icons.check, color: store.accentColor),
+                Expanded(child: Text(source.name, style: const TextStyle(fontSize: 16))),
+                if (store.currentSource.id == source.id) Icon(Icons.check, color: store.accentColor),
               ],
             ),
           );
@@ -153,46 +206,50 @@ class _SettingsPageState extends State<SettingsPage> {
         controller: _sc,
         padding: EdgeInsets.fromLTRB(16, topPadding + 10, 16, 20),
         children: [
-          const UserProfileHeader(),
+          const UserProfileHeader(), // 头像组件
           const SizedBox(height: 32),
           
-          // 1. 外观
           const SectionHeader(title: "外观"),
           SettingsGroup(items: [
-             // 🌟 个性化 (跳转二级)
              SettingsItem(
                icon: Icons.person_outline, 
                title: "个性化", 
                subtitle: "自定义颜色与圆角",
                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalizationPage())),
              ),
-             // 🌟 主题
-             SettingsItem(icon: Icons.wb_sunny_outlined, title: "主题", onTap: () {}), // 逻辑省略，保持之前
-             // 🌟 重点色
-             SettingsItem(icon: Icons.color_lens_outlined, title: "重点色", onTap: () {}), // 逻辑省略
+             SettingsItem(
+               icon: Icons.wb_sunny_outlined, 
+               title: "主题", 
+               subtitle: store.mode.toString().split('.').last, // 简单显示
+               onTap: () => _showAppearanceDialog(context)
+             ),
+             SettingsItem(
+                icon: Icons.color_lens_outlined, 
+                title: "重点色", 
+                subtitle: store.accentName, 
+                trailing: GestureDetector(
+                  onTap: () => _showDynamicAccentMenu(context),
+                  child: Container(width: 24, height: 24, decoration: BoxDecoration(color: store.accentColor, shape: BoxShape.circle)),
+                ),
+                onTap: () {}, 
+              ),
           ]),
           
           const SizedBox(height: 24),
-          
-          // 2. 图源 (原账户)
           const SectionHeader(title: "图源"),
           SettingsGroup(items: [
-             // 🌟 切换图源 (顶替工作空间)
              SettingsItem(
                icon: Icons.swap_horiz, 
                title: "切换图源", 
-               subtitle: store.currentSource.name, // 显示当前源
+               subtitle: store.currentSource.name,
                onTap: () => _showSourceSelectionDialog(context),
              ),
-             // 🌟 图源管理 (原升级至Pro)
              SettingsItem(
                icon: Icons.settings_ethernet, 
                title: "图源管理", 
                subtitle: "添加或管理第三方源",
                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SourceManagementPage())),
              ),
-             // 🌟 电子邮件 (保持)
-             SettingsItem(icon: Icons.email_outlined, title: "反馈与建议", subtitle: "275905127@qq.com", onTap: () {}),
           ]),
           
           const SizedBox(height: 300),
@@ -202,12 +259,23 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-// UserProfileHeader 保持不变...
 class UserProfileHeader extends StatelessWidget {
   const UserProfileHeader({super.key});
   @override
   Widget build(BuildContext context) {
-    // ... 保持原有代码
-    return Container(height: 100); // 占位演示
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Column(
+      children: [
+        Container(
+          width: 80, height: 80, 
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(color: AppColors.brandYellow, shape: BoxShape.circle),
+          child: Text("27", style: TextStyle(color: isDark ? Colors.white : Colors.black.withOpacity(0.7), fontSize: 32, fontWeight: FontWeight.w500)),
+        ),
+        const SizedBox(height: 16),
+        Text("星河 於长野", style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 20, fontWeight: FontWeight.w600)),
+      ],
+    );
   }
 }
