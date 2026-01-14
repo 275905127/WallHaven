@@ -12,6 +12,9 @@ class ThemeStore extends ChangeNotifier {
   double _cardRadius = 16.0;   
   double _imageRadius = 12.0;  
 
+  // 🌟 新增：是否启用自定义颜色开关
+  bool _enableCustomColors = false; 
+
   Color? _customBackgroundColor; 
   Color? _customCardColor;
 
@@ -26,6 +29,9 @@ class ThemeStore extends ChangeNotifier {
   double get cardRadius => _cardRadius;
   double get imageRadius => _imageRadius;
   
+  // 🌟 新增 Getter
+  bool get enableCustomColors => _enableCustomColors;
+
   Color? get customBackgroundColor => _customBackgroundColor;
   Color? get customCardColor => _customCardColor;
 
@@ -37,13 +43,13 @@ class ThemeStore extends ChangeNotifier {
     _loadFromPrefs(); 
   }
 
-  // === Actions (修改状态) ===
+  // === Actions ===
   
   void setMode(ThemeMode newMode) {
     if (_mode != newMode) {
       _mode = newMode;
       notifyListeners();
-      savePreferences(); // 离散操作，直接保存
+      savePreferences();
     }
   }
 
@@ -51,10 +57,18 @@ class ThemeStore extends ChangeNotifier {
     _accentColor = newColor;
     _accentName = newName;
     notifyListeners();
-    savePreferences(); // 离散操作，直接保存
+    savePreferences();
   }
 
-  // 🌟 优化：只更新内存和 UI，不保存（解决滑块卡顿）
+  // 🌟 新增：设置自定义颜色开关
+  void setEnableCustomColors(bool value) {
+    if (_enableCustomColors != value) {
+      _enableCustomColors = value;
+      notifyListeners();
+      savePreferences();
+    }
+  }
+
   void setCardRadius(double radius) {
     if (_cardRadius != radius) {
       _cardRadius = radius;
@@ -62,7 +76,6 @@ class ThemeStore extends ChangeNotifier {
     }
   }
 
-  // 🌟 优化：只更新内存和 UI，不保存
   void setImageRadius(double radius) {
     if (_imageRadius != radius) {
       _imageRadius = radius;
@@ -74,7 +87,7 @@ class ThemeStore extends ChangeNotifier {
     if (_customBackgroundColor != color) {
       _customBackgroundColor = color;
       notifyListeners();
-      savePreferences(); // 颜色选择是离散操作，可以直接保存
+      savePreferences();
     }
   }
 
@@ -120,12 +133,13 @@ class ThemeStore extends ChangeNotifier {
   }
 
   // === 持久化逻辑 ===
-  
-  // 🌟 新增：公开的保存方法，供滑块松手时调用
   Future<void> savePreferences() async {
     final prefs = await SharedPreferences.getInstance();
     prefs.setInt('theme_mode', _mode.index);
     
+    // 🌟 保存开关状态
+    prefs.setBool('enable_custom_colors', _enableCustomColors);
+
     prefs.setDouble('card_radius', _cardRadius);
     prefs.setDouble('image_radius', _imageRadius);
     
@@ -154,6 +168,9 @@ class ThemeStore extends ChangeNotifier {
         _mode = ThemeMode.values[modeIndex];
       }
       
+      // 🌟 读取开关状态
+      _enableCustomColors = prefs.getBool('enable_custom_colors') ?? false;
+
       _cardRadius = prefs.getDouble('card_radius') ?? prefs.getDouble('corner_radius') ?? 16.0;
       _imageRadius = prefs.getDouble('image_radius') ?? 12.0;
 
