@@ -63,10 +63,9 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
                   // 6段式精密节点
                   stops: const [0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], 
                 ),
-              ),
-            ),
+             ),
           ),
-          : null,
+       ),
     );
   }
 }
