@@ -373,7 +373,7 @@ class _SettingsPageState extends State<SettingsPage> {
         // 🌟 核心修正1：加高标题栏
         // 默认是 56，我们加到 76。
         // 这多出来的 14px，就是为了让底部的渐变有足够的缓冲空间，不再像一条线。
-        toolbarHeight: 76, 
+        toolbarHeight: 96, 
         
         leading: IconButton(
           icon: const Icon(Icons.arrow_back), 
