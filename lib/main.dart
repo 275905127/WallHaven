@@ -9,7 +9,7 @@ import 'widgets/settings_widgets.dart';
 import 'pages/sub_pages.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // 必须加，为了持久化
+  WidgetsFlutterBinding.ensureInitialized(); 
   
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent, 
@@ -119,7 +119,10 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () { store.setMode(tempMode); Navigator.pop(context); },
+                  onPressed: () { 
+                    store.setMode(tempMode); 
+                    Navigator.pop(context); 
+                  },
                   child: const Text("确定"),
                 ),
               ],
@@ -135,37 +138,6 @@ class _SettingsPageState extends State<SettingsPage> {
       title: Text(title), value: val, groupValue: group, onChanged: change,
       activeColor: Theme.of(ctx).colorScheme.primary, contentPadding: EdgeInsets.zero,
     );
-  }
-
-  // 重点色菜单
-  void _showDynamicAccentMenu(BuildContext context) async {
-    final store = ThemeScope.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    // 简化的位置计算
-    final result = await showMenu<Map<String, dynamic>>(
-      context: context,
-      position: const RelativeRect.fromLTRB(100, 100, 0, 0), // 简化处理
-      color: isDark ? AppColors.darkMenu : AppColors.lightMenu,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      items: [
-        {"c": Colors.blue, "n": "蓝色"}, {"c": Colors.green, "n": "绿色"},
-        {"c": Colors.orange, "n": "橙色"}, {"c": Colors.purple, "n": "紫色"},
-      ].map((e) => PopupMenuItem(
-        value: e,
-        child: Row(
-          children: [
-            Container(width: 24, height: 24, decoration: BoxDecoration(color: e['c'] as Color, shape: BoxShape.circle)),
-            const SizedBox(width: 12),
-            Text(e['n'] as String),
-          ],
-        ),
-      )).toList(),
-    );
-
-    if (result != null) {
-      store.setAccent(result['c'], result['n']);
-    }
   }
 
   // 切换图源弹窗
@@ -194,6 +166,15 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // 辅助方法：获取主题中文名称
+  String _getModeName(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.system: return "系统 (默认)";
+      case ThemeMode.light: return "浅色";
+      case ThemeMode.dark: return "深色";
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
@@ -214,25 +195,16 @@ class _SettingsPageState extends State<SettingsPage> {
              SettingsItem(
                icon: Icons.person_outline, 
                title: "个性化", 
-               subtitle: "自定义颜色与圆角",
+               subtitle: "自定义圆角", // 删除了"自定义颜色"的描述，因为那是下一阶段的功能
                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalizationPage())),
              ),
              SettingsItem(
                icon: Icons.wb_sunny_outlined, 
                title: "主题", 
-               subtitle: store.mode.toString().split('.').last, // 简单显示
+               subtitle: _getModeName(store.mode), // 修复：显示中文名称
                onTap: () => _showAppearanceDialog(context)
              ),
-             SettingsItem(
-                icon: Icons.color_lens_outlined, 
-                title: "重点色", 
-                subtitle: store.accentName, 
-                trailing: GestureDetector(
-                  onTap: () => _showDynamicAccentMenu(context),
-                  child: Container(width: 24, height: 24, decoration: BoxDecoration(color: store.accentColor, shape: BoxShape.circle)),
-                ),
-                onTap: () {}, 
-              ),
+             // 🗑️ 已删除：重点色设置项
           ]),
           
           const SizedBox(height: 24),
