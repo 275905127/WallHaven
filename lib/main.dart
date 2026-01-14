@@ -25,7 +25,7 @@ class AppColors {
   // --- 🌙 深色模式颜色 ---
   static const Color darkBackground = Color(0xFF000000); // [深色] 全局背景：纯黑
   static const Color darkCard = Color(0xFF414141); // [深色] 卡片/按钮背景：深炭灰 (参考 ChatGPT 网页版)
-  static const Color darkAlert = Color(0xFF1B1B1B); // [深色] 弹窗背景：标准的深灰色 (你之前觉得发蓝是因为没用这个)
+  static const Color darkAlert = Color(0xFF1B1B1B); // [深色] 弹窗背景：标准的深灰色
   static const Color darkMenu = Color(0xFF333333); // [深色] 重点色下拉菜单背景
   static const Color darkDivider = Color(0xFF000000); // [深色] 分割线颜色
 
@@ -69,56 +69,52 @@ class _MyAppState extends State<MyApp> {
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
-        scaffoldBackgroundColor: AppColors.lightBackground, // 页面背景：纯白
-        cardColor: AppColors.lightCard, // 卡片背景：浅灰
-        dialogBackgroundColor: AppColors.lightAlert, // 弹窗背景：纯白
-        dividerColor: AppColors.lightDivider, // 分割线
+        scaffoldBackgroundColor: AppColors.lightBackground,
+        cardColor: AppColors.lightCard,
+        dialogBackgroundColor: AppColors.lightAlert,
+        dividerColor: AppColors.lightDivider,
 
-        // 🌟 修复弹窗样式
         dialogTheme: const DialogTheme(
-          backgroundColor: AppColors.lightAlert, // [浅色] 弹窗背景色
-          surfaceTintColor: Colors.transparent, // 🌟【关键】移除 M3 默认的蓝色/紫色滤镜
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18))), // 圆角 18
+          backgroundColor: AppColors.lightAlert,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18))),
         ),
 
-        // 下拉菜单样式
         popupMenuTheme: const PopupMenuThemeData(
-          color: AppColors.lightMenu, // [浅色] 菜单背景
-          surfaceTintColor: Colors.transparent, // 移除滤镜
+          color: AppColors.lightMenu,
+          surfaceTintColor: Colors.transparent,
           textStyle: TextStyle(color: Colors.black, fontSize: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
         ),
 
-        // AppBar 基础样式
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent, // 移除滚动时的变色
+          surfaceTintColor: Colors.transparent,
           elevation: 0,
-          iconTheme: IconThemeData(color: Colors.black), // 图标黑
+          iconTheme: IconThemeData(color: Colors.black),
           titleTextStyle: TextStyle(color: Colors.black, fontSize: 17, fontWeight: FontWeight.w600),
           systemOverlayStyle: SystemUiOverlayStyle(
             statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.dark, // 状态栏图标黑
+            statusBarIconBrightness: Brightness.dark,
           ),
         ),
 
-        // 开关样式
         switchTheme: SwitchThemeData(
           thumbColor: MaterialStateProperty.resolveWith(
             (states) => states.contains(MaterialState.selected) ? Colors.white : const Color(0xFF5D5D5D),
-          ), // 滑块颜色
+          ),
           trackColor: MaterialStateProperty.resolveWith(
             (states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFE3E3E3),
-          ), // 轨道颜色
+          ),
           trackOutlineColor: MaterialStateProperty.resolveWith((states) {
             if (states.contains(MaterialState.selected)) return Colors.transparent;
-            return Colors.black.withOpacity(0.1); // [浅色] 关闭时的边缘描边：10%黑
+            return Colors.black.withOpacity(0.1);
           }),
           trackOutlineWidth: const MaterialStatePropertyAll(1.0),
         ),
         textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: Colors.black), // 主文字黑
-          bodyMedium: TextStyle(color: Color(0xFF8E8E93)), // 次要文字灰
+          bodyLarge: TextStyle(color: Colors.black),
+          bodyMedium: TextStyle(color: Color(0xFF8E8E93)),
         ),
       ),
 
@@ -126,21 +122,20 @@ class _MyAppState extends State<MyApp> {
       darkTheme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: AppColors.darkBackground, // 页面背景：纯黑
-        cardColor: AppColors.darkCard, // 卡片背景：深灰
-        dialogBackgroundColor: AppColors.darkAlert, // 弹窗背景：深灰
-        dividerColor: AppColors.darkDivider, // 分割线
+        scaffoldBackgroundColor: AppColors.darkBackground,
+        cardColor: AppColors.darkCard,
+        dialogBackgroundColor: AppColors.darkAlert,
+        dividerColor: AppColors.darkDivider,
 
-        // 🌟 修复深色弹窗发蓝的问题
         dialogTheme: const DialogTheme(
-          backgroundColor: AppColors.darkAlert, // [深色] 强制使用深灰色 (#2C2C2C)
-          surfaceTintColor: Colors.transparent, // 🌟【关键】彻底移除 M3 的蓝色表面色调
+          backgroundColor: AppColors.darkAlert,
+          surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18))),
         ),
 
         popupMenuTheme: const PopupMenuThemeData(
-          color: AppColors.darkMenu, // [深色] 菜单背景
-          surfaceTintColor: Colors.transparent, // 移除滤镜
+          color: AppColors.darkMenu,
+          surfaceTintColor: Colors.transparent,
           textStyle: TextStyle(color: Colors.white, fontSize: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
         ),
@@ -149,31 +144,30 @@ class _MyAppState extends State<MyApp> {
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
-          iconTheme: IconThemeData(color: Colors.white), // 图标白
+          iconTheme: IconThemeData(color: Colors.white),
           titleTextStyle: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
           systemOverlayStyle: SystemUiOverlayStyle(
             statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.light, // 状态栏图标白
+            statusBarIconBrightness: Brightness.light,
           ),
         ),
 
-        // 开关样式
         switchTheme: SwitchThemeData(
           thumbColor: MaterialStateProperty.resolveWith(
             (states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFC4C4C4),
-          ), // 滑块
+          ),
           trackColor: MaterialStateProperty.resolveWith(
             (states) => states.contains(MaterialState.selected) ? const Color(0xFFFFFFFF) : const Color(0xFF3B3B3B),
-          ), // 轨道
+          ),
           trackOutlineColor: MaterialStateProperty.resolveWith((states) {
             if (states.contains(MaterialState.selected)) return Colors.transparent;
-            return Colors.white.withOpacity(0.12); // [深色] 关闭时的边缘描边：12%白
+            return Colors.white.withOpacity(0.12);
           }),
           trackOutlineWidth: const MaterialStatePropertyAll(1.0),
         ),
         textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: Colors.white), // 主文字白
-          bodyMedium: TextStyle(color: Color(0xFF9E9E9E)), // 次要文字灰
+          bodyLarge: TextStyle(color: Colors.white),
+          bodyMedium: TextStyle(color: Color(0xFF9E9E9E)),
         ),
       ),
 
@@ -274,7 +268,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final ScrollController _scrollController = ScrollController();
 
-  // ✅ 标题栏优化：用滚动进度替代 bool，让过渡更像第一张（柔和、无“线感”）
+  // ✅ 标题栏只做“雾化透明叠加”，不用高斯模糊，避免吃到头像黄色
   double _appBarT = 0.0;
 
   bool _showLegacyModel = false;
@@ -284,10 +278,8 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(() {
-      // 0~1：小范围滚动就完成过渡（更接近原版）
-      final t = (_scrollController.offset / 36.0).clamp(0.0, 1.0);
-
-      // 避免高频 setState
+      // 0~1：小范围滚动就完成过渡
+      final t = (_scrollController.offset / 42.0).clamp(0.0, 1.0);
       if ((t - _appBarT).abs() > 0.01) {
         setState(() => _appBarT = t);
       }
@@ -303,20 +295,17 @@ class _SettingsPageState extends State<SettingsPage> {
   // 🟢 核心功能：智能避让菜单 (向上/向下弹)
   void _showDynamicAccentMenu(BuildContext context) async {
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
-    final Size size = renderBox.size; // 按钮的大小
-    final Offset offset = renderBox.localToGlobal(Offset.zero); // 按钮在屏幕的位置
-    final double screenHeight = MediaQuery.of(context).size.height; // 屏幕总高度
+    final Size size = renderBox.size;
+    final Offset offset = renderBox.localToGlobal(Offset.zero);
+    final double screenHeight = MediaQuery.of(context).size.height;
 
-    // 菜单大约的高度 (7个选项 * 48高度 + 上下padding) ≈ 360
     const double estimatedMenuHeight = 360.0;
-
-    // 判断逻辑：如果 (按钮Y坐标 + 预估菜单高度) 超过了屏幕高度，说明下面放不下了，要往上弹
     final bool isBottom = (offset.dy + estimatedMenuHeight) > screenHeight;
 
     final RelativeRect position = RelativeRect.fromLTRB(
-      offset.dx, // 左对齐
+      offset.dx,
       isBottom ? offset.dy - estimatedMenuHeight : offset.dy + size.height + 10,
-      offset.dx + size.width, // 右对齐
+      offset.dx + size.width,
       isBottom ? offset.dy : 0,
     );
 
@@ -423,23 +412,59 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // ✅ 标题栏雾化层：无模糊，只做“透明雾 + 长尾渐隐”，并严格限制高度，避免污染头像区
+  Widget _buildAppBarFog(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final double status = MediaQuery.of(context).padding.top;
+    final double fogHeight = status + kToolbarHeight + 14; // 额外 14px 用来拉长尾巴，消掉分层感
+
+    // 关键：不滚动时几乎看不出来；滚动后才明显，但仍然能看见下方内容
+    // 浅色用“白雾”，深色用“黑雾”，强度都克制，保证底下能隐约看见
+    final double topA = lerpDouble(isDark ? 0.00 : 0.00, isDark ? 0.72 : 0.86, _appBarT)!;
+    final double midA = lerpDouble(isDark ? 0.00 : 0.00, isDark ? 0.26 : 0.34, _appBarT)!;
+    final double tailA = lerpDouble(isDark ? 0.00 : 0.00, isDark ? 0.06 : 0.08, _appBarT)!;
+
+    // baseColor：一定要用纯背景色的“雾”，不要用 blur，否则会吃到黄色头像
+    final Color fogBase = theme.scaffoldBackgroundColor;
+
+    return Align(
+      alignment: Alignment.topCenter,
+      child: SizedBox(
+        height: fogHeight,
+        width: double.infinity,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                fogBase.withOpacity(topA),
+                fogBase.withOpacity(midA),
+                fogBase.withOpacity(tailA),
+                fogBase.withOpacity(0.0),
+              ],
+              // 4 段 stops：顶部保护标题，中段开始变透，尾巴拉长，最后彻底融入背景
+              stops: const [0.0, 0.55, 0.82, 1.0],
+            ),
+          ),
+          // 再叠一层极轻的“空气层”，专门用来消掉你说的“分界处层感”
+          child: ColoredBox(
+            color: fogBase.withOpacity(lerpDouble(0.00, isDark ? 0.03 : 0.02, _appBarT)!),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final topPadding = MediaQuery.of(context).padding.top + kToolbarHeight;
-    final isDark = theme.brightness == Brightness.dark;
-
-    // ✅ 标题栏雾化参数（按滚动进度渐变）
-    final double blurSigma = lerpDouble(0, 14, _appBarT)!;
-
-    // 雾层强度：不滚动也有一点点（第一张那种“空气感”）
-    final double fogTop = lerpDouble(isDark ? 0.10 : 0.12, isDark ? 0.85 : 0.90, _appBarT)!;
-    final double fogMid = lerpDouble(isDark ? 0.04 : 0.06, isDark ? 0.45 : 0.55, _appBarT)!;
-    final double fogBottom = lerpDouble(0.0, isDark ? 0.06 : 0.08, _appBarT)!;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-
       appBar: AppBar(
         centerTitle: true,
         title: const Text('设置'),
@@ -447,51 +472,19 @@ class _SettingsPageState extends State<SettingsPage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
 
-        // ✅ 只优化标题栏：磨砂 + 3段渐变 + 平滑过渡（更接近第一张）
-        flexibleSpace: ClipRect(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // 1) 磨砂模糊：随滚动增强
-              BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-                child: const SizedBox.expand(),
-              ),
-
-              // 2) 雾化渐变：始终存在，不滚动也有轻微“空气感”
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      theme.scaffoldBackgroundColor.withOpacity(fogTop),
-                      theme.scaffoldBackgroundColor.withOpacity(fogMid),
-                      theme.scaffoldBackgroundColor.withOpacity(0.0),
-                    ],
-                    // 3 段 stops：顶部保护标题，中段快速变轻，底部拖长尾巴慢慢消失
-                    stops: const [0.0, 0.55, 1.0],
-                  ),
-                ),
-              ),
-
-              // 3) 可选的极轻分层：让顶部更“干净”（不会出现硬线）
-              IgnorePointer(
-                child: Container(
-                  color: theme.scaffoldBackgroundColor.withOpacity(fogBottom),
-                ),
-              ),
-            ],
-          ),
+        // ✅ 只优化标题栏：无高斯模糊；底下内容能看见；分界处无层感；与背景融合
+        flexibleSpace: Stack(
+          fit: StackFit.expand,
+          children: [
+            _buildAppBarFog(context),
+          ],
         ),
       ),
-
       body: ListView(
         controller: _scrollController,
         padding: EdgeInsets.fromLTRB(16, topPadding + 10, 16, 20),
@@ -530,7 +523,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 icon: Icons.color_lens_outlined,
                 title: "重点色",
                 subtitle: widget.currentAccentName,
-                // 🌟 使用 Builder 获取准确坐标
                 trailing: Builder(
                   builder: (innerContext) {
                     return GestureDetector(
@@ -599,8 +591,6 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
-
-          // 🌟 底部留白，方便测试向上弹出的菜单
           const SizedBox(height: 300),
         ],
       ),
@@ -648,23 +638,14 @@ class UserProfileHeader extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        Text(
-          "星河 於长野",
-          style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 20, fontWeight: FontWeight.w600),
-        ),
+        Text("星河 於长野", style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 20, fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
         Text("275905127", style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 14)),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFE0E0E0),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            "编辑个人资料",
-            style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 13, fontWeight: FontWeight.w500),
-          ),
+          decoration: BoxDecoration(color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFE0E0E0), borderRadius: BorderRadius.circular(20)),
+          child: Text("编辑个人资料", style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 13, fontWeight: FontWeight.w500)),
         ),
       ],
     );
@@ -678,10 +659,7 @@ class SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 16, bottom: 8),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w500),
-      ),
+      child: Text(title, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w500)),
     );
   }
 }
@@ -758,11 +736,7 @@ class SettingsGroup extends StatelessWidget {
                             ],
                           ),
                         ),
-                        item.trailing ??
-                            Icon(
-                              Icons.chevron_right,
-                              color: theme.brightness == Brightness.dark ? const Color(0xFF666666) : const Color(0xFFC7C7CC),
-                            ),
+                        item.trailing ?? Icon(Icons.chevron_right, color: theme.brightness == Brightness.dark ? const Color(0xFF666666) : const Color(0xFFC7C7CC)),
                       ],
                     ),
                   ),
