@@ -3,12 +3,9 @@ import '../theme/theme_store.dart';
 import '../widgets/foggy_app_bar.dart';
 import '../widgets/settings_widgets.dart';
 
-// ==========================================
-// 1. 🎨 个性化设置页 (二级)
-// ==========================================
+// === 1. 个性化二级页 ===
 class PersonalizationPage extends StatefulWidget {
   const PersonalizationPage({super.key});
-
   @override
   State<PersonalizationPage> createState() => _PersonalizationPageState();
 }
@@ -29,7 +26,6 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
   @override
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
-    
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: FoggyAppBar(title: const Text("个性化"), isScrolled: _isScrolled, leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context))),
@@ -39,13 +35,12 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
         children: [
           const SectionHeader(title: "界面风格"),
           SettingsGroup(items: [
-             // 占位项
              SettingsItem(icon: Icons.color_lens, title: "自定义颜色", subtitle: "敬请期待", onTap: (){}),
           ]),
           
           const SizedBox(height: 24),
           const SectionHeader(title: "圆角设置"),
-          // 这里我们直接用一个 Slider 来控制全局圆角，实现真正的"自定义"
+          // 圆角调节器
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -64,13 +59,9 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
                 ),
                 Slider(
                   value: store.cornerRadius,
-                  min: 4.0,
-                  max: 32.0,
-                  divisions: 28,
+                  min: 4.0, max: 32.0, divisions: 28,
                   activeColor: store.accentColor,
-                  onChanged: (val) {
-                    store.setCornerRadius(val);
-                  },
+                  onChanged: (val) => store.setCornerRadius(val),
                 ),
               ],
             ),
@@ -81,12 +72,9 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
   }
 }
 
-// ==========================================
-// 2. 🖼️ 图源管理页 (二级)
-// ==========================================
+// === 2. 图源管理二级页 ===
 class SourceManagementPage extends StatefulWidget {
   const SourceManagementPage({super.key});
-
   @override
   State<SourceManagementPage> createState() => _SourceManagementPageState();
 }
@@ -104,7 +92,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     });
   }
 
-  // 🌟 添加图源的中间弹窗
   void _showAddSourceDialog(BuildContext context) {
     final TextEditingController nameCtrl = TextEditingController();
     final TextEditingController urlCtrl = TextEditingController();
@@ -116,16 +103,9 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(labelText: "名称", hintText: "例如: My Server"),
-              autofocus: true,
-            ),
+            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "名称", hintText: "例如: My Server"), autofocus: true),
             const SizedBox(height: 16),
-            TextField(
-              controller: urlCtrl,
-              decoration: const InputDecoration(labelText: "API 地址", hintText: "https://..."),
-            ),
+            TextField(controller: urlCtrl, decoration: const InputDecoration(labelText: "API 地址", hintText: "https://...")),
           ],
         ),
         actions: [
@@ -147,7 +127,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
   @override
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
-    
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: FoggyAppBar(title: const Text("图源管理"), isScrolled: _isScrolled, leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context))),
@@ -156,7 +135,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
         padding: const EdgeInsets.fromLTRB(16, 110, 16, 20),
         children: [
           const SectionHeader(title: "已添加的图源"),
-          // 动态生成图源列表
           SettingsGroup(
             items: store.sources.map((source) {
               return SettingsItem(
@@ -173,14 +151,9 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
               );
             }).toList(),
           ),
-          
           const SizedBox(height: 24),
           SettingsGroup(items: [
-            SettingsItem(
-              icon: Icons.add_circle_outline, 
-              title: "添加新图源", 
-              onTap: () => _showAddSourceDialog(context),
-            ),
+            SettingsItem(icon: Icons.add_circle_outline, title: "添加新图源", onTap: () => _showAddSourceDialog(context)),
           ]),
         ],
       ),
