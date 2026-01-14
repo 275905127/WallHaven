@@ -174,12 +174,18 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
 
     final Color fg = disabled ? tokens.disabledFg : (theme.textTheme.bodyLarge?.color ?? Colors.white);
 
-    // header 的圆角：展开时下方用小圆角接 body
     final BorderRadius headerRadius = BorderRadius.only(
       topLeft: Radius.circular(store.cardRadius),
       topRight: Radius.circular(store.cardRadius),
       bottomLeft: Radius.circular(expanded ? tokens.smallRadius : store.cardRadius),
       bottomRight: Radius.circular(expanded ? tokens.smallRadius : store.cardRadius),
+    );
+
+    final BorderRadius bodyRadius = BorderRadius.only(
+      topLeft: Radius.circular(tokens.smallRadius),
+      topRight: Radius.circular(tokens.smallRadius),
+      bottomLeft: Radius.circular(store.cardRadius),
+      bottomRight: Radius.circular(store.cardRadius),
     );
 
     Widget header = Container(
@@ -221,17 +227,8 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
       ),
     );
 
-    Widget body = Container(
-      margin: EdgeInsets.only(top: tokens.dividerThickness),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(tokens.smallRadius),
-          topRight: Radius.circular(tokens.smallRadius),
-          bottomLeft: Radius.circular(store.cardRadius),
-          bottomRight: Radius.circular(store.cardRadius),
-        ),
-      ),
+    Widget bodyCard = Container(
+      decoration: BoxDecoration(color: theme.cardColor, borderRadius: bodyRadius),
       child: Column(
         children: [
           RadioListTile<ThemeMode>(
@@ -242,7 +239,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
             activeColor: theme.colorScheme.primary,
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),
           ),
-          Container(height: 1, color: theme.dividerColor),
+          Container(height: tokens.dividerThickness, color: tokens.dividerColor),
           RadioListTile<ThemeMode>(
             title: const Text("浅色"),
             value: ThemeMode.light,
@@ -251,7 +248,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
             activeColor: theme.colorScheme.primary,
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),
           ),
-          Container(height: 1, color: theme.dividerColor),
+          Container(height: tokens.dividerThickness, color: tokens.dividerColor),
           RadioListTile<ThemeMode>(
             title: const Text("深色"),
             value: ThemeMode.dark,
@@ -264,6 +261,14 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
       ),
     );
 
+    Widget expandedBlock = Column(
+      children: [
+        // ✅ header 与 body 的“背景缝”必须画出来（2px），不能用 margin 冒充
+        Container(height: tokens.dividerThickness, color: tokens.dividerColor),
+        bodyCard,
+      ],
+    );
+
     return Column(
       children: [
         header,
@@ -271,7 +276,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
           duration: tokens.expandDuration,
           curve: tokens.expandCurve,
           alignment: Alignment.topCenter,
-          child: expanded ? body : const SizedBox.shrink(),
+          child: expanded ? expandedBlock : const SizedBox.shrink(),
         ),
       ],
     );
