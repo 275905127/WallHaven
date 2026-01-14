@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart'; // 瀑布流依赖
+import 'package:cached_network_image/cached_network_image.dart'; // 图片缓存依赖
 
 import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
@@ -7,9 +9,11 @@ import 'theme/theme_store.dart';
 import 'widgets/foggy_app_bar.dart';
 import 'widgets/settings_widgets.dart';
 import 'pages/sub_pages.dart';
+import 'models/wallpaper.dart'; // 引入模型
+import 'api/wallhaven_api.dart'; // 引入API
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); 
+  WidgetsFlutterBinding.ensureInitialized();
   
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent, 
@@ -45,15 +49,104 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class HomePage extends StatelessWidget {
+// ==========================================
+// 🏠 首页 (重构版：瀑布流 + 雾化栏)
+// ==========================================
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final ScrollController _scrollController = ScrollController();
+  
+  // 数据状态
+  final List<Wallpaper> _wallpapers = [];
+  int _page = 1;
+  bool _isLoading = false;
+  bool _isScrolled = false; // 控制雾化
+
+  @override
+  void initState() {
+    super.initState();
+    _initData();
+    
+    // 监听滚动：1.控制雾化 2.触底加载
+    _scrollController.addListener(() {
+      // 1. 雾化控制
+      if (_scrollController.offset > 0 && !_isScrolled) {
+        setState(() => _isScrolled = true);
+      } else if (_scrollController.offset <= 0 && _isScrolled) {
+        setState(() => _isScrolled = false);
+      }
+
+      // 2. 触底加载 (预加载 200px)
+      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+        _loadMore();
+      }
+    });
+  }
+
+  // 初始化数据
+  Future<void> _initData() async {
+    setState(() => _isLoading = true);
+    await _fetchWallpapers();
+    setState(() => _isLoading = false);
+  }
+
+  // 加载更多
+  Future<void> _loadMore() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    _page++;
+    await _fetchWallpapers();
+    setState(() => _isLoading = false);
+  }
+
+  // 核心请求逻辑
+  Future<void> _fetchWallpapers() async {
+    final store = ThemeScope.of(context); // 获取全局状态 (图源信息)
+    
+    final newItems = await WallhavenApi.getWallpapers(
+      baseUrl: store.currentSource.baseUrl,
+      apiKey: store.currentSource.apiKey,
+      page: _page,
+    );
+
+    if (mounted) {
+      setState(() {
+        _wallpapers.addAll(newItems);
+      });
+    }
+  }
+
+  // 刷新逻辑
+  Future<void> _onRefresh() async {
+    _page = 1;
+    _wallpapers.clear();
+    await _initData();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
+    final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(
+      extendBodyBehindAppBar: true, // 让瀑布流冲到状态栏下面
+      
+      // 🌟 使用雾化标题栏
+      appBar: FoggyAppBar(
         title: const Text("Wallhaven Pro"),
-        centerTitle: true,
+        isScrolled: _isScrolled,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -62,23 +155,66 @@ class HomePage extends StatelessWidget {
           const SizedBox(width: 8),
         ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.image_search, size: 64, color: Theme.of(context).disabledColor),
-            const SizedBox(height: 16),
-            Text("当前源: ${store.currentSource.name}", style: TextStyle(color: Theme.of(context).disabledColor, fontSize: 18)),
-          ],
-        ),
-      ),
+      
+      body: _wallpapers.isEmpty && _isLoading
+          ? const Center(child: CircularProgressIndicator()) // 首次加载 loading
+          : RefreshIndicator(
+              onRefresh: _onRefresh,
+              edgeOffset: 100, // 避开标题栏
+              child: MasonryGridView.count(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(12, 100, 12, 20), // 顶部留出标题栏高度
+                crossAxisCount: 2, // 双列
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                itemCount: _wallpapers.length,
+                itemBuilder: (context, index) {
+                  final paper = _wallpapers[index];
+                  // 计算图片高度比例，防止跳动
+                  final double aspectRatio = (paper.width / paper.height).clamp(0.5, 2.0);
+
+                  return GestureDetector(
+                    onTap: () {
+                      // TODO: 点击进入详情页
+                      print("Clicked: ${paper.id}");
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.cardColor,
+                        borderRadius: BorderRadius.circular(store.cornerRadius), // 🌟 使用全局自定义圆角
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: AspectRatio(
+                        aspectRatio: aspectRatio,
+                        child: CachedNetworkImage(
+                          imageUrl: paper.thumb,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            color: theme.cardColor,
+                            child: const Center(child: Icon(Icons.image, color: Colors.grey)),
+                          ),
+                          errorWidget: (context, url, error) => const Icon(Icons.error),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
     );
   }
 }
 
+// ... SettingsPage 和其他代码保持不变 ...
+// (为了节省篇幅，SettingsPage 等代码请保持你上一次修改后的原样，不需要变动)
+// 如果你需要我再次提供 SettingsPage 的完整代码以防万一，请告诉我。
+// 但根据约定，这里我只提供了 main.dart 的核心变动部分（Imports + main + MyApp + HomePage）。
+// 你需要把原本 main.dart 下面的 SettingsPage 等代码接在后面。
+
 // ==========================================
-// ⚙️ 设置页 (主页)
+// 👇 以下代码请直接拼接到 HomePage 后面 (保持原来的 SettingsPage 逻辑)
 // ==========================================
+
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
   @override
@@ -98,7 +234,6 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  // 主题弹窗
   void _showAppearanceDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -140,7 +275,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // 切换图源弹窗
   void _showSourceSelectionDialog(BuildContext context) {
     final store = ThemeScope.of(context);
     final theme = Theme.of(context);
@@ -166,7 +300,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // 辅助方法：获取主题中文名称
   String _getModeName(ThemeMode mode) {
     switch (mode) {
       case ThemeMode.system: return "系统 (默认)";
@@ -187,7 +320,7 @@ class _SettingsPageState extends State<SettingsPage> {
         controller: _sc,
         padding: EdgeInsets.fromLTRB(16, topPadding + 10, 16, 20),
         children: [
-          const UserProfileHeader(), // 头像组件
+          const UserProfileHeader(), 
           const SizedBox(height: 32),
           
           const SectionHeader(title: "外观"),
@@ -195,16 +328,15 @@ class _SettingsPageState extends State<SettingsPage> {
              SettingsItem(
                icon: Icons.person_outline, 
                title: "个性化", 
-               subtitle: "自定义圆角", // 删除了"自定义颜色"的描述，因为那是下一阶段的功能
+               subtitle: "自定义圆角",
                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalizationPage())),
              ),
              SettingsItem(
                icon: Icons.wb_sunny_outlined, 
                title: "主题", 
-               subtitle: _getModeName(store.mode), // 修复：显示中文名称
+               subtitle: _getModeName(store.mode),
                onTap: () => _showAppearanceDialog(context)
              ),
-             // 🗑️ 已删除：重点色设置项
           ]),
           
           const SizedBox(height: 24),
