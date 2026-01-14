@@ -260,9 +260,7 @@ class ThemeStore extends ChangeNotifier {
 
       final sourcesJson = prefs.getStringList('image_sources');
       if (sourcesJson != null) {
-        final loadedSources = sourcesJson
-            .map((e) => ImageSource.fromJson(jsonDecode(e) as Map<String, dynamic>))
-            .toList();
+        final loadedSources = sourcesJson.map((e) => ImageSource.fromJson(jsonDecode(e) as Map<String, dynamic>)).toList();
         loadedSources.removeWhere((s) => s.id == ImageSource.wallhaven.id);
         _sources = [ImageSource.wallhaven, ...loadedSources];
       }
