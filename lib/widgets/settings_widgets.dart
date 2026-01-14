@@ -36,6 +36,11 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
+// ⚠️ WARNING:
+// SettingsGroup 的分割线 = 2px 背景缝（tokens.divider）
+// 这是设计决定，不是实现细节。
+// 不允许改成 Divider / opacity / margin / border。
+
 class SettingsGroup extends StatelessWidget {
   final List<SettingsItem> items;
   const SettingsGroup({super.key, required this.items});
