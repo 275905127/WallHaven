@@ -14,12 +14,9 @@ class AppTheme {
             ? tokens.controlTrackActive
             : tokens.controlTrackInactive;
       }),
-      trackOutlineColor: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.selected)) return Colors.transparent;
-        // 用系统默认的淡描边，不在页面写死
-        return Colors.transparent;
-      }),
+      trackOutlineColor: MaterialStateProperty.resolveWith((_) => Colors.transparent),
       trackOutlineWidth: const MaterialStatePropertyAll(0.0),
+      overlayColor: const MaterialStatePropertyAll(Colors.transparent),
     );
   }
 
@@ -30,7 +27,7 @@ class AppTheme {
       thumbColor: tokens.controlThumb,
       overlayColor: Colors.transparent,
       activeTrackColor: tokens.controlTrackActive,
-      inactiveTrackColor: tokens.controlTrackActive, // 你要求“同款黑”
+      inactiveTrackColor: tokens.controlTrackActive, // 同款黑
       activeTickMarkColor: Colors.transparent,
       inactiveTickMarkColor: Colors.transparent,
       disabledActiveTrackColor: tokens.controlTrackActive,
