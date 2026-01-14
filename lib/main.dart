@@ -373,7 +373,7 @@ class _SettingsPageState extends State<SettingsPage> {
         // 🌟 核心修正1：加高标题栏
         // 默认是 56，我们加到 70。
         // 这多出来的 14px，就是为了让底部的渐变有足够的缓冲空间，不再像一条线。
-        toolbarHeight: 70, 
+        toolbarHeight: 76, 
         
         leading: IconButton(
           icon: const Icon(Icons.arrow_back), 
@@ -402,7 +402,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     // 因为高度加高了，我们可以让浓雾一直维持到 60%，
                     // 剩下的 40% (大约28px) 用来慢慢淡出。
                     // 这样既没有硬线，视觉上又觉得"雾"很实。
-                    stops: const [0.6, 1.0], 
+                    stops: const [0.4, 1.0], 
                   ),
                 ),
               )
