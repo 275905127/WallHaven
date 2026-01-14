@@ -1,39 +1,40 @@
-import 'dart:ui' as ui; // 必须引入这个用于模糊效果
+import 'dart:ui' as ui; // 🌟 必须引入，用于毛玻璃效果
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 void main() {
+  // 1. 沉浸式状态栏：强制透明，让内容能顶到最上面
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent, 
-    systemNavigationBarColor: Colors.transparent, 
+    statusBarColor: Colors.transparent, // 状态栏背景透明
+    systemNavigationBarColor: Colors.transparent, // 底部导航条透明
   ));
   runApp(const MyApp());
 }
 
 // ==========================================
-// 1. 🎨 颜色配置 (保持之前的修正版)
+// 1. 🎨 颜色配置中心 (严格保持你提供的颜色)
 // ==========================================
 class AppColors {
-  // ☀️ 浅色
-  static const Color lightBackground = Color(0xFFFFFFFF);
-  static const Color lightCard = Color(0xFFF7F7F7);
-  static const Color lightDivider = Color(0xFFFFFFFF);
-  static const Color lightAlert = Color(0xFFFFFFFF);
-  static const Color lightMenu = Color(0xFFF2F2F2);
+  // --- ☀️ 浅色模式颜色 ---
+  static const Color lightBackground = Color(0xFFFFFFFF); // [浅色] 全局背景：纯白
+  static const Color lightCard = Color(0xFFF3F3F3);       // [浅色] 卡片/按钮背景：浅灰
+  static const Color lightAlert = Color(0xFFE5E5E5);      // [浅色] 弹窗背景：纯白
+  static const Color lightMenu = Color(0xFFEBEBEB);       // [浅色] 重点色下拉菜单背景：浅灰
+  static const Color lightDivider = Color(0xFFFFFFFF);    // [浅色] 分割线颜色
 
-  // 🌙 深色
-  static const Color darkBackground = Color(0xFF000000);
-  static const Color darkCard = Color(0xFF1C1C1E);
-  static const Color darkDivider = Color(0xFF000000);
-  static const Color darkAlert = Color(0xFF252525);
-  static const Color darkMenu = Color(0xFF252525);
+  // --- 🌙 深色模式颜色 ---
+  static const Color darkBackground = Color(0xFF000000);  // [深色] 全局背景：纯黑
+  static const Color darkCard = Color(0xFF414141);        // [深色] 卡片/按钮背景：深炭灰
+  static const Color darkAlert = Color(0xFF1B1B1B);       // [深色] 弹窗背景：标准的深灰色
+  static const Color darkMenu = Color(0xFF333333);        // [深色] 重点色下拉菜单背景
+  static const Color darkDivider = Color(0xFF000000);     // [深色] 分割线颜色
 
-  // 🎨 品牌
-  static const Color brandYellow = Color(0xFFD2AE00);
+  // --- 品牌色 ---
+  static const Color brandYellow = Color(0xFFD2AE00);     // 头像底色：暗黄色
 }
 
 // ==========================================
-// 2. 🚀 APP 配置
+// 2. 🚀 APP 主题配置
 // ==========================================
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -64,33 +65,36 @@ class _MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
       
-      // === ☀️ 浅色主题 ===
+      // === ☀️ 浅色主题配置 ===
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
-        scaffoldBackgroundColor: AppColors.lightBackground,
-        cardColor: AppColors.lightCard,
-        dividerColor: AppColors.lightDivider,
-        dialogBackgroundColor: AppColors.lightAlert,
+        scaffoldBackgroundColor: AppColors.lightBackground, 
+        cardColor: AppColors.lightCard,                     
+        dialogBackgroundColor: AppColors.lightAlert,        
+        dividerColor: AppColors.lightDivider,               
         
+        // 🌟 修复弹窗样式
         dialogTheme: const DialogTheme(
-          backgroundColor: AppColors.lightAlert,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18))),
+          backgroundColor: AppColors.lightAlert, 
+          surfaceTintColor: Colors.transparent,  
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18))), 
         ),
         
+        // 下拉菜单样式
         popupMenuTheme: const PopupMenuThemeData(
           color: AppColors.lightMenu,           
-          surfaceTintColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent, 
           textStyle: TextStyle(color: Colors.black, fontSize: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
         ),
 
+        // AppBar 基础样式
         appBarTheme: const AppBarTheme(
             backgroundColor: Colors.transparent, 
-            surfaceTintColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent, 
             elevation: 0,
-            iconTheme: IconThemeData(color: Colors.black),
+            iconTheme: IconThemeData(color: Colors.black), 
             titleTextStyle: TextStyle(color: Colors.black, fontSize: 17, fontWeight: FontWeight.w600),
             systemOverlayStyle: SystemUiOverlayStyle(
               statusBarColor: Colors.transparent,
@@ -98,39 +102,41 @@ class _MyAppState extends State<MyApp> {
             ),
         ),
         
+        // 开关样式
         switchTheme: SwitchThemeData(
-          thumbColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? Colors.white : const Color(0xFF5D5D5D)),
-          trackColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFE3E3E3)),
+          thumbColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? Colors.white : const Color(0xFF5D5D5D)), 
+          trackColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFE3E3E3)), 
           trackOutlineColor: MaterialStateProperty.resolveWith((states) {
              if (states.contains(MaterialState.selected)) return Colors.transparent;
-             return Colors.black.withOpacity(0.1);
+             return Colors.black.withOpacity(0.1); 
           }),
           trackOutlineWidth: const MaterialStatePropertyAll(1.0),
         ),
         textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: Colors.black),
+          bodyLarge: TextStyle(color: Colors.black),      
           bodyMedium: TextStyle(color: Color(0xFF8E8E93)),
         ),
       ),
 
-      // === 🌙 深色主题 ===
+      // === 🌙 深色主题配置 ===
       darkTheme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: AppColors.darkBackground,
-        cardColor: AppColors.darkCard,
-        dividerColor: AppColors.darkDivider,
-        dialogBackgroundColor: AppColors.darkAlert,
+        scaffoldBackgroundColor: AppColors.darkBackground, 
+        cardColor: AppColors.darkCard,                     
+        dialogBackgroundColor: AppColors.darkAlert,        
+        dividerColor: AppColors.darkDivider,               
         
+        // 🌟 修复深色弹窗发蓝的问题
         dialogTheme: const DialogTheme(
-          backgroundColor: AppColors.darkAlert,
-          surfaceTintColor: Colors.transparent,
+          backgroundColor: AppColors.darkAlert, 
+          surfaceTintColor: Colors.transparent, 
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18))),
         ),
 
         popupMenuTheme: const PopupMenuThemeData(
-          color: AppColors.darkMenu,
-          surfaceTintColor: Colors.transparent,
+          color: AppColors.darkMenu,            
+          surfaceTintColor: Colors.transparent, 
           textStyle: TextStyle(color: Colors.white, fontSize: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
         ),
@@ -139,7 +145,7 @@ class _MyAppState extends State<MyApp> {
             backgroundColor: Colors.transparent, 
             surfaceTintColor: Colors.transparent,
             elevation: 0,
-            iconTheme: IconThemeData(color: Colors.white),
+            iconTheme: IconThemeData(color: Colors.white), 
             titleTextStyle: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
             systemOverlayStyle: SystemUiOverlayStyle(
               statusBarColor: Colors.transparent,
@@ -147,18 +153,19 @@ class _MyAppState extends State<MyApp> {
             ),
         ),
         
+        // 开关样式
         switchTheme: SwitchThemeData(
-          thumbColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFC4C4C4)),
-          trackColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFFFFFFFF) : const Color(0xFF3B3B3B)),
+          thumbColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFC4C4C4)), 
+          trackColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFFFFFFFF) : const Color(0xFF3B3B3B)), 
           trackOutlineColor: MaterialStateProperty.resolveWith((states) {
              if (states.contains(MaterialState.selected)) return Colors.transparent;
-             return Colors.white.withOpacity(0.12);
+             return Colors.white.withOpacity(0.12); 
           }),
           trackOutlineWidth: const MaterialStatePropertyAll(1.0),
         ),
         textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: Colors.white),
-          bodyMedium: TextStyle(color: Color(0xFF9E9E9E)),
+          bodyLarge: TextStyle(color: Colors.white),       
+          bodyMedium: TextStyle(color: Color(0xFF9E9E9E)), 
         ),
       ),
 
@@ -173,6 +180,9 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
+// ==========================================
+// 3. 🏠 首页
+// ==========================================
 class HomePage extends StatelessWidget {
   final ThemeMode currentMode;
   final Function(ThemeMode) changeTheme;
@@ -224,7 +234,7 @@ class HomePage extends StatelessWidget {
 }
 
 // ==========================================
-// 4. ⚙️ 设置页 (核心修改区域)
+// 4. ⚙️ 设置页 (核心功能：毛玻璃标题栏 + 动态弹窗)
 // ==========================================
 class SettingsPage extends StatefulWidget {
   final ThemeMode currentMode;
@@ -263,18 +273,23 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 
+  // 🟢 核心功能：智能避让菜单 (向上/向下弹)
   void _showDynamicAccentMenu(BuildContext context) async {
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
-    final Size size = renderBox.size; 
-    final Offset offset = renderBox.localToGlobal(Offset.zero); 
-    final double screenHeight = MediaQuery.of(context).size.height; 
+    final Size size = renderBox.size; // 按钮的大小
+    final Offset offset = renderBox.localToGlobal(Offset.zero); // 按钮在屏幕的位置
+    final double screenHeight = MediaQuery.of(context).size.height; // 屏幕总高度
+    
+    // 菜单大约的高度 (7个选项 * 48高度 + 上下padding) ≈ 360
     const double estimatedMenuHeight = 360.0;
+
+    // 判断逻辑
     final bool isBottom = (offset.dy + estimatedMenuHeight) > screenHeight;
     
     final RelativeRect position = RelativeRect.fromLTRB(
-      offset.dx, 
+      offset.dx, // 左对齐
       isBottom ? offset.dy - estimatedMenuHeight : offset.dy + size.height + 10, 
-      offset.dx + size.width, 
+      offset.dx + size.width, // 右对齐
       isBottom ? offset.dy : 0, 
     );
 
@@ -293,7 +308,7 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       position: position,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: isDark ? AppColors.darkMenu : AppColors.lightMenu, 
+      color: isDark ? AppColors.darkMenu : AppColors.lightMenu, // 使用定义的菜单颜色
       elevation: 4,
       items: accentOptions.map((option) {
         return PopupMenuItem(
@@ -329,11 +344,11 @@ class _SettingsPageState extends State<SettingsPage> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              insetPadding: const EdgeInsets.symmetric(horizontal: 30), 
+              insetPadding: const EdgeInsets.symmetric(horizontal: 30), // 左右间距
               title: const Text("外观", style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600)),
               contentPadding: const EdgeInsets.only(top: 16, bottom: 8),
               content: SizedBox(
-                width: MediaQuery.of(context).size.width, 
+                width: MediaQuery.of(context).size.width, // 撑满宽度
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -365,7 +380,7 @@ class _SettingsPageState extends State<SettingsPage> {
       value: value,
       groupValue: groupValue,
       onChanged: onChanged,
-      activeColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black, 
+      activeColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black, // 选中时的圆圈颜色
       contentPadding: const EdgeInsets.symmetric(horizontal: 24),
       dense: true,
     );
@@ -380,7 +395,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return Scaffold(
       extendBodyBehindAppBar: true, 
       
-      appBar: AppBar(
+       appBar: AppBar(
         centerTitle: true,
         title: const Text('设置'),
         leading: IconButton(
@@ -393,20 +408,22 @@ class _SettingsPageState extends State<SettingsPage> {
         elevation: 0,
         scrolledUnderElevation: 0,
         
-        // 🌟 核心修正：通透微磨砂效果
+        // 🌟 核心修改：通透微磨砂效果
+        // 只有在滚动时 (_isScrolled) 才显示效果
         flexibleSpace: _isScrolled 
             ? ClipRect(
                 child: BackdropFilter(
-                  // 🌟 4.0 的模糊度：轻微柔化，保证文字清晰可辨
+                  // 1. 微磨砂：4.0 的模糊度，轻微柔化背景，保证底下文字轮廓清晰
                   filter: ui.ImageFilter.blur(sigmaX: 4.0, sigmaY: 4.0), 
                   child: Container(
-                    // 🌟 0.8 的透明度：更透亮，看得到底下的内容
+                    // 2. 实体半透明：0.8 的透明度，让背景有颜色但透光
                     color: theme.scaffoldBackgroundColor.withOpacity(0.8),
                   ),
                 ),
               )
             : null,
       ),
+
       
       body: ListView(
         controller: _scrollController,
@@ -446,6 +463,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 icon: Icons.color_lens_outlined, 
                 title: "重点色", 
                 subtitle: widget.currentAccentName, 
+                // 🌟 使用 Builder 获取准确坐标
                 trailing: Builder(
                   builder: (innerContext) {
                     return GestureDetector(
@@ -481,6 +499,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 onTap: () => setState(() => _showLegacyModel = !_showLegacyModel),
               ),
               SettingsItem(
+                // 🌟 使用最新 SDK 图标
                 icon: Icons.vibration, 
                 title: "触觉反馈",
                 trailing: Switch(
@@ -510,6 +529,7 @@ class _SettingsPageState extends State<SettingsPage> {
                ),
              ]
            ),
+           // 🌟 底部留白，方便测试向上弹出的菜单
            const SizedBox(height: 300),
         ],
       ),
@@ -524,6 +544,10 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 }
+
+// ==========================================
+// 5. 🧩 基础组件封装
+// ==========================================
 
 class UserProfileHeader extends StatelessWidget {
   const UserProfileHeader({super.key});
