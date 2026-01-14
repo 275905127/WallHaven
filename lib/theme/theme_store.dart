@@ -12,7 +12,6 @@ class ThemeStore extends ChangeNotifier {
   double _cardRadius = 16.0;   
   double _imageRadius = 12.0;  
 
-  // 🌟 新增：是否启用自定义颜色开关
   bool _enableCustomColors = false; 
 
   Color? _customBackgroundColor; 
@@ -29,7 +28,6 @@ class ThemeStore extends ChangeNotifier {
   double get cardRadius => _cardRadius;
   double get imageRadius => _imageRadius;
   
-  // 🌟 新增 Getter
   bool get enableCustomColors => _enableCustomColors;
 
   Color? get customBackgroundColor => _customBackgroundColor;
@@ -60,7 +58,6 @@ class ThemeStore extends ChangeNotifier {
     savePreferences();
   }
 
-  // 🌟 新增：设置自定义颜色开关
   void setEnableCustomColors(bool value) {
     if (_enableCustomColors != value) {
       _enableCustomColors = value;
@@ -107,15 +104,34 @@ class ThemeStore extends ChangeNotifier {
     }
   }
 
-  void addSource(String name, String url) {
+  // 🌟 修改：支持添加用户名和 Key
+  void addSource(String name, String url, {String? username, String? apiKey}) {
     final newSource = ImageSource(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
       baseUrl: url,
+      username: username,
+      apiKey: apiKey,
     );
     _sources.add(newSource);
     notifyListeners();
     savePreferences();
+  }
+
+  // 🌟 新增：更新现有图源
+  void updateSource(ImageSource updatedSource) {
+    final index = _sources.indexWhere((s) => s.id == updatedSource.id);
+    if (index != -1) {
+      _sources[index] = updatedSource;
+      
+      // 如果当前正在使用的源被修改了，也要更新 _currentSource
+      if (_currentSource.id == updatedSource.id) {
+        _currentSource = updatedSource;
+      }
+      
+      notifyListeners();
+      savePreferences();
+    }
   }
 
   void removeSource(String id) {
@@ -136,10 +152,7 @@ class ThemeStore extends ChangeNotifier {
   Future<void> savePreferences() async {
     final prefs = await SharedPreferences.getInstance();
     prefs.setInt('theme_mode', _mode.index);
-    
-    // 🌟 保存开关状态
     prefs.setBool('enable_custom_colors', _enableCustomColors);
-
     prefs.setDouble('card_radius', _cardRadius);
     prefs.setDouble('image_radius', _imageRadius);
     
@@ -168,9 +181,7 @@ class ThemeStore extends ChangeNotifier {
         _mode = ThemeMode.values[modeIndex];
       }
       
-      // 🌟 读取开关状态
       _enableCustomColors = prefs.getBool('enable_custom_colors') ?? false;
-
       _cardRadius = prefs.getDouble('card_radius') ?? prefs.getDouble('corner_radius') ?? 16.0;
       _imageRadius = prefs.getDouble('image_radius') ?? 12.0;
 
