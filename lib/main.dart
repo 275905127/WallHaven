@@ -1,4 +1,3 @@
-import 'dart:ui' as ui; // 引入 UI 库用于模糊
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -211,7 +210,7 @@ class HomePage extends StatelessWidget {
 }
 
 // ==========================================
-// 4. ⚙️ 设置页 (核心修改：渐变雾化消除分层)
+// 4. ⚙️ 设置页 (关键修改：加高标题栏 + 优化渐变)
 // ==========================================
 class SettingsPage extends StatefulWidget {
   final ThemeMode currentMode;
@@ -370,6 +369,12 @@ class _SettingsPageState extends State<SettingsPage> {
       appBar: AppBar(
         centerTitle: true,
         title: const Text('设置'),
+        
+        // 🌟 核心修正1：加高标题栏
+        // 默认是 56，我们加到 70。
+        // 这多出来的 14px，就是为了让底部的渐变有足够的缓冲空间，不再像一条线。
+        toolbarHeight: 70, 
+        
         leading: IconButton(
           icon: const Icon(Icons.arrow_back), 
           onPressed: () => Navigator.pop(context),
@@ -380,28 +385,24 @@ class _SettingsPageState extends State<SettingsPage> {
         elevation: 0,
         scrolledUnderElevation: 0,
         
-        // 🌟 终极修正：渐变雾化
-        // 1. 微量模糊 (Sigma 3.0)：保持内容清晰
-        // 2. 垂直渐变 (0.95 -> 0.0)：从浓雾到完全透明，物理消除底部硬线
+        // 🌟 核心修正2：纯雾化渐变 + 加高后的缓冲
         flexibleSpace: _isScrolled 
-            ? ClipRect(
-                child: BackdropFilter(
-                  // 模糊度保持极低，保证清晰度
-                  filter: ui.ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0), 
-                  child: Container(
-                    decoration: BoxDecoration(
-                      // 关键：背景色从上到下渐变，底部淡出为0
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          theme.scaffoldBackgroundColor.withOpacity(0.95), // 顶部浓雾
-                          theme.scaffoldBackgroundColor.withOpacity(0.0),  // 底部完全消失
-                        ],
-                        // 浓雾一直延伸到 70% 的位置，最后 30% 快速淡出，保证消除硬边
-                        stops: const [0.7, 1.0], 
-                      ),
-                    ),
+            ? Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      // 顶部：浓雾 (0.95)，几乎实心
+                      theme.scaffoldBackgroundColor.withOpacity(0.95),
+                      // 底部：完全透明 (0.0)，必须是 0 才能无缝融合
+                      theme.scaffoldBackgroundColor.withOpacity(0.0),
+                    ],
+                    // 渐变分布：
+                    // 因为高度加高了，我们可以让浓雾一直维持到 60%，
+                    // 剩下的 40% (大约28px) 用来慢慢淡出。
+                    // 这样既没有硬线，视觉上又觉得"雾"很实。
+                    stops: const [0.6, 1.0], 
                   ),
                 ),
               )
@@ -518,7 +519,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-// 基础组件 (保持不变)
+// 基础组件
 class UserProfileHeader extends StatelessWidget {
   const UserProfileHeader({super.key});
   @override
@@ -547,7 +548,7 @@ class UserProfileHeader extends StatelessWidget {
     );
   }
 }
-// ... (其他组件保持不变，代码已包含在上面)
+// ... 其他组件保持不变 (SectionHeader, SettingsItem, SettingsGroup)
 class SectionHeader extends StatelessWidget {
   final String title;
   const SectionHeader({super.key, required this.title});
@@ -559,7 +560,6 @@ class SectionHeader extends StatelessWidget {
     );
   }
 }
-
 class SettingsItem {
   final IconData icon;
   final String title;
@@ -568,7 +568,6 @@ class SettingsItem {
   final VoidCallback onTap;
   SettingsItem({required this.icon, required this.title, this.subtitle, this.trailing, required this.onTap});
 }
-
 class SettingsGroup extends StatelessWidget {
   final List<SettingsItem> items;
   static const double largeRadius = 16.0; 
