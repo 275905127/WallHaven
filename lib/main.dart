@@ -373,7 +373,7 @@ class _SettingsPageState extends State<SettingsPage> {
         // 🌟 核心修正1：加高标题栏
         // 默认是 56，我们加到 76。
         // 这多出来的 14px，就是为了让底部的渐变有足够的缓冲空间，不再像一条线。
-        toolbarHeight: 76, 
+        toolbarHeight: 90, 
         
         leading: IconButton(
           icon: const Icon(Icons.arrow_back), 
@@ -386,34 +386,36 @@ class _SettingsPageState extends State<SettingsPage> {
         scrolledUnderElevation: 0,
         
         // 🌟 核心修正2：纯雾化渐变 + 加高后的缓冲
-        flexibleSpace: _isScrolled 
+        // SettingsPage -> AppBar -> flexibleSpace
+
+flexibleSpace: _isScrolled 
     ? Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              // 1. 顶部：浓雾 (95%)
-              // 必须够浓，才能盖住内容，产生"雾感"
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.95),
+              // 1. 顶部：浓雾 (0.95)
+              // 这里的颜色由主题决定（深色模式黑，浅色模式白）
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.90),
               
-              // 2. 悬崖边：保持浓雾 (95%)
-              // 这里的 0.95 对应下面的 0.7 stop。
-              // 意味着前 70% 的高度都是浓的，解决了"太透"的问题。
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.95),
+              // 2. 悬崖边缘：保持浓雾 (0.95)
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.85),
               
-              // 3. 底部：完全透明 (0%)
+              // 3. 底部：🌟 关键修改：白透！
+              // 我们不用 Colors.transparent，而是用"背景色 + 0.0透明度"。
+              // 这样保证了渐变过程中 RGB 值始终是纯净的白色（或黑色），只有透明度在变。
+              // 彻底消除边缘发灰、发脏的问题！
               (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.0),
             ],
             
-            // 🌟 黄金比例参数：[0.0, 0.7, 1.0]
-            // 0.0 -> 0.7 : 浓雾区 (解决"雾都不雾了")
-            // 0.7 -> 1.0 : 30% 的高度用来淡出 (解决"分界线"和"过渡急促")
+            // 保持之前的黄金比例，这是解决"雾感"和"无缝"的最佳平衡
             stops: const [0.0, 0.7, 1.0], 
           ),
         ),
       )
     : null,
+
 
 
       ),
