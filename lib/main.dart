@@ -44,8 +44,18 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       themeMode: store.mode, // ✅ store 已做“二选一”接管
-      theme: AppTheme.light(store.accentColor, customBg: customBg, customCard: customCard, cardRadius: store.cardRadius),
-      darkTheme: AppTheme.dark(store.accentColor, customBg: customBg, customCard: customCard, cardRadius: store.cardRadius),
+      theme: AppTheme.light(
+        store.accentColor,
+        customBg: customBg,
+        customCard: customCard,
+        cardRadius: store.cardRadius,
+      ),
+      darkTheme: AppTheme.dark(
+        store.accentColor,
+        customBg: customBg,
+        customCard: customCard,
+        cardRadius: store.cardRadius,
+      ),
       home: const HomePage(),
     );
   }
@@ -115,11 +125,12 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
-    final theme = Theme.of(context);
 
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {
+        final theme = Theme.of(context); // ✅ 放进 builder，避免主题变化时拿旧值
+
         return Scaffold(
           extendBodyBehindAppBar: true,
           appBar: FoggyAppBar(
@@ -128,7 +139,10 @@ class _HomePageState extends State<HomePage> {
             actions: [
               IconButton(
                 icon: const Icon(Icons.settings_outlined),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPage())),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SettingsPage()),
+                ),
               ),
               const SizedBox(width: 8),
             ],
