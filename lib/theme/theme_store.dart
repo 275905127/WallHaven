@@ -1,3 +1,4 @@
+// lib/theme/theme_store.dart
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -28,7 +29,15 @@ class ThemeScope extends InheritedWidget {
 
 class ThemeStore extends ChangeNotifier {
   // === 状态数据 ===
+
+  /// 实际用于 MaterialApp 的 themeMode（可能被“自定义颜色”接管）
   ThemeMode _mode = ThemeMode.system;
+
+  /// 用户偏好的主题模式（颜色模式折叠里选的）
+  ThemeMode _preferredMode = ThemeMode.system;
+
+  /// 颜色模式开关：关=跟随系统(ThemeMode.system)；开=使用 preferredMode
+  bool _enableThemeMode = true;
 
   Color _accentColor = Colors.blue;
   String _accentName = "蓝色";
@@ -48,6 +57,9 @@ class ThemeStore extends ChangeNotifier {
 
   // === Getters ===
   ThemeMode get mode => _mode;
+
+  ThemeMode get preferredMode => _preferredMode;
+  bool get enableThemeMode => _enableThemeMode;
 
   Color get accentColor => _accentColor;
   String get accentName => _accentName;
@@ -70,12 +82,33 @@ class ThemeStore extends ChangeNotifier {
 
   // === Actions ===
 
-  void setMode(ThemeMode newMode) {
-    if (_mode == newMode) return;
-    _mode = newMode;
+  /// 用户选择颜色模式（折叠里的选项）
+  void setPreferredMode(ThemeMode newMode) {
+    if (_preferredMode == newMode) return;
+    _preferredMode = newMode;
+
+    // 只有在“颜色模式开关开启”且“自定义颜色未接管”时，才实际生效到 _mode
+    if (_enableThemeMode && !_enableCustomColors) {
+      _mode = _preferredMode;
+    }
     notifyListeners();
     savePreferences();
   }
+
+  /// 颜色模式开关：开=展开并可选；关=收起并回到系统
+  void setEnableThemeMode(bool value) {
+    if (_enableThemeMode == value) return;
+    _enableThemeMode = value;
+
+    if (!_enableCustomColors) {
+      _mode = _enableThemeMode ? _preferredMode : ThemeMode.system;
+    }
+    notifyListeners();
+    savePreferences();
+  }
+
+  /// 兼容旧调用：原来用 setMode 的地方，统一当作“设置 preferredMode”
+  void setMode(ThemeMode newMode) => setPreferredMode(newMode);
 
   void setAccent(Color newColor, String newName) {
     if (_accentColor.value == newColor.value && _accentName == newName) return;
@@ -85,9 +118,19 @@ class ThemeStore extends ChangeNotifier {
     savePreferences();
   }
 
+  /// 规则：自定义颜色开启 -> 颜色模式不可选且不生效（只允许一个生效）
   void setEnableCustomColors(bool value) {
     if (_enableCustomColors == value) return;
     _enableCustomColors = value;
+
+    if (_enableCustomColors) {
+      // 自定义颜色接管：强制固定一个模式，颜色模式“失效”
+      _mode = ThemeMode.light;
+    } else {
+      // 关闭自定义颜色：恢复颜色模式是否生效
+      _mode = _enableThemeMode ? _preferredMode : ThemeMode.system;
+    }
+
     notifyListeners();
     savePreferences();
   }
@@ -95,7 +138,7 @@ class ThemeStore extends ChangeNotifier {
   void setCardRadius(double radius) {
     if (_cardRadius == radius) return;
     _cardRadius = radius;
-    notifyListeners(); // 让 slider/圆角实时刷新
+    notifyListeners(); // slider/圆角实时刷新
   }
 
   void setImageRadius(double radius) {
@@ -142,7 +185,6 @@ class ThemeStore extends ChangeNotifier {
     final index = _sources.indexWhere((s) => s.id == updatedSource.id);
     if (index == -1) return;
 
-    // 统一：baseUrl normalize；username/apiKey 统一用 null 表示“未配置”
     final fixed = updatedSource.copyWith(
       baseUrl: _normalizeBaseUrl(updatedSource.baseUrl),
       username: _normalizeOptional(updatedSource.username),
@@ -178,9 +220,10 @@ class ThemeStore extends ChangeNotifier {
     _saveDebounce = Timer(const Duration(milliseconds: 120), () async {
       final prefs = await SharedPreferences.getInstance();
 
-      prefs.setInt('theme_mode', _mode.index);
+      // 兼容旧字段：theme_mode 存“preferredMode”
+      prefs.setInt('theme_mode', _preferredMode.index);
+      prefs.setBool('enable_theme_mode', _enableThemeMode);
 
-      // ✅ 之前没持久化：导致重启丢失
       prefs.setInt('accent_color', _accentColor.value);
       prefs.setString('accent_name', _accentName);
 
@@ -211,14 +254,19 @@ class ThemeStore extends ChangeNotifier {
 
       final modeIndex = prefs.getInt('theme_mode') ?? 0;
       if (modeIndex >= 0 && modeIndex < ThemeMode.values.length) {
-        _mode = ThemeMode.values[modeIndex];
+        _preferredMode = ThemeMode.values[modeIndex];
+      } else {
+        _preferredMode = ThemeMode.system;
       }
+
+      _enableThemeMode = prefs.getBool('enable_theme_mode') ?? true;
 
       final accentVal = prefs.getInt('accent_color');
       if (accentVal != null) _accentColor = Color(accentVal);
       _accentName = prefs.getString('accent_name') ?? _accentName;
 
       _enableCustomColors = prefs.getBool('enable_custom_colors') ?? false;
+
       _cardRadius = prefs.getDouble('card_radius') ?? 16.0;
       _imageRadius = prefs.getDouble('image_radius') ?? 12.0;
 
@@ -246,6 +294,13 @@ class ThemeStore extends ChangeNotifier {
         );
       } else {
         _currentSource = _sources.first;
+      }
+
+      // ✅ 统一计算：谁生效
+      if (_enableCustomColors) {
+        _mode = ThemeMode.light;
+      } else {
+        _mode = _enableThemeMode ? _preferredMode : ThemeMode.system;
       }
     } catch (e) {
       debugPrint("Load Prefs Error: $e");
