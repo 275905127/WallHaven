@@ -38,8 +38,8 @@ class SettingsGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // 🌟 动态获取用户设置的大圆角
-    final double largeRadius = ThemeScope.of(context).cornerRadius;
+    // 🌟 修复点：这里原来是 cornerRadius，现在改为 cardRadius
+    final double largeRadius = ThemeScope.of(context).cardRadius;
     
     return Column(
       children: List.generate(items.length, (index) {
