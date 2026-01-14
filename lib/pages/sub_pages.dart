@@ -26,6 +26,56 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
     });
   }
 
+  // 🌟 从 Main 搬运来的：主题选择弹窗
+  void _showAppearanceDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final store = ThemeScope.of(context);
+        ThemeMode tempMode = store.mode;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("颜色模式"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildRadio(context, "系统 (默认)", ThemeMode.system, tempMode, (v) => setState(() => tempMode = v!)),
+                  _buildRadio(context, "浅色", ThemeMode.light, tempMode, (v) => setState(() => tempMode = v!)),
+                  _buildRadio(context, "深色", ThemeMode.dark, tempMode, (v) => setState(() => tempMode = v!)),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () { 
+                    store.setMode(tempMode); 
+                    Navigator.pop(context); 
+                  },
+                  child: const Text("确定"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildRadio(BuildContext ctx, String title, ThemeMode val, ThemeMode group, ValueChanged<ThemeMode?> change) {
+    return RadioListTile<ThemeMode>(
+      title: Text(title), value: val, groupValue: group, onChanged: change,
+      activeColor: Theme.of(ctx).colorScheme.primary, contentPadding: EdgeInsets.zero,
+    );
+  }
+
+  String _getModeName(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.system: return "系统 (默认)";
+      case ThemeMode.light: return "浅色";
+      case ThemeMode.dark: return "深色";
+    }
+  }
+
   void _showHexColorDialog(
     BuildContext context, 
     String title, 
@@ -128,13 +178,12 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
     }
   }
 
-  // 🛠️ 优化后的滑块组件：读写分离
   Widget _buildRadiusSlider(
     BuildContext context, 
     String title, 
     double value, 
     Function(double) onChanged, 
-    VoidCallback onSave // 新增：保存回调
+    VoidCallback onSave
   ) {
     final theme = Theme.of(context);
     final store = ThemeScope.of(context);
@@ -161,9 +210,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
             max: 40.0, 
             divisions: 40,
             activeColor: store.accentColor,
-            // 🌟 1. 拖动时：只更新内存，UI 极速响应
             onChanged: onChanged, 
-            // 🌟 2. 松手时：才写入硬盘，防止卡顿
             onChangeEnd: (_) => onSave(), 
           ),
         ],
@@ -191,57 +238,76 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
         children: [
           const SectionHeader(title: "界面风格"),
           SettingsGroup(items: [
-             SettingsItem(
-               icon: Icons.format_paint_outlined, 
-               title: "全局背景颜色", 
-               subtitle: bgHex,
-               trailing: Container(
-                 width: 24, height: 24,
-                 decoration: BoxDecoration(
-                   color: store.customBackgroundColor ?? Colors.transparent,
-                   border: Border.all(color: Colors.grey.withOpacity(0.5)),
-                   shape: BoxShape.circle,
-                 ),
-                 child: store.customBackgroundColor == null ? const Icon(Icons.auto_awesome, size: 14, color: Colors.grey) : null,
-               ),
-               onTap: () => _showHexColorDialog(context, "全局背景颜色", store.customBackgroundColor, (c) => store.setCustomBackgroundColor(c)),
+            // 🌟 1. 颜色模式 (原主题设置)
+            SettingsItem(
+               icon: Icons.wb_sunny_outlined, 
+               title: "颜色模式", 
+               subtitle: _getModeName(store.mode),
+               onTap: () => _showAppearanceDialog(context)
              ),
+             
+             // 🌟 2. 启用自定义颜色开关
              SettingsItem(
-               icon: Icons.dashboard_customize_outlined, 
-               title: "卡片颜色", 
-               subtitle: cardHex,
-               trailing: Container(
-                 width: 24, height: 24,
-                 decoration: BoxDecoration(
-                   color: store.customCardColor ?? Colors.transparent,
-                   border: Border.all(color: Colors.grey.withOpacity(0.5)),
-                   shape: BoxShape.circle,
-                 ),
-                 child: store.customCardColor == null ? const Icon(Icons.auto_awesome, size: 14, color: Colors.grey) : null,
+               icon: Icons.palette_outlined,
+               title: "启用自定义颜色",
+               trailing: Switch(
+                 value: store.enableCustomColors,
+                 onChanged: (val) => store.setEnableCustomColors(val),
+                 activeColor: store.accentColor,
                ),
-               onTap: () => _showHexColorDialog(context, "卡片颜色", store.customCardColor, (c) => store.setCustomCardColor(c)),
+               onTap: () => store.setEnableCustomColors(!store.enableCustomColors),
              ),
+
+             // 🌟 3. 自定义颜色选择器 (仅当开关打开时显示)
+             if (store.enableCustomColors) ...[
+                SettingsItem(
+                  icon: Icons.format_paint_outlined, 
+                  title: "全局背景颜色", 
+                  subtitle: bgHex,
+                  trailing: Container(
+                    width: 24, height: 24,
+                    decoration: BoxDecoration(
+                      color: store.customBackgroundColor ?? Colors.transparent,
+                      border: Border.all(color: Colors.grey.withOpacity(0.5)),
+                      shape: BoxShape.circle,
+                    ),
+                    child: store.customBackgroundColor == null ? const Icon(Icons.auto_awesome, size: 14, color: Colors.grey) : null,
+                  ),
+                  onTap: () => _showHexColorDialog(context, "全局背景颜色", store.customBackgroundColor, (c) => store.setCustomBackgroundColor(c)),
+                ),
+                SettingsItem(
+                  icon: Icons.dashboard_customize_outlined, 
+                  title: "卡片颜色", 
+                  subtitle: cardHex,
+                  trailing: Container(
+                    width: 24, height: 24,
+                    decoration: BoxDecoration(
+                      color: store.customCardColor ?? Colors.transparent,
+                      border: Border.all(color: Colors.grey.withOpacity(0.5)),
+                      shape: BoxShape.circle,
+                    ),
+                    child: store.customCardColor == null ? const Icon(Icons.auto_awesome, size: 14, color: Colors.grey) : null,
+                  ),
+                  onTap: () => _showHexColorDialog(context, "卡片颜色", store.customCardColor, (c) => store.setCustomCardColor(c)),
+                ),
+             ]
           ]),
           
           const SizedBox(height: 24),
           const SectionHeader(title: "圆角设置"),
           
           _buildRadiusSlider(
-            context, 
-            "卡片圆角", 
-            store.cardRadius, 
+            context, "卡片圆角", store.cardRadius, 
             (val) => store.setCardRadius(val),
-            () => store.savePreferences(), // 传入保存回调
+            () => store.savePreferences(),
           ),
           
           const SizedBox(height: 12),
           
           _buildRadiusSlider(
-            context, 
-            "首页图片圆角", 
-            store.imageRadius, 
+            context, "首页图片圆角", store.imageRadius, 
             (val) => store.setImageRadius(val),
-            () => store.savePreferences(), // 传入保存回调
+            () => store.savePreferences(),
           ),
         ],
       ),
@@ -249,9 +315,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
   }
 }
 
-// ==========================================
-// 2. 图源管理二级页
-// ==========================================
+// 2. 图源管理二级页 (保持不变)
 class SourceManagementPage extends StatefulWidget {
   const SourceManagementPage({super.key});
   @override
