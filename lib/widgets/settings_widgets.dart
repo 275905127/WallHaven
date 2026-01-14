@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/theme_store.dart'; // 引入 Store
+import '../theme/theme_store.dart';
 
 class SettingsItem {
   final IconData icon;
@@ -7,13 +7,13 @@ class SettingsItem {
   final String? subtitle;
   final Widget? trailing;
   final VoidCallback onTap;
-  
+
   SettingsItem({
-    required this.icon, 
-    required this.title, 
-    this.subtitle, 
-    this.trailing, 
-    required this.onTap
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    required this.onTap,
   });
 }
 
@@ -24,35 +24,52 @@ class SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 16, bottom: 8),
-      child: Text(title, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w500)),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w500),
+      ),
     );
   }
 }
 
 class SettingsGroup extends StatelessWidget {
   final List<SettingsItem> items;
-  static const double smallRadius = 4.0; // 小圆角保持不变，用于连接处
-  
+  static const double smallRadius = 4.0;
+
   const SettingsGroup({super.key, required this.items});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // 🌟 核心修复：确保这里使用的是 cardRadius 而不是旧的 cornerRadius
     final double largeRadius = ThemeScope.of(context).cardRadius;
-    
+
     return Column(
       children: List.generate(items.length, (index) {
         final item = items[index];
         final bool isFirst = index == 0;
         final bool isLast = index == items.length - 1;
         final bool isSingle = items.length == 1;
-        
+
         BorderRadius borderRadius;
-        if (isSingle) borderRadius = BorderRadius.circular(largeRadius);
-        else if (isFirst) borderRadius = BorderRadius.only(topLeft: Radius.circular(largeRadius), topRight: Radius.circular(largeRadius), bottomLeft: Radius.circular(smallRadius), bottomRight: Radius.circular(smallRadius));
-        else if (isLast) borderRadius = BorderRadius.only(topLeft: Radius.circular(smallRadius), topRight: Radius.circular(smallRadius), bottomLeft: Radius.circular(largeRadius), bottomRight: Radius.circular(largeRadius));
-        else borderRadius = BorderRadius.circular(smallRadius);
+        if (isSingle) {
+          borderRadius = BorderRadius.circular(largeRadius);
+        } else if (isFirst) {
+          borderRadius = BorderRadius.only(
+            topLeft: Radius.circular(largeRadius),
+            topRight: Radius.circular(largeRadius),
+            bottomLeft: const Radius.circular(smallRadius),
+            bottomRight: const Radius.circular(smallRadius),
+          );
+        } else if (isLast) {
+          borderRadius = BorderRadius.only(
+            topLeft: const Radius.circular(smallRadius),
+            topRight: const Radius.circular(smallRadius),
+            bottomLeft: Radius.circular(largeRadius),
+            bottomRight: Radius.circular(largeRadius),
+          );
+        } else {
+          borderRadius = const BorderRadius.all(Radius.circular(smallRadius));
+        }
 
         return Column(
           children: [
@@ -74,11 +91,18 @@ class SettingsGroup extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(item.title, style: TextStyle(fontSize: 16, color: theme.textTheme.bodyLarge?.color)),
-                              if (item.subtitle != null) ...[const SizedBox(height: 2), Text(item.subtitle!, style: TextStyle(fontSize: 13, color: theme.textTheme.bodyMedium?.color))],
+                              if (item.subtitle != null) ...[
+                                const SizedBox(height: 2),
+                                Text(item.subtitle!, style: TextStyle(fontSize: 13, color: theme.textTheme.bodyMedium?.color)),
+                              ],
                             ],
                           ),
                         ),
-                        item.trailing ?? Icon(Icons.chevron_right, color: theme.brightness == Brightness.dark ? const Color(0xFF666666) : const Color(0xFFC7C7CC)),
+                        item.trailing ??
+                            Icon(
+                              Icons.chevron_right,
+                              color: theme.brightness == Brightness.dark ? const Color(0xFF666666) : const Color(0xFFC7C7CC),
+                            ),
                       ],
                     ),
                   ),
