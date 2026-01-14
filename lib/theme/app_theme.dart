@@ -6,37 +6,51 @@ import 'app_tokens.dart';
 
 class AppTheme {
   static SwitchThemeData _switchTheme(AppTokens tokens) {
-    // ✅ 圆点永远纯白
+    // ✅ Switch：严格按 tokens（开/关分别取值 + 轨道描边）
     return SwitchThemeData(
-      thumbColor: MaterialStateProperty.resolveWith((_) => tokens.controlThumb),
+      thumbColor: MaterialStateProperty.resolveWith((states) {
+        return states.contains(MaterialState.selected)
+            ? tokens.switchThumbOn
+            : tokens.switchThumbOff;
+      }),
       trackColor: MaterialStateProperty.resolveWith((states) {
         return states.contains(MaterialState.selected)
-            ? tokens.controlTrackActive
-            : tokens.controlTrackInactive;
+            ? tokens.switchTrackOn
+            : tokens.switchTrackOff;
       }),
-      trackOutlineColor: MaterialStateProperty.resolveWith((_) => Colors.transparent),
-      trackOutlineWidth: const MaterialStatePropertyAll(0.0),
+      trackOutlineColor: MaterialStateProperty.resolveWith((_) => tokens.switchTrackOutline),
+      trackOutlineWidth: MaterialStateProperty.resolveWith((_) => tokens.switchTrackOutlineWidth),
       overlayColor: const MaterialStatePropertyAll(Colors.transparent),
     );
   }
 
   static SliderThemeData _sliderTheme(AppTokens tokens) {
-    // ✅ 圆点白、轨道黑、轨道加粗
+    // ✅ Slider：前段/后段分色 + 圆点按 tokens
     return SliderThemeData(
       trackHeight: tokens.sliderTrackHeight,
-      thumbColor: tokens.controlThumb,
+
+      thumbColor: tokens.sliderThumb,
+      disabledThumbColor: tokens.sliderThumb,
+
       overlayColor: Colors.transparent,
-      activeTrackColor: tokens.controlTrackActive,
-      inactiveTrackColor: tokens.controlTrackActive, // 同款黑
+
+      activeTrackColor: tokens.sliderTrackActive,
+      inactiveTrackColor: tokens.sliderTrackInactive,
+
+      disabledActiveTrackColor: tokens.sliderTrackActive,
+      disabledInactiveTrackColor: tokens.sliderTrackInactive,
+
       activeTickMarkColor: Colors.transparent,
       inactiveTickMarkColor: Colors.transparent,
-      disabledActiveTrackColor: tokens.controlTrackActive,
-      disabledInactiveTrackColor: tokens.controlTrackActive,
-      disabledThumbColor: tokens.controlThumb,
     );
   }
 
-  static ThemeData light(Color accentColor, {Color? customBg, Color? customCard, double cardRadius = 16.0}) {
+  static ThemeData light(
+    Color accentColor, {
+    Color? customBg,
+    Color? customCard,
+    double cardRadius = 16.0,
+  }) {
     final tokens = AppTokens.light();
     return ThemeData(
       useMaterial3: true,
@@ -60,14 +74,18 @@ class AppTheme {
       dialogTheme: DialogTheme(
         backgroundColor: AppColors.lightAlert,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(cardRadius))),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(cardRadius)),
+        ),
       ),
 
       popupMenuTheme: PopupMenuThemeData(
         color: AppColors.lightMenu,
         surfaceTintColor: Colors.transparent,
         textStyle: const TextStyle(color: Colors.black, fontSize: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(cardRadius))),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(cardRadius)),
+        ),
       ),
 
       appBarTheme: const AppBarTheme(
@@ -75,14 +93,18 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.black),
-        titleTextStyle: TextStyle(color: Colors.black, fontSize: 17, fontWeight: FontWeight.w600),
+        titleTextStyle: TextStyle(
+          color: Colors.black,
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+        ),
         systemOverlayStyle: SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.dark,
         ),
       ),
 
-      // ✅ 全局控件皮肤统一出口
+      // ✅ 全局控件皮肤统一出口（只从 tokens 取值）
       switchTheme: _switchTheme(tokens),
       sliderTheme: _sliderTheme(tokens),
 
@@ -93,7 +115,12 @@ class AppTheme {
     );
   }
 
-  static ThemeData dark(Color accentColor, {Color? customBg, Color? customCard, double cardRadius = 16.0}) {
+  static ThemeData dark(
+    Color accentColor, {
+    Color? customBg,
+    Color? customCard,
+    double cardRadius = 16.0,
+  }) {
     final tokens = AppTokens.dark();
     return ThemeData(
       useMaterial3: true,
@@ -117,14 +144,18 @@ class AppTheme {
       dialogTheme: DialogTheme(
         backgroundColor: AppColors.darkAlert,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(cardRadius))),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(cardRadius)),
+        ),
       ),
 
       popupMenuTheme: PopupMenuThemeData(
         color: AppColors.darkMenu,
         surfaceTintColor: Colors.transparent,
         textStyle: const TextStyle(color: Colors.white, fontSize: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(cardRadius))),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(cardRadius)),
+        ),
       ),
 
       appBarTheme: const AppBarTheme(
@@ -132,7 +163,11 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
-        titleTextStyle: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
+        titleTextStyle: TextStyle(
+          color: Colors.white,
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+        ),
         systemOverlayStyle: SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.light,
