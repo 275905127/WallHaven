@@ -1,3 +1,4 @@
+// lib/widgets/foggy_app_bar.dart
 import 'package:flutter/material.dart';
 
 class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -19,10 +20,10 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 动态获取颜色
-    final baseColor = Theme.of(context).brightness == Brightness.dark 
-        ? Colors.black 
-        : Colors.white;
+    final theme = Theme.of(context);
+
+    // ✅ 回归“主题驱动”：雾化底色跟随当前页面背景（支持自定义背景色）
+    final baseColor = theme.scaffoldBackgroundColor;
 
     return AppBar(
       title: title,
@@ -30,18 +31,14 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
       leading: leading,
       actions: actions,
       toolbarHeight: preferredSize.height,
-      
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
-      
-      // 🌟 核心修复：移除了多余的语法，正确实现呼吸渐变
       flexibleSpace: AnimatedOpacity(
-        opacity: isScrolled ? 1.0 : 0.0, // 滚动时显示(1.0)，否则隐藏(0.0)
-        duration: const Duration(milliseconds: 200), // 呼吸时长
-        curve: Curves.easeInOut, // 柔和曲线
-        
+        opacity: isScrolled ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
         child: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -56,7 +53,7 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
                 baseColor.withOpacity(0.20),
                 baseColor.withOpacity(0.0),
               ],
-              stops: const [0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], 
+              stops: const [0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
             ),
           ),
         ),
