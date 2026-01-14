@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart'; // 瀑布流依赖
-import 'package:cached_network_image/cached_network_image.dart'; // 图片缓存依赖
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
@@ -9,8 +9,8 @@ import 'theme/theme_store.dart';
 import 'widgets/foggy_app_bar.dart';
 import 'widgets/settings_widgets.dart';
 import 'pages/sub_pages.dart';
-import 'models/wallpaper.dart'; // 引入模型
-import 'api/wallhaven_api.dart'; // 引入API
+import 'models/wallpaper.dart';
+import 'api/wallhaven_api.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +42,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       themeMode: store.mode,
+      // 🌟 核心：确保自定义颜色被传入
       theme: AppTheme.light(store.accentColor, customBg: store.customBackgroundColor, customCard: store.customCardColor),
       darkTheme: AppTheme.dark(store.accentColor, customBg: store.customBackgroundColor, customCard: store.customCardColor),
       home: const HomePage(),
@@ -49,6 +50,8 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// ... (HomePage, SettingsPage, UserProfileHeader 保持不变，请继续保留原代码)
+// 为节省篇幅，这里省略后续未改动代码，请直接拼接
 // ==========================================
 // 🏠 首页 (瀑布流 + 雾化栏)
 // ==========================================
