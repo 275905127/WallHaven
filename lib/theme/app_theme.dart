@@ -2,61 +2,51 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'app_colors.dart';
+import 'app_tokens.dart';
 
 class AppTheme {
-  static const Color _blackTrack = Color(0xFF0D0D0D);
+  static SwitchThemeData _switchTheme(AppTokens tokens) {
+    // ✅ 圆点永远纯白
+    return SwitchThemeData(
+      thumbColor: MaterialStateProperty.resolveWith((_) => tokens.controlThumb),
+      trackColor: MaterialStateProperty.resolveWith((states) {
+        return states.contains(MaterialState.selected)
+            ? tokens.controlTrackActive
+            : tokens.controlTrackInactive;
+      }),
+      trackOutlineColor: MaterialStateProperty.resolveWith((states) {
+        if (states.contains(MaterialState.selected)) return Colors.transparent;
+        // 用系统默认的淡描边，不在页面写死
+        return Colors.transparent;
+      }),
+      trackOutlineWidth: const MaterialStatePropertyAll(0.0),
+    );
+  }
 
-  static SliderThemeData _sliderTheme() {
-    return const SliderThemeData(
-      trackHeight: 5, // ✅ 轨道加粗一点
-      thumbColor: Colors.white, // ✅ 圆点白色
+  static SliderThemeData _sliderTheme(AppTokens tokens) {
+    // ✅ 圆点白、轨道黑、轨道加粗
+    return SliderThemeData(
+      trackHeight: tokens.sliderTrackHeight,
+      thumbColor: tokens.controlThumb,
       overlayColor: Colors.transparent,
-      activeTrackColor: _blackTrack, // ✅ 黑轨道（与自定义颜色开关同款黑）
-      inactiveTrackColor: _blackTrack, // 需求是同款黑；如果要区分可改成带透明度
-      inactiveTickMarkColor: Colors.transparent,
+      activeTrackColor: tokens.controlTrackActive,
+      inactiveTrackColor: tokens.controlTrackActive, // 你要求“同款黑”
       activeTickMarkColor: Colors.transparent,
+      inactiveTickMarkColor: Colors.transparent,
+      disabledActiveTrackColor: tokens.controlTrackActive,
+      disabledInactiveTrackColor: tokens.controlTrackActive,
+      disabledThumbColor: tokens.controlThumb,
     );
   }
 
-  static SwitchThemeData _switchThemeLight() {
-    return SwitchThemeData(
-      thumbColor: MaterialStateProperty.resolveWith((_) => Colors.white), // ✅ 圆点永远纯白
-      trackColor: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.selected)) return _blackTrack; // ✅ 选中：黑
-        return const Color(0xFFE3E3E3); // 未选中：浅灰
-      }),
-      trackOutlineColor: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.selected)) return Colors.transparent;
-        return Colors.black.withOpacity(0.1);
-      }),
-      trackOutlineWidth: const MaterialStatePropertyAll(1.0),
-    );
-  }
-
-  static SwitchThemeData _switchThemeDark() {
-    return SwitchThemeData(
-      thumbColor: MaterialStateProperty.resolveWith((_) => Colors.white), // ✅ 圆点永远纯白
-      trackColor: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.selected)) return _blackTrack; // ✅ 选中：黑
-        return const Color(0xFF3B3B3B); // 未选中：深灰
-      }),
-      trackOutlineColor: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.selected)) return Colors.transparent;
-        return Colors.white.withOpacity(0.12);
-      }),
-      trackOutlineWidth: const MaterialStatePropertyAll(1.0),
-    );
-  }
-
-  // ☀️ 浅色主题
   static ThemeData light(Color accentColor, {Color? customBg, Color? customCard, double cardRadius = 16.0}) {
+    final tokens = AppTokens.light();
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
 
       scaffoldBackgroundColor: customBg ?? AppColors.lightBackground,
       cardColor: customCard ?? AppColors.lightCard,
-
       dialogBackgroundColor: AppColors.lightAlert,
       dividerColor: AppColors.lightDivider,
 
@@ -65,6 +55,10 @@ class AppTheme {
         brightness: Brightness.light,
         primary: accentColor,
       ),
+
+      extensions: <ThemeExtension<dynamic>>[
+        tokens,
+      ],
 
       dialogTheme: DialogTheme(
         backgroundColor: AppColors.lightAlert,
@@ -91,9 +85,9 @@ class AppTheme {
         ),
       ),
 
-      // ✅ 全局开关 & 滑块样式
-      switchTheme: _switchThemeLight(),
-      sliderTheme: _sliderTheme(),
+      // ✅ 全局控件皮肤统一出口
+      switchTheme: _switchTheme(tokens),
+      sliderTheme: _sliderTheme(tokens),
 
       textTheme: const TextTheme(
         bodyLarge: TextStyle(color: Colors.black),
@@ -102,15 +96,14 @@ class AppTheme {
     );
   }
 
-  // 🌙 深色主题
   static ThemeData dark(Color accentColor, {Color? customBg, Color? customCard, double cardRadius = 16.0}) {
+    final tokens = AppTokens.dark();
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
 
       scaffoldBackgroundColor: customBg ?? AppColors.darkBackground,
       cardColor: customCard ?? AppColors.darkCard,
-
       dialogBackgroundColor: AppColors.darkAlert,
       dividerColor: AppColors.darkDivider,
 
@@ -119,6 +112,10 @@ class AppTheme {
         brightness: Brightness.dark,
         primary: accentColor,
       ),
+
+      extensions: <ThemeExtension<dynamic>>[
+        tokens,
+      ],
 
       dialogTheme: DialogTheme(
         backgroundColor: AppColors.darkAlert,
@@ -145,9 +142,8 @@ class AppTheme {
         ),
       ),
 
-      // ✅ 全局开关 & 滑块样式
-      switchTheme: _switchThemeDark(),
-      sliderTheme: _sliderTheme(),
+      switchTheme: _switchTheme(tokens),
+      sliderTheme: _sliderTheme(tokens),
 
       textTheme: const TextTheme(
         bodyLarge: TextStyle(color: Colors.white),
