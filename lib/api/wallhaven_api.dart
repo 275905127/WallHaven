@@ -4,20 +4,33 @@ import '../models/wallpaper.dart';
 class WallhavenApi {
   static final Dio _dio = Dio();
 
-  // 获取壁纸列表
+  /// 获取壁纸列表（支持完整筛选参数）
   static Future<List<Wallpaper>> getWallpapers({
-    required String baseUrl, // 从 ThemeStore 传入当前源地址
-    String? apiKey,          // 从 ThemeStore 传入 API Key
+    required String baseUrl,
+    String? apiKey,
     int page = 1,
+
+    // ===== 筛选参数（Wallhaven 官方）=====
+    String sorting = 'toplist', // toplist / latest / random
+    String order = 'desc', // desc / asc
+    String? categories, // 111 / 100 / 010 / 001
+    String? purity, // 100 / 110 / 111
+    String? resolutions, // 1920x1080
+    String? ratios, // 16x9
+    String? query, // 关键词
   }) async {
     try {
-      // 这里的 /search 是 Wallhaven 的标准搜索接口
-      // 如果你是自定义图源，确保你的 API 兼容这个路径，或者在这里做适配
       final response = await _dio.get(
         '$baseUrl/search',
         queryParameters: {
           'page': page,
-          'sorting': 'toplist', // 默认按榜单排序
+          'sorting': sorting,
+          'order': order,
+          if (categories != null) 'categories': categories,
+          if (purity != null) 'purity': purity,
+          if (resolutions != null) 'resolutions': resolutions,
+          if (ratios != null) 'ratios': ratios,
+          if (query != null && query.isNotEmpty) 'q': query,
           if (apiKey != null && apiKey.isNotEmpty) 'apikey': apiKey,
         },
       );
@@ -28,7 +41,7 @@ class WallhavenApi {
       }
       return [];
     } catch (e) {
-      print("API Error: $e");
+      debugPrint("Wallhaven API Error: $e");
       return [];
     }
   }
