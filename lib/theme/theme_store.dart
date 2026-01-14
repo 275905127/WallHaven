@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/image_source.dart';
 
-// 🌟 全局 ThemeScope：提供 store，但不再“找不到就 new 一个影子 store”
+// ✅ ThemeScope：不再 new 影子 store
 class ThemeScope extends InheritedWidget {
   final ThemeStore store;
   const ThemeScope({super.key, required this.store, required super.child});
@@ -19,24 +19,18 @@ class ThemeScope extends InheritedWidget {
     return scope.store;
   }
 
-  static ThemeStore? maybeOf(BuildContext context) {
-    return context.dependOnInheritedWidgetOfExactType<ThemeScope>()?.store;
-  }
-
   @override
-  bool updateShouldNotify(ThemeScope oldWidget) => identical(store, oldWidget.store) == false;
+  bool updateShouldNotify(ThemeScope oldWidget) => !identical(store, oldWidget.store);
 }
 
 class ThemeStore extends ChangeNotifier {
-  // === 状态数据 ===
-
-  /// 实际用于 MaterialApp 的 themeMode（可能被“自定义颜色”接管）
+  /// 实际用于 MaterialApp 的 mode（可能被“自定义颜色”接管）
   ThemeMode _mode = ThemeMode.system;
 
-  /// 用户偏好的主题模式（颜色模式折叠里选的）
+  /// 用户偏好（颜色模式折叠里选的）
   ThemeMode _preferredMode = ThemeMode.system;
 
-  /// 颜色模式开关：关=跟随系统(ThemeMode.system)；开=使用 preferredMode
+  /// 颜色模式开关：关=收起+跟随系统；开=展开+按 preferredMode
   bool _enableThemeMode = true;
 
   Color _accentColor = Colors.blue;
@@ -52,12 +46,10 @@ class ThemeStore extends ChangeNotifier {
   List<ImageSource> _sources = [ImageSource.wallhaven];
   late ImageSource _currentSource;
 
-  // 保存去抖，避免疯狂写 prefs
   Timer? _saveDebounce;
 
-  // === Getters ===
+  // Getters
   ThemeMode get mode => _mode;
-
   ThemeMode get preferredMode => _preferredMode;
   bool get enableThemeMode => _enableThemeMode;
 
@@ -68,7 +60,6 @@ class ThemeStore extends ChangeNotifier {
   double get imageRadius => _imageRadius;
 
   bool get enableCustomColors => _enableCustomColors;
-
   Color? get customBackgroundColor => _customBackgroundColor;
   Color? get customCardColor => _customCardColor;
 
@@ -80,35 +71,46 @@ class ThemeStore extends ChangeNotifier {
     _loadFromPrefs();
   }
 
-  // === Actions ===
+  // ========= 规则：只能一个生效 =========
+  void _recomputeEffectiveMode() {
+    if (_enableCustomColors) {
+      // ✅ 自定义颜色接管：颜色模式失效（固定一个）
+      _mode = ThemeMode.light;
+      return;
+    }
+    _mode = _enableThemeMode ? _preferredMode : ThemeMode.system;
+  }
 
-  /// 用户选择颜色模式（折叠里的选项）
+  // Actions
   void setPreferredMode(ThemeMode newMode) {
     if (_preferredMode == newMode) return;
     _preferredMode = newMode;
-
-    // 只有在“颜色模式开关开启”且“自定义颜色未接管”时，才实际生效到 _mode
-    if (_enableThemeMode && !_enableCustomColors) {
-      _mode = _preferredMode;
-    }
+    _recomputeEffectiveMode();
     notifyListeners();
     savePreferences();
   }
 
-  /// 颜色模式开关：开=展开并可选；关=收起并回到系统
+  // 兼容旧调用：把 setMode 当作设置偏好
+  void setMode(ThemeMode newMode) => setPreferredMode(newMode);
+
   void setEnableThemeMode(bool value) {
     if (_enableThemeMode == value) return;
     _enableThemeMode = value;
-
-    if (!_enableCustomColors) {
-      _mode = _enableThemeMode ? _preferredMode : ThemeMode.system;
-    }
+    _recomputeEffectiveMode();
     notifyListeners();
     savePreferences();
   }
 
-  /// 兼容旧调用：原来用 setMode 的地方，统一当作“设置 preferredMode”
-  void setMode(ThemeMode newMode) => setPreferredMode(newMode);
+  void setEnableCustomColors(bool value) {
+    if (_enableCustomColors == value) return;
+    _enableCustomColors = value;
+
+    // ✅ 自定义颜色打开时：颜色模式不可选（页面禁用），这里直接接管 mode
+    _recomputeEffectiveMode();
+
+    notifyListeners();
+    savePreferences();
+  }
 
   void setAccent(Color newColor, String newName) {
     if (_accentColor.value == newColor.value && _accentName == newName) return;
@@ -118,27 +120,10 @@ class ThemeStore extends ChangeNotifier {
     savePreferences();
   }
 
-  /// 规则：自定义颜色开启 -> 颜色模式不可选且不生效（只允许一个生效）
-  void setEnableCustomColors(bool value) {
-    if (_enableCustomColors == value) return;
-    _enableCustomColors = value;
-
-    if (_enableCustomColors) {
-      // 自定义颜色接管：强制固定一个模式，颜色模式“失效”
-      _mode = ThemeMode.light;
-    } else {
-      // 关闭自定义颜色：恢复颜色模式是否生效
-      _mode = _enableThemeMode ? _preferredMode : ThemeMode.system;
-    }
-
-    notifyListeners();
-    savePreferences();
-  }
-
   void setCardRadius(double radius) {
     if (_cardRadius == radius) return;
     _cardRadius = radius;
-    notifyListeners(); // slider/圆角实时刷新
+    notifyListeners();
   }
 
   void setImageRadius(double radius) {
@@ -192,9 +177,8 @@ class ThemeStore extends ChangeNotifier {
     );
 
     _sources[index] = fixed;
-    if (_currentSource.id == fixed.id) {
-      _currentSource = fixed;
-    }
+    if (_currentSource.id == fixed.id) _currentSource = fixed;
+
     notifyListeners();
     savePreferences();
   }
@@ -209,18 +193,16 @@ class ThemeStore extends ChangeNotifier {
         orElse: () => _sources.first,
       );
     }
-
     notifyListeners();
     savePreferences();
   }
 
-  // === 持久化逻辑 ===
+  // ========= 持久化 =========
   Future<void> savePreferences() async {
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(milliseconds: 120), () async {
       final prefs = await SharedPreferences.getInstance();
 
-      // 兼容旧字段：theme_mode 存“preferredMode”
       prefs.setInt('theme_mode', _preferredMode.index);
       prefs.setBool('enable_theme_mode', _enableThemeMode);
 
@@ -281,27 +263,18 @@ class ThemeStore extends ChangeNotifier {
         final loadedSources = sourcesJson
             .map((e) => ImageSource.fromJson(jsonDecode(e) as Map<String, dynamic>))
             .toList();
-
         loadedSources.removeWhere((s) => s.id == ImageSource.wallhaven.id);
         _sources = [ImageSource.wallhaven, ...loadedSources];
       }
 
       final currentSourceId = prefs.getString('current_source_id');
       if (currentSourceId != null) {
-        _currentSource = _sources.firstWhere(
-          (s) => s.id == currentSourceId,
-          orElse: () => _sources.first,
-        );
+        _currentSource = _sources.firstWhere((s) => s.id == currentSourceId, orElse: () => _sources.first);
       } else {
         _currentSource = _sources.first;
       }
 
-      // ✅ 统一计算：谁生效
-      if (_enableCustomColors) {
-        _mode = ThemeMode.light;
-      } else {
-        _mode = _enableThemeMode ? _preferredMode : ThemeMode.system;
-      }
+      _recomputeEffectiveMode();
     } catch (e) {
       debugPrint("Load Prefs Error: $e");
     } finally {
