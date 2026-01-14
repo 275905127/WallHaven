@@ -387,26 +387,31 @@ class _SettingsPageState extends State<SettingsPage> {
         
         // 🌟 核心修正2：纯雾化渐变 + 加高后的缓冲
         flexibleSpace: _isScrolled 
-            ? Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      // 顶部：浓雾 (0.95)，几乎实心
-                      theme.scaffoldBackgroundColor.withOpacity(0.95),
-                      // 底部：完全透明 (0.0)，必须是 0 才能无缝融合
+           ? Container(
+              decoration: BoxDecoration(
+               gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                      // 1. 顶部：极浓 (98%)
+                      theme.scaffoldBackgroundColor.withOpacity(0.98),
+                      // 2. 中间：开始变淡 (85%)
+                      theme.scaffoldBackgroundColor.withOpacity(0.85),
+                      // 3. 接近底部：很淡了 (40%) - 这里是关键缓冲
+                      theme.scaffoldBackgroundColor.withOpacity(0.40),
+                      // 4. 底部：完全透明 (0%)
                       theme.scaffoldBackgroundColor.withOpacity(0.0),
                     ],
-                    // 渐变分布：
-                    // 因为高度加高了，我们可以让浓雾一直维持到 60%，
-                    // 剩下的 40% (大约28px) 用来慢慢淡出。
-                    // 这样既没有硬线，视觉上又觉得"雾"很实。
-                    stops: const [0.4, 1.0], 
+                    // 对应上面的颜色位置：
+                    // 0.0 -> 0.4 : 保持浓雾
+                    // 0.4 -> 0.7 : 慢慢变淡
+                    // 0.7 -> 1.0 : 最后这一段非常非常缓地消失，消除白线
+                    stops: const [0.0, 0.4, 0.7, 1.0], 
                   ),
                 ),
               )
             : null,
+
       ),
       
       body: ListView(
