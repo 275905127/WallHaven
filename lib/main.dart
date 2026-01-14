@@ -393,27 +393,31 @@ class _SettingsPageState extends State<SettingsPage> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              // 1. 顶部：锁死高浓度 (0.96)
+              // [1] 顶部起点：0.94 (透气但不透底)
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.94),
+              
+              // [2] 悬停区：0.94 (保持一半高度的实心雾)
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.94),
+              
+              // [3] 启动淡出：0.90 (微微松一口气)
               (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.90),
               
-              // 2. 缓冲带起点：依然保持高浓度 (0.96) - 这里的 stop 是 0.5
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.90),
+              // [4] 中间过渡：0.75 (开始明显变透)
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.75),
               
-              // 3. 慢速下滑：微降到 0.85 - 这里的 stop 是 0.7
-              // (这一步是为了让眼睛适应变化，消除"分界线感")
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.80),
+              // [5] 加速下滑：0.50 (半透明)
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.50),
               
-              // 4. 加速下滑：降到 0.40 - 这里的 stop 是 0.9
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.30),
+              // [6] 边缘缓冲：0.20 (最后的一点点白烟)
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.20),
               
-              // 5. 底部：完全消失 - stop 1.0
+              // [7] 终点：0.00 (完全消失)
               (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.0),
             ],
             
-            // 🌟 5段式平滑曲线：[0.0, 0.5, 0.7, 0.9, 1.0]
-            // 这就像一个滑滑梯：平路 -> 小坡 -> 大坡 -> 落地。
-            // 彻底消除"断层感"！
-            stops: const [0.0, 0.5, 0.7, 0.9, 1.0], 
+            // 🌟 6段式精密节点：[0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+            // 每隔 10% 的距离微调一次浓度，保证曲线圆润无比。
+            stops: const [0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], 
           ),
         ),
       )
