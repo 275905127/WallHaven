@@ -3,21 +3,24 @@ import 'package:flutter/services.dart';
 import 'app_colors.dart';
 
 class AppTheme {
-  // ☀️ 浅色主题 (接收 accentColor)
-  static ThemeData light(Color accentColor) {
+  // ☀️ 浅色主题 (接收 accentColor, 可选 customBg, customCard)
+  static ThemeData light(Color accentColor, {Color? customBg, Color? customCard}) {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      scaffoldBackgroundColor: AppColors.lightBackground,
-      cardColor: AppColors.lightCard,
+      
+      // 🌟 关键修改：优先使用 Store 传入的自定义颜色，为空则使用默认
+      scaffoldBackgroundColor: customBg ?? AppColors.lightBackground,
+      cardColor: customCard ?? AppColors.lightCard,
+      
       dialogBackgroundColor: AppColors.lightAlert,
       dividerColor: AppColors.lightDivider,
       
-      // 🌟 关键修改：将重点色应用到 ColorScheme
+      // 保持重点色逻辑
       colorScheme: ColorScheme.fromSeed(
         seedColor: accentColor,
         brightness: Brightness.light,
-        primary: accentColor, // 强制主色
+        primary: accentColor, 
       ),
 
       dialogTheme: const DialogTheme(
@@ -45,7 +48,6 @@ class AppTheme {
         ),
       ),
       
-      // 这里的 Switch 颜色也可以考虑用 accentColor，或者保持黑白风格
       switchTheme: SwitchThemeData(
         thumbColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? Colors.white : const Color(0xFF5D5D5D)),
         trackColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFE3E3E3)),
@@ -63,17 +65,19 @@ class AppTheme {
     );
   }
 
-  // 🌙 深色主题 (接收 accentColor)
-  static ThemeData dark(Color accentColor) {
+  // 🌙 深色主题 (接收 accentColor, 可选 customBg, customCard)
+  static ThemeData dark(Color accentColor, {Color? customBg, Color? customCard}) {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: AppColors.darkBackground,
-      cardColor: AppColors.darkCard,
+      
+      // 🌟 关键修改：优先使用 Store 传入的自定义颜色
+      scaffoldBackgroundColor: customBg ?? AppColors.darkBackground,
+      cardColor: customCard ?? AppColors.darkCard,
+      
       dialogBackgroundColor: AppColors.darkAlert,
       dividerColor: AppColors.darkDivider,
 
-      // 🌟 关键修改
       colorScheme: ColorScheme.fromSeed(
         seedColor: accentColor,
         brightness: Brightness.dark,
