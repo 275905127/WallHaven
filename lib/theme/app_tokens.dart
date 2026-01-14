@@ -1,4 +1,5 @@
 // lib/theme/app_tokens.dart
+import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 
 @immutable
@@ -10,7 +11,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
 
   final Color chevronColor; // SettingsGroup 右侧箭头
   final Color disabledFg; // 禁用文字/图标
-  final Color dividerColor; // 分隔线颜色（你用 Container 的 2px）
+  final Color dividerColor; // 分隔线颜色（2px 背景缝）
 
   // 尺寸/形状
   final double smallRadius; // 连接处小圆角
@@ -36,35 +37,35 @@ class AppTokens extends ThemeExtension<AppTokens> {
   });
 
   static AppTokens light() {
-    const blackTrack = Color(0xFF0D0D0D); // 你说的“自定义颜色开关同款黑”
-    return AppTokens(
+    const blackTrack = Color(0xFF0D0D0D); // “自定义颜色开关同款黑”
+    return const AppTokens(
       controlThumb: Colors.white,
       controlTrackActive: blackTrack,
-      controlTrackInactive: const Color(0xFFE3E3E3),
-      chevronColor: const Color(0xFFC7C7CC),
+      controlTrackInactive: Color(0xFFE3E3E3),
+      chevronColor: Color(0xFFC7C7CC),
       disabledFg: Colors.black54,
       dividerColor: Colors.white,
       smallRadius: 4.0,
       dividerThickness: 2.0,
-      sliderTrackHeight: 5.0, // 稍微加粗
-      expandDuration: const Duration(milliseconds: 220),
+      sliderTrackHeight: 5.0, // 轨道略加粗
+      expandDuration: Duration(milliseconds: 220),
       expandCurve: Curves.easeInOut,
     );
-    }
+  }
 
   static AppTokens dark() {
     const blackTrack = Color(0xFF0D0D0D);
-    return AppTokens(
+    return const AppTokens(
       controlThumb: Colors.white,
       controlTrackActive: blackTrack,
-      controlTrackInactive: const Color(0xFF3B3B3B),
-      chevronColor: const Color(0xFF666666),
+      controlTrackInactive: Color(0xFF3B3B3B),
+      chevronColor: Color(0xFF666666),
       disabledFg: Colors.white54,
       dividerColor: Colors.black,
       smallRadius: 4.0,
       dividerThickness: 2.0,
       sliderTrackHeight: 5.0,
-      expandDuration: const Duration(milliseconds: 220),
+      expandDuration: Duration(milliseconds: 220),
       expandCurve: Curves.easeInOut,
     );
   }
