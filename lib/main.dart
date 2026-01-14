@@ -1,35 +1,36 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 void main() {
-  // 1. 沉浸式状态栏：强制透明
+  // 1. 沉浸式状态栏：强制透明，让内容能顶到最上面
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent, 
-    systemNavigationBarColor: Colors.transparent, 
+    statusBarColor: Colors.transparent, // 状态栏背景透明
+    systemNavigationBarColor: Colors.transparent, // 底部导航条透明
   ));
   runApp(const MyApp());
 }
 
 // ==========================================
-// 1. 🎨 颜色配置 (完全保留你的原版配色)
+// 1. 🎨 颜色配置中心 (附详细中文注释)
 // ==========================================
 class AppColors {
   // --- ☀️ 浅色模式颜色 ---
   static const Color lightBackground = Color(0xFFFFFFFF); // [浅色] 全局背景：纯白
-  static const Color lightCard = Color(0xFFF3F3F3);       // [浅色] 卡片/按钮背景：浅灰
-  static const Color lightAlert = Color(0xFFE5E5E5);      // [浅色] 弹窗背景：纯白
-  static const Color lightMenu = Color(0xFFEBEBEB);       // [浅色] 重点色下拉菜单背景：浅灰
-  static const Color lightDivider = Color(0xFFFFFFFF);    // [浅色] 分割线颜色
+  static const Color lightCard = Color(0xFFF3F3F3); // [浅色] 卡片/按钮背景：浅灰
+  static const Color lightAlert = Color(0xFFE5E5E5); // [浅色] 弹窗背景：纯白 (ChatGPT原版弹窗通常是白的)
+  static const Color lightMenu = Color(0xFFEBEBEB); // [浅色] 重点色下拉菜单背景：浅灰
+  static const Color lightDivider = Color(0xFFFFFFFF); // [浅色] 分割线颜色
 
   // --- 🌙 深色模式颜色 ---
-  static const Color darkBackground = Color(0xFF000000);  // [深色] 全局背景：纯黑
-  static const Color darkCard = Color(0xFF414141);        // [深色] 卡片/按钮背景：深炭灰
-  static const Color darkAlert = Color(0xFF1B1B1B);       // [深色] 弹窗背景：标准的深灰色
-  static const Color darkMenu = Color(0xFF333333);        // [深色] 重点色下拉菜单背景
-  static const Color darkDivider = Color(0xFF000000);     // [深色] 分割线颜色
+  static const Color darkBackground = Color(0xFF000000); // [深色] 全局背景：纯黑
+  static const Color darkCard = Color(0xFF414141); // [深色] 卡片/按钮背景：深炭灰 (参考 ChatGPT 网页版)
+  static const Color darkAlert = Color(0xFF1B1B1B); // [深色] 弹窗背景：标准的深灰色 (你之前觉得发蓝是因为没用这个)
+  static const Color darkMenu = Color(0xFF333333); // [深色] 重点色下拉菜单背景
+  static const Color darkDivider = Color(0xFF000000); // [深色] 分割线颜色
 
   // --- 品牌色 ---
-  static const Color brandYellow = Color(0xFFD2AE00);     // 头像底色：暗黄色
+  static const Color brandYellow = Color(0xFFD2AE00); // 头像底色：暗黄色
 }
 
 // ==========================================
@@ -43,8 +44,8 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  ThemeMode _themeMode = ThemeMode.system; 
-  Color _accentColor = Colors.blue; 
+  ThemeMode _themeMode = ThemeMode.system;
+  Color _accentColor = Colors.blue;
   String _accentName = "蓝色";
 
   void changeTheme(ThemeMode mode) {
@@ -63,108 +64,116 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
-      
-      // === ☀️ 浅色主题 ===
+
+      // === ☀️ 浅色主题配置 ===
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
-        scaffoldBackgroundColor: AppColors.lightBackground, 
-        cardColor: AppColors.lightCard,                     
-        dialogBackgroundColor: AppColors.lightAlert,        
-        dividerColor: AppColors.lightDivider,               
-        
-        // 弹窗样式
+        scaffoldBackgroundColor: AppColors.lightBackground, // 页面背景：纯白
+        cardColor: AppColors.lightCard, // 卡片背景：浅灰
+        dialogBackgroundColor: AppColors.lightAlert, // 弹窗背景：纯白
+        dividerColor: AppColors.lightDivider, // 分割线
+
+        // 🌟 修复弹窗样式
         dialogTheme: const DialogTheme(
-          backgroundColor: AppColors.lightAlert, 
-          surfaceTintColor: Colors.transparent,  
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18))), 
+          backgroundColor: AppColors.lightAlert, // [浅色] 弹窗背景色
+          surfaceTintColor: Colors.transparent, // 🌟【关键】移除 M3 默认的蓝色/紫色滤镜
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18))), // 圆角 18
         ),
-        
+
         // 下拉菜单样式
         popupMenuTheme: const PopupMenuThemeData(
-          color: AppColors.lightMenu,           
-          surfaceTintColor: Colors.transparent, 
+          color: AppColors.lightMenu, // [浅色] 菜单背景
+          surfaceTintColor: Colors.transparent, // 移除滤镜
           textStyle: TextStyle(color: Colors.black, fontSize: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
         ),
 
         // AppBar 基础样式
         appBarTheme: const AppBarTheme(
-            backgroundColor: Colors.transparent, 
-            surfaceTintColor: Colors.transparent, 
-            elevation: 0,
-            iconTheme: IconThemeData(color: Colors.black), 
-            titleTextStyle: TextStyle(color: Colors.black, fontSize: 17, fontWeight: FontWeight.w600),
-            systemOverlayStyle: SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.dark, 
-            ),
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent, // 移除滚动时的变色
+          elevation: 0,
+          iconTheme: IconThemeData(color: Colors.black), // 图标黑
+          titleTextStyle: TextStyle(color: Colors.black, fontSize: 17, fontWeight: FontWeight.w600),
+          systemOverlayStyle: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.dark, // 状态栏图标黑
+          ),
         ),
-        
+
         // 开关样式
         switchTheme: SwitchThemeData(
-          thumbColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? Colors.white : const Color(0xFF5D5D5D)), 
-          trackColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFE3E3E3)), 
+          thumbColor: MaterialStateProperty.resolveWith(
+            (states) => states.contains(MaterialState.selected) ? Colors.white : const Color(0xFF5D5D5D),
+          ), // 滑块颜色
+          trackColor: MaterialStateProperty.resolveWith(
+            (states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFE3E3E3),
+          ), // 轨道颜色
           trackOutlineColor: MaterialStateProperty.resolveWith((states) {
-             if (states.contains(MaterialState.selected)) return Colors.transparent;
-             return Colors.black.withOpacity(0.1); 
+            if (states.contains(MaterialState.selected)) return Colors.transparent;
+            return Colors.black.withOpacity(0.1); // [浅色] 关闭时的边缘描边：10%黑
           }),
           trackOutlineWidth: const MaterialStatePropertyAll(1.0),
         ),
         textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: Colors.black),      
-          bodyMedium: TextStyle(color: Color(0xFF8E8E93)),
+          bodyLarge: TextStyle(color: Colors.black), // 主文字黑
+          bodyMedium: TextStyle(color: Color(0xFF8E8E93)), // 次要文字灰
         ),
       ),
 
-      // === 🌙 深色主题 ===
+      // === 🌙 深色主题配置 ===
       darkTheme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: AppColors.darkBackground, 
-        cardColor: AppColors.darkCard,                     
-        dialogBackgroundColor: AppColors.darkAlert,        
-        dividerColor: AppColors.darkDivider,               
-        
-        // 弹窗样式
+        scaffoldBackgroundColor: AppColors.darkBackground, // 页面背景：纯黑
+        cardColor: AppColors.darkCard, // 卡片背景：深灰
+        dialogBackgroundColor: AppColors.darkAlert, // 弹窗背景：深灰
+        dividerColor: AppColors.darkDivider, // 分割线
+
+        // 🌟 修复深色弹窗发蓝的问题
         dialogTheme: const DialogTheme(
-          backgroundColor: AppColors.darkAlert, 
-          surfaceTintColor: Colors.transparent, 
+          backgroundColor: AppColors.darkAlert, // [深色] 强制使用深灰色 (#2C2C2C)
+          surfaceTintColor: Colors.transparent, // 🌟【关键】彻底移除 M3 的蓝色表面色调
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18))),
         ),
 
         popupMenuTheme: const PopupMenuThemeData(
-          color: AppColors.darkMenu,            
-          surfaceTintColor: Colors.transparent, 
+          color: AppColors.darkMenu, // [深色] 菜单背景
+          surfaceTintColor: Colors.transparent, // 移除滤镜
           textStyle: TextStyle(color: Colors.white, fontSize: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
         ),
 
         appBarTheme: const AppBarTheme(
-            backgroundColor: Colors.transparent, 
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            iconTheme: IconThemeData(color: Colors.white), 
-            titleTextStyle: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
-            systemOverlayStyle: SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.light, 
-            ),
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          iconTheme: IconThemeData(color: Colors.white), // 图标白
+          titleTextStyle: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
+          systemOverlayStyle: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light, // 状态栏图标白
+          ),
         ),
-        
+
         // 开关样式
         switchTheme: SwitchThemeData(
-          thumbColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFC4C4C4)), 
-          trackColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFFFFFFFF) : const Color(0xFF3B3B3B)), 
+          thumbColor: MaterialStateProperty.resolveWith(
+            (states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFC4C4C4),
+          ), // 滑块
+          trackColor: MaterialStateProperty.resolveWith(
+            (states) => states.contains(MaterialState.selected) ? const Color(0xFFFFFFFF) : const Color(0xFF3B3B3B),
+          ), // 轨道
           trackOutlineColor: MaterialStateProperty.resolveWith((states) {
-             if (states.contains(MaterialState.selected)) return Colors.transparent;
-             return Colors.white.withOpacity(0.12); 
+            if (states.contains(MaterialState.selected)) return Colors.transparent;
+            return Colors.white.withOpacity(0.12); // [深色] 关闭时的边缘描边：12%白
           }),
           trackOutlineWidth: const MaterialStatePropertyAll(1.0),
         ),
         textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: Colors.white),       
-          bodyMedium: TextStyle(color: Color(0xFF9E9E9E)), 
+          bodyLarge: TextStyle(color: Colors.white), // 主文字白
+          bodyMedium: TextStyle(color: Color(0xFF9E9E9E)), // 次要文字灰
         ),
       ),
 
@@ -189,7 +198,14 @@ class HomePage extends StatelessWidget {
   final Color currentAccentColor;
   final Function(Color, String) changeAccent;
 
-  const HomePage({super.key, required this.currentMode, required this.changeTheme, required this.currentAccentName, required this.currentAccentColor, required this.changeAccent});
+  const HomePage({
+    super.key,
+    required this.currentMode,
+    required this.changeTheme,
+    required this.currentAccentName,
+    required this.currentAccentColor,
+    required this.changeAccent,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -233,7 +249,7 @@ class HomePage extends StatelessWidget {
 }
 
 // ==========================================
-// 4. ⚙️ 设置页 (核心修改区域：纯净遮罩)
+// 4. ⚙️ 设置页 (包含所有动态逻辑)
 // ==========================================
 class SettingsPage extends StatefulWidget {
   final ThemeMode currentMode;
@@ -242,7 +258,14 @@ class SettingsPage extends StatefulWidget {
   final Color currentAccentColor;
   final Function(Color, String) onAccentChanged;
 
-  const SettingsPage({super.key, required this.currentMode, required this.onThemeChanged, required this.currentAccentName, required this.currentAccentColor, required this.onAccentChanged});
+  const SettingsPage({
+    super.key,
+    required this.currentMode,
+    required this.onThemeChanged,
+    required this.currentAccentName,
+    required this.currentAccentColor,
+    required this.onAccentChanged,
+  });
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -250,7 +273,10 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final ScrollController _scrollController = ScrollController();
-  bool _isScrolled = false;
+
+  // ✅ 标题栏优化：用滚动进度替代 bool，让过渡更像第一张（柔和、无“线感”）
+  double _appBarT = 0.0;
+
   bool _showLegacyModel = false;
   bool _hapticFeedback = true;
 
@@ -258,10 +284,12 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(() {
-      if (_scrollController.offset > 0 && !_isScrolled) {
-        setState(() => _isScrolled = true);
-      } else if (_scrollController.offset <= 0 && _isScrolled) {
-        setState(() => _isScrolled = false);
+      // 0~1：小范围滚动就完成过渡（更接近原版）
+      final t = (_scrollController.offset / 36.0).clamp(0.0, 1.0);
+
+      // 避免高频 setState
+      if ((t - _appBarT).abs() > 0.01) {
+        setState(() => _appBarT = t);
       }
     });
   }
@@ -272,19 +300,24 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 
+  // 🟢 核心功能：智能避让菜单 (向上/向下弹)
   void _showDynamicAccentMenu(BuildContext context) async {
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
-    final Size size = renderBox.size; 
-    final Offset offset = renderBox.localToGlobal(Offset.zero); 
-    final double screenHeight = MediaQuery.of(context).size.height; 
+    final Size size = renderBox.size; // 按钮的大小
+    final Offset offset = renderBox.localToGlobal(Offset.zero); // 按钮在屏幕的位置
+    final double screenHeight = MediaQuery.of(context).size.height; // 屏幕总高度
+
+    // 菜单大约的高度 (7个选项 * 48高度 + 上下padding) ≈ 360
     const double estimatedMenuHeight = 360.0;
+
+    // 判断逻辑：如果 (按钮Y坐标 + 预估菜单高度) 超过了屏幕高度，说明下面放不下了，要往上弹
     final bool isBottom = (offset.dy + estimatedMenuHeight) > screenHeight;
-    
+
     final RelativeRect position = RelativeRect.fromLTRB(
-      offset.dx, 
-      isBottom ? offset.dy - estimatedMenuHeight : offset.dy + size.height + 10, 
-      offset.dx + size.width, 
-      isBottom ? offset.dy : 0, 
+      offset.dx, // 左对齐
+      isBottom ? offset.dy - estimatedMenuHeight : offset.dy + size.height + 10,
+      offset.dx + size.width, // 右对齐
+      isBottom ? offset.dy : 0,
     );
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -302,7 +335,7 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       position: position,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: isDark ? AppColors.darkMenu : AppColors.lightMenu, 
+      color: isDark ? AppColors.darkMenu : AppColors.lightMenu,
       elevation: 4,
       items: accentOptions.map((option) {
         return PopupMenuItem(
@@ -311,8 +344,12 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Row(
             children: [
               Container(
-                width: 24, height: 24, 
-                decoration: BoxDecoration(color: option["isDefault"] == true ? Colors.grey[600] : option["color"], shape: BoxShape.circle),
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: option["isDefault"] == true ? Colors.grey[600] : option["color"],
+                  shape: BoxShape.circle,
+                ),
               ),
               const SizedBox(width: 12),
               Text(option["name"], style: TextStyle(fontSize: 16, color: isDark ? Colors.white : Colors.black)),
@@ -338,11 +375,11 @@ class _SettingsPageState extends State<SettingsPage> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              insetPadding: const EdgeInsets.symmetric(horizontal: 30), 
+              insetPadding: const EdgeInsets.symmetric(horizontal: 30),
               title: const Text("外观", style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600)),
               contentPadding: const EdgeInsets.only(top: 16, bottom: 8),
               content: SizedBox(
-                width: MediaQuery.of(context).size.width, 
+                width: MediaQuery.of(context).size.width,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -358,7 +395,13 @@ class _SettingsPageState extends State<SettingsPage> {
                     widget.onThemeChanged(tempMode);
                     Navigator.pop(context);
                   },
-                  child: Text("确定", style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black, fontWeight: FontWeight.w600)),
+                  child: Text(
+                    "确定",
+                    style: TextStyle(
+                      color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ],
             );
@@ -374,7 +417,7 @@ class _SettingsPageState extends State<SettingsPage> {
       value: value,
       groupValue: groupValue,
       onChanged: onChanged,
-      activeColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black, 
+      activeColor: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
       contentPadding: const EdgeInsets.symmetric(horizontal: 24),
       dense: true,
     );
@@ -386,32 +429,69 @@ class _SettingsPageState extends State<SettingsPage> {
     final topPadding = MediaQuery.of(context).padding.top + kToolbarHeight;
     final isDark = theme.brightness == Brightness.dark;
 
+    // ✅ 标题栏雾化参数（按滚动进度渐变）
+    final double blurSigma = lerpDouble(0, 14, _appBarT)!;
+
+    // 雾层强度：不滚动也有一点点（第一张那种“空气感”）
+    final double fogTop = lerpDouble(isDark ? 0.10 : 0.12, isDark ? 0.85 : 0.90, _appBarT)!;
+    final double fogMid = lerpDouble(isDark ? 0.04 : 0.06, isDark ? 0.45 : 0.55, _appBarT)!;
+    final double fogBottom = lerpDouble(0.0, isDark ? 0.06 : 0.08, _appBarT)!;
+
     return Scaffold(
-      extendBodyBehindAppBar: true, 
-      
+      extendBodyBehindAppBar: true,
+
       appBar: AppBar(
         centerTitle: true,
         title: const Text('设置'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back), 
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        
+
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        
-        // 🌟 核心修正：纯色 + 透明度遮罩 (无模糊，无渐变)
-        // 当滚动时 (_isScrolled)，显示一个带 90% 不透明度的背景容器
-        // 这样既能看清底下的文字（透过去），又能和整体背景融为一体，没有生硬的分层线
-        flexibleSpace: _isScrolled 
-            ? Container(
-                color: theme.scaffoldBackgroundColor.withOpacity(0.90),
-              )
-            : null,
+
+        // ✅ 只优化标题栏：磨砂 + 3段渐变 + 平滑过渡（更接近第一张）
+        flexibleSpace: ClipRect(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // 1) 磨砂模糊：随滚动增强
+              BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+                child: const SizedBox.expand(),
+              ),
+
+              // 2) 雾化渐变：始终存在，不滚动也有轻微“空气感”
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      theme.scaffoldBackgroundColor.withOpacity(fogTop),
+                      theme.scaffoldBackgroundColor.withOpacity(fogMid),
+                      theme.scaffoldBackgroundColor.withOpacity(0.0),
+                    ],
+                    // 3 段 stops：顶部保护标题，中段快速变轻，底部拖长尾巴慢慢消失
+                    stops: const [0.0, 0.55, 1.0],
+                  ),
+                ),
+              ),
+
+              // 3) 可选的极轻分层：让顶部更“干净”（不会出现硬线）
+              IgnorePointer(
+                child: Container(
+                  color: theme.scaffoldBackgroundColor.withOpacity(fogBottom),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      
+
       body: ListView(
         controller: _scrollController,
         padding: EdgeInsets.fromLTRB(16, topPadding + 10, 16, 20),
@@ -441,15 +521,16 @@ class _SettingsPageState extends State<SettingsPage> {
           SettingsGroup(
             items: [
               SettingsItem(
-                icon: Icons.wb_sunny_outlined, 
-                title: "外观", 
-                subtitle: _getModeName(widget.currentMode), 
-                onTap: () => _showAppearanceDialog(context)
+                icon: Icons.wb_sunny_outlined,
+                title: "外观",
+                subtitle: _getModeName(widget.currentMode),
+                onTap: () => _showAppearanceDialog(context),
               ),
               SettingsItem(
-                icon: Icons.color_lens_outlined, 
-                title: "重点色", 
-                subtitle: widget.currentAccentName, 
+                icon: Icons.color_lens_outlined,
+                title: "重点色",
+                subtitle: widget.currentAccentName,
+                // 🌟 使用 Builder 获取准确坐标
                 trailing: Builder(
                   builder: (innerContext) {
                     return GestureDetector(
@@ -457,15 +538,19 @@ class _SettingsPageState extends State<SettingsPage> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(width: 12, height: 12, decoration: BoxDecoration(color: widget.currentAccentColor, shape: BoxShape.circle)),
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(color: widget.currentAccentColor, shape: BoxShape.circle),
+                          ),
                           const SizedBox(width: 8),
-                          Icon(Icons.keyboard_arrow_down, color: theme.iconTheme.color!.withOpacity(0.5)), 
+                          Icon(Icons.keyboard_arrow_down, color: theme.iconTheme.color!.withOpacity(0.5)),
                         ],
                       ),
                     );
-                  }
+                  },
                 ),
-                onTap: () {}, 
+                onTap: () {},
               ),
             ],
           ),
@@ -476,45 +561,47 @@ class _SettingsPageState extends State<SettingsPage> {
           SettingsGroup(
             items: [
               SettingsItem(
-                icon: Icons.schema_outlined, 
+                icon: Icons.schema_outlined,
                 title: "显示传统模型",
                 trailing: Switch(
-                  value: _showLegacyModel, 
+                  value: _showLegacyModel,
                   onChanged: (val) => setState(() => _showLegacyModel = val),
                 ),
                 onTap: () => setState(() => _showLegacyModel = !_showLegacyModel),
               ),
               SettingsItem(
-                icon: Icons.vibration, 
+                icon: Icons.vibration,
                 title: "触觉反馈",
                 trailing: Switch(
-                  value: _hapticFeedback, 
+                  value: _hapticFeedback,
                   onChanged: (val) => setState(() => _hapticFeedback = val),
                 ),
                 onTap: () => setState(() => _hapticFeedback = !_hapticFeedback),
               ),
               SettingsItem(
-                icon: Icons.language, 
-                title: "语言", 
-                subtitle: "中文", 
-                onTap: () {}
+                icon: Icons.language,
+                title: "语言",
+                subtitle: "中文",
+                onTap: () {},
               ),
             ],
           ),
-          
+
           const SizedBox(height: 24),
-          
-           const SectionHeader(title: "通知"),
-           SettingsGroup(
-             items: [
-               SettingsItem(
-                 icon: Icons.notifications_outlined,
-                 title: "通知",
-                 onTap: () {},
-               ),
-             ]
-           ),
-           const SizedBox(height: 300),
+
+          const SectionHeader(title: "通知"),
+          SettingsGroup(
+            items: [
+              SettingsItem(
+                icon: Icons.notifications_outlined,
+                title: "通知",
+                onTap: () {},
+              ),
+            ],
+          ),
+
+          // 🌟 底部留白，方便测试向上弹出的菜单
+          const SizedBox(height: 300),
         ],
       ),
     );
@@ -522,15 +609,18 @@ class _SettingsPageState extends State<SettingsPage> {
 
   String _getModeName(ThemeMode mode) {
     switch (mode) {
-      case ThemeMode.system: return "系统 (默认)";
-      case ThemeMode.light: return "浅色";
-      case ThemeMode.dark: return "深色";
+      case ThemeMode.system:
+        return "系统 (默认)";
+      case ThemeMode.light:
+        return "浅色";
+      case ThemeMode.dark:
+        return "深色";
     }
   }
 }
 
 // ==========================================
-// 5. 🧩 基础组件封装 (保持不变)
+// 5. 🧩 基础组件封装
 // ==========================================
 
 class UserProfileHeader extends StatelessWidget {
@@ -544,20 +634,37 @@ class UserProfileHeader extends StatelessWidget {
     return Column(
       children: [
         Container(
-          width: 80, height: 80, 
+          width: 80,
+          height: 80,
           alignment: Alignment.center,
           decoration: const BoxDecoration(color: AppColors.brandYellow, shape: BoxShape.circle),
-          child: Text("27", style: TextStyle(color: isDark ? Colors.white : Colors.black.withOpacity(0.7), fontSize: 32, fontWeight: FontWeight.w500)),
+          child: Text(
+            "27",
+            style: TextStyle(
+              color: isDark ? Colors.white : Colors.black.withOpacity(0.7),
+              fontSize: 32,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ),
         const SizedBox(height: 16),
-        Text("星河 於长野", style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 20, fontWeight: FontWeight.w600)),
+        Text(
+          "星河 於长野",
+          style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 20, fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 4),
         Text("275905127", style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 14)),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFE0E0E0), borderRadius: BorderRadius.circular(20)),
-          child: Text("编辑个人资料", style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 13, fontWeight: FontWeight.w500)),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFE0E0E0),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            "编辑个人资料",
+            style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 13, fontWeight: FontWeight.w500),
+          ),
         ),
       ],
     );
@@ -571,7 +678,10 @@ class SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 16, bottom: 8),
-      child: Text(title, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w500)),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w500),
+      ),
     );
   }
 }
@@ -587,7 +697,7 @@ class SettingsItem {
 
 class SettingsGroup extends StatelessWidget {
   final List<SettingsItem> items;
-  static const double largeRadius = 16.0; 
+  static const double largeRadius = 16.0;
   static const double smallRadius = 4.0;
   const SettingsGroup({super.key, required this.items});
 
@@ -601,10 +711,25 @@ class SettingsGroup extends StatelessWidget {
         final bool isLast = index == items.length - 1;
         final bool isSingle = items.length == 1;
         BorderRadius borderRadius;
-        if (isSingle) borderRadius = BorderRadius.circular(largeRadius);
-        else if (isFirst) borderRadius = const BorderRadius.only(topLeft: Radius.circular(largeRadius), topRight: Radius.circular(largeRadius), bottomLeft: Radius.circular(smallRadius), bottomRight: Radius.circular(smallRadius));
-        else if (isLast) borderRadius = const BorderRadius.only(topLeft: Radius.circular(smallRadius), topRight: Radius.circular(smallRadius), bottomLeft: Radius.circular(largeRadius), bottomRight: Radius.circular(largeRadius));
-        else borderRadius = BorderRadius.circular(smallRadius);
+        if (isSingle) {
+          borderRadius = BorderRadius.circular(largeRadius);
+        } else if (isFirst) {
+          borderRadius = const BorderRadius.only(
+            topLeft: Radius.circular(largeRadius),
+            topRight: Radius.circular(largeRadius),
+            bottomLeft: Radius.circular(smallRadius),
+            bottomRight: Radius.circular(smallRadius),
+          );
+        } else if (isLast) {
+          borderRadius = const BorderRadius.only(
+            topLeft: Radius.circular(smallRadius),
+            topRight: Radius.circular(smallRadius),
+            bottomLeft: Radius.circular(largeRadius),
+            bottomRight: Radius.circular(largeRadius),
+          );
+        } else {
+          borderRadius = BorderRadius.circular(smallRadius);
+        }
 
         return Column(
           children: [
@@ -626,11 +751,18 @@ class SettingsGroup extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(item.title, style: TextStyle(fontSize: 16, color: theme.textTheme.bodyLarge?.color)),
-                              if (item.subtitle != null) ...[const SizedBox(height: 2), Text(item.subtitle!, style: TextStyle(fontSize: 13, color: theme.textTheme.bodyMedium?.color))],
+                              if (item.subtitle != null) ...[
+                                const SizedBox(height: 2),
+                                Text(item.subtitle!, style: TextStyle(fontSize: 13, color: theme.textTheme.bodyMedium?.color)),
+                              ],
                             ],
                           ),
                         ),
-                        item.trailing ?? Icon(Icons.chevron_right, color: theme.brightness == Brightness.dark ? const Color(0xFF666666) : const Color(0xFFC7C7CC)),
+                        item.trailing ??
+                            Icon(
+                              Icons.chevron_right,
+                              color: theme.brightness == Brightness.dark ? const Color(0xFF666666) : const Color(0xFFC7C7CC),
+                            ),
                       ],
                     ),
                   ),
