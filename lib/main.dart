@@ -398,7 +398,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       // 2. 中间：开始变淡 (85%)
                       theme.scaffoldBackgroundColor.withOpacity(0.85),
                       // 3. 接近底部：很淡了 (40%) - 这里是关键缓冲
-                      theme.scaffoldBackgroundColor.withOpacity(0.40),
+                      theme.scaffoldBackgroundColor.withOpacity(0.60),
                       // 4. 底部：完全透明 (0%)
                       theme.scaffoldBackgroundColor.withOpacity(0.0),
                     ],
@@ -406,7 +406,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     // 0.0 -> 0.4 : 保持浓雾
                     // 0.4 -> 0.7 : 慢慢变淡
                     // 0.7 -> 1.0 : 最后这一段非常非常缓地消失，消除白线
-                    stops: const [0.0, 0.4, 0.7, 1.0], 
+                    stops: const [0.0, 0.85, 0.95, 1.0], 
                   ),
                 ),
               )
