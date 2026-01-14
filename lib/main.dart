@@ -40,21 +40,36 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
     
-    // 🌟 核心修改：只有当 switch 打开时，才传入自定义颜色，否则传 null (使用系统/深浅主题)
+    // 自定义颜色逻辑
     final customBg = store.enableCustomColors ? store.customBackgroundColor : null;
     final customCard = store.enableCustomColors ? store.customCardColor : null;
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       themeMode: store.mode,
-      theme: AppTheme.light(store.accentColor, customBg: customBg, customCard: customCard),
-      darkTheme: AppTheme.dark(store.accentColor, customBg: customBg, customCard: customCard),
+      // 🌟 核心修改：将 store.cardRadius 传入主题配置
+      theme: AppTheme.light(
+        store.accentColor, 
+        customBg: customBg, 
+        customCard: customCard, 
+        cardRadius: store.cardRadius, // 传入圆角
+      ),
+      darkTheme: AppTheme.dark(
+        store.accentColor, 
+        customBg: customBg, 
+        customCard: customCard,
+        cardRadius: store.cardRadius, // 传入圆角
+      ),
       home: const HomePage(),
     );
   }
 }
 
+// ... 下面的 HomePage 等代码保持不变 ...
+// (为了节省篇幅，请保留你现有的 HomePage 代码，无需改动)
+// ==========================================
 // 🏠 首页 (HomePage) - 保持不变
+// ==========================================
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
   @override
@@ -174,9 +189,7 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// ==========================================
-// ⚙️ 设置页 (主页)
-// ==========================================
+// ⚙️ SettingsPage 和 SubPages 保持不变
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
   @override
@@ -244,7 +257,6 @@ class _SettingsPageState extends State<SettingsPage> {
                subtitle: "自定义圆角与颜色", 
                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalizationPage())),
              ),
-             // 🗑️ 主题设置项已移除，搬家到了 PersonalizationPage
           ]),
           
           const SizedBox(height: 24),
