@@ -43,19 +43,9 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      themeMode: store.mode, // ✅ 自定义颜色开启时已由 store 接管为固定模式
-      theme: AppTheme.light(
-        store.accentColor,
-        customBg: customBg,
-        customCard: customCard,
-        cardRadius: store.cardRadius,
-      ),
-      darkTheme: AppTheme.dark(
-        store.accentColor,
-        customBg: customBg,
-        customCard: customCard,
-        cardRadius: store.cardRadius,
-      ),
+      themeMode: store.mode, // ✅ store 已做“二选一”接管
+      theme: AppTheme.light(store.accentColor, customBg: customBg, customCard: customCard, cardRadius: store.cardRadius),
+      darkTheme: AppTheme.dark(store.accentColor, customBg: customBg, customCard: customCard, cardRadius: store.cardRadius),
       home: const HomePage(),
     );
   }
@@ -138,10 +128,7 @@ class _HomePageState extends State<HomePage> {
             actions: [
               IconButton(
                 icon: const Icon(Icons.settings_outlined),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const SettingsPage()),
-                ),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPage())),
               ),
               const SizedBox(width: 8),
             ],
@@ -268,34 +255,30 @@ class _SettingsPageState extends State<SettingsPage> {
               const UserProfileHeader(),
               const SizedBox(height: 32),
               const SectionHeader(title: "外观"),
-              SettingsGroup(
-                items: [
-                  SettingsItem(
-                    icon: Icons.person_outline,
-                    title: "个性化",
-                    subtitle: "自定义圆角与颜色",
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalizationPage())),
-                  ),
-                ],
-              ),
+              SettingsGroup(items: [
+                SettingsItem(
+                  icon: Icons.person_outline,
+                  title: "个性化",
+                  subtitle: "自定义圆角与颜色",
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalizationPage())),
+                ),
+              ]),
               const SizedBox(height: 24),
               const SectionHeader(title: "图源"),
-              SettingsGroup(
-                items: [
-                  SettingsItem(
-                    icon: Icons.swap_horiz,
-                    title: "切换图源",
-                    subtitle: store.currentSource.name,
-                    onTap: () => _showSourceSelectionDialog(context),
-                  ),
-                  SettingsItem(
-                    icon: Icons.settings_ethernet,
-                    title: "图源管理",
-                    subtitle: "添加或管理第三方源",
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SourceManagementPage())),
-                  ),
-                ],
-              ),
+              SettingsGroup(items: [
+                SettingsItem(
+                  icon: Icons.swap_horiz,
+                  title: "切换图源",
+                  subtitle: store.currentSource.name,
+                  onTap: () => _showSourceSelectionDialog(context),
+                ),
+                SettingsItem(
+                  icon: Icons.settings_ethernet,
+                  title: "图源管理",
+                  subtitle: "添加或管理第三方源",
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SourceManagementPage())),
+                ),
+              ]),
               const SizedBox(height: 300),
             ],
           ),
