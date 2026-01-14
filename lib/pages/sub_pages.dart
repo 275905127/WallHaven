@@ -4,7 +4,7 @@ import '../widgets/foggy_app_bar.dart';
 import '../widgets/settings_widgets.dart';
 
 // ==========================================
-// 1. 🎨 个性化二级页 (深度升级)
+// 1. 🎨 个性化二级页
 // ==========================================
 class PersonalizationPage extends StatefulWidget {
   const PersonalizationPage({super.key});
@@ -26,14 +26,12 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
     });
   }
 
-  // 🛠️ 辅助：显示 Hex 颜色输入弹窗
   void _showHexColorDialog(
     BuildContext context, 
     String title, 
     Color? currentColor, 
     Function(Color?) onColorChanged
   ) {
-    // 初始值处理：如果是 null，显示默认提示；否则转为 Hex 字符串
     String initHex = "";
     if (currentColor != null) {
       initHex = currentColor.value.toRadixString(16).toUpperCase().padLeft(8, '0').substring(2);
@@ -62,7 +60,6 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
                       border: const OutlineInputBorder(),
                     ),
                     onChanged: (val) {
-                      // 简单的格式校验
                       if (val.isNotEmpty && val.length != 6) {
                         setState(() => errorText = "请输入 6 位颜色代码");
                       } else {
@@ -75,7 +72,6 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
                     children: [
                       const Text("预览: "),
                       const SizedBox(width: 8),
-                      // 动态预览色块
                       Container(
                         width: 32, height: 32,
                         decoration: BoxDecoration(
@@ -89,10 +85,9 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
                 ],
               ),
               actions: [
-                // 重置按钮
                 TextButton(
                   onPressed: () {
-                    onColorChanged(null); // 传 null 恢复默认
+                    onColorChanged(null); 
                     Navigator.pop(context);
                   },
                   child: const Text("恢复默认", style: TextStyle(color: Colors.red)),
@@ -121,12 +116,11 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
     );
   }
 
-  // 🛠️ 辅助：解析 Hex 字符串
   Color? _parseColor(String hex) {
     try {
       hex = hex.replaceAll("#", "");
       if (hex.length == 6) {
-        hex = "FF$hex"; // 补全 Alpha 通道
+        hex = "FF$hex"; 
       }
       return Color(int.parse(hex, radix: 16));
     } catch (e) {
@@ -134,8 +128,14 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
     }
   }
 
-  // 🛠️ 辅助：构建滑块组件
-  Widget _buildRadiusSlider(BuildContext context, String title, double value, Function(double) onChanged) {
+  // 🛠️ 优化后的滑块组件：读写分离
+  Widget _buildRadiusSlider(
+    BuildContext context, 
+    String title, 
+    double value, 
+    Function(double) onChanged, 
+    VoidCallback onSave // 新增：保存回调
+  ) {
     final theme = Theme.of(context);
     final store = ThemeScope.of(context);
     
@@ -143,7 +143,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.cardColor,
-        borderRadius: BorderRadius.circular(store.cardRadius), // 这里始终跟随卡片圆角
+        borderRadius: BorderRadius.circular(store.cardRadius),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,8 +161,10 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
             max: 40.0, 
             divisions: 40,
             activeColor: store.accentColor,
-            // 实时更新 Store，触发全局重绘
-            onChanged: onChanged,
+            // 🌟 1. 拖动时：只更新内存，UI 极速响应
+            onChanged: onChanged, 
+            // 🌟 2. 松手时：才写入硬盘，防止卡顿
+            onChangeEnd: (_) => onSave(), 
           ),
         ],
       ),
@@ -173,7 +175,6 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
     
-    // 获取当前展示的颜色（如果是 null 则显示"默认"）
     final bgHex = store.customBackgroundColor != null 
         ? "#${store.customBackgroundColor!.value.toRadixString(16).toUpperCase().substring(2)}" 
         : "默认";
@@ -225,22 +226,22 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
           const SizedBox(height: 24),
           const SectionHeader(title: "圆角设置"),
           
-          // 1. 卡片圆角滑块
           _buildRadiusSlider(
             context, 
             "卡片圆角", 
             store.cardRadius, 
             (val) => store.setCardRadius(val),
+            () => store.savePreferences(), // 传入保存回调
           ),
           
           const SizedBox(height: 12),
           
-          // 2. 图片圆角滑块
           _buildRadiusSlider(
             context, 
             "首页图片圆角", 
             store.imageRadius, 
             (val) => store.setImageRadius(val),
+            () => store.savePreferences(), // 传入保存回调
           ),
         ],
       ),
@@ -249,7 +250,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
 }
 
 // ==========================================
-// 2. 图源管理二级页 (保持不变，重新输出一遍确保完整)
+// 2. 图源管理二级页
 // ==========================================
 class SourceManagementPage extends StatefulWidget {
   const SourceManagementPage({super.key});
