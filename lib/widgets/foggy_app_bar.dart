@@ -36,8 +36,8 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: 0,
       scrolledUnderElevation: 0,
       
-      // 🌟 修复点：使用 AnimatedOpacity 实现呼吸渐变
-      // 不再使用 "isScrolled ? Container : null"，因为 null 无法做淡出动画
+      // 🌟 核心：使用 AnimatedOpacity 实现呼吸渐变
+      // 注意：这里不需要三元运算符 (? :) 的 else 分支
       flexibleSpace: AnimatedOpacity(
         opacity: isScrolled ? 1.0 : 0.0, // 有滚动显示 1.0，无滚动隐藏 0.0
         duration: const Duration(milliseconds: 200), // 呼吸时长
