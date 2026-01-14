@@ -239,6 +239,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
             activeColor: theme.colorScheme.primary,
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),
           ),
+          // ✅ 回归：2px 背景缝分割（走 tokens）
           Container(height: tokens.dividerThickness, color: tokens.dividerColor),
           RadioListTile<ThemeMode>(
             title: const Text("浅色"),
@@ -263,7 +264,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
 
     Widget expandedBlock = Column(
       children: [
-        // ✅ header 与 body 的“背景缝”必须画出来（2px），不能用 margin 冒充
+        // ✅ header 与 body 的“背景缝”必须画出来（2px）
         Container(height: tokens.dividerThickness, color: tokens.dividerColor),
         bodyCard,
       ],
