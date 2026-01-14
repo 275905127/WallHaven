@@ -6,7 +6,7 @@ import 'app_tokens.dart';
 
 class AppTheme {
   static SwitchThemeData _switchTheme(AppTokens tokens) {
-    // ✅ Switch：严格按 tokens（开/关分别取值 + 轨道描边）
+    // ✅ Switch：开/关分别取值 + 轨道描边（全走 tokens）
     return SwitchThemeData(
       thumbColor: MaterialStateProperty.resolveWith((states) {
         return states.contains(MaterialState.selected)
@@ -25,7 +25,7 @@ class AppTheme {
   }
 
   static SliderThemeData _sliderTheme(AppTokens tokens) {
-    // ✅ Slider：前段/后段分色 + 圆点按 tokens
+    // ✅ Slider：前段/后段分色 + 圆点按 tokens（全走 tokens）
     return SliderThemeData(
       trackHeight: tokens.sliderTrackHeight,
 
@@ -52,6 +52,7 @@ class AppTheme {
     double cardRadius = 16.0,
   }) {
     final tokens = AppTokens.light();
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
@@ -122,6 +123,7 @@ class AppTheme {
     double cardRadius = 16.0,
   }) {
     final tokens = AppTokens.dark();
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
