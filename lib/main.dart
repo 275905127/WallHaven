@@ -373,7 +373,7 @@ class _SettingsPageState extends State<SettingsPage> {
         // 🌟 核心修正1：加高标题栏
         // 默认是 56，我们加到 76。
         // 这多出来的 14px，就是为了让底部的渐变有足够的缓冲空间，不再像一条线。
-        toolbarHeight: 90, 
+        toolbarHeight: 80, 
         
         leading: IconButton(
           icon: const Icon(Icons.arrow_back), 
@@ -400,17 +400,17 @@ flexibleSpace: _isScrolled
               (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.90),
               
               // 2. 悬崖边缘：保持浓雾 (0.95)
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.85),
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.90),
               
               // 3. 底部：🌟 关键修改：白透！
               // 我们不用 Colors.transparent，而是用"背景色 + 0.0透明度"。
               // 这样保证了渐变过程中 RGB 值始终是纯净的白色（或黑色），只有透明度在变。
               // 彻底消除边缘发灰、发脏的问题！
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.10),
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.02),
             ],
             
             // 保持之前的黄金比例，这是解决"雾感"和"无缝"的最佳平衡
-            stops: const [0.0, 0.7, 1.0], 
+            stops: const [0.0, 0.8, 1.0], 
           ),
         ),
       )
