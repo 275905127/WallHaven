@@ -1,4 +1,4 @@
-// ⚠️ 警示：此文件是入口与交互基线，禁止随意挪动 Widget 树导致主题/右滑筛选失效。
+// ⚠️ 警示：此文件是入口与交互基线，禁止随意挪动 Widget 树导致主题/左侧右滑筛选失效。
 // ⚠️ 警示：筛选手势体验优先；不要强行加花色图标和高饱和颜色。
 
 import 'package:flutter/material.dart';
@@ -174,9 +174,9 @@ class _HomePageState extends State<HomePage> {
         return Scaffold(
           key: _scaffoldKey,
 
-          // ✅ 右滑筛选：endDrawer + 允许右侧边缘拖拽打开
-          endDrawerEnableOpenDragGesture: true,
-          endDrawer: Drawer(
+          // ✅ 左侧右滑筛选：drawer + 允许左侧边缘拖拽打开
+          drawerEnableOpenDragGesture: true,
+          drawer: Drawer(
             width: _drawerWidth(context),
             child: FilterDrawer(
               initial: _filters,
