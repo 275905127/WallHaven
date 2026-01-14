@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+// 1. 引入拆分出去的模块
+import 'theme/app_colors.dart';
+import 'theme/app_theme.dart';
+import 'widgets/foggy_app_bar.dart';
+import 'widgets/settings_widgets.dart';
+
 void main() {
+  // 保持沉浸式状态栏设置
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent, 
     systemNavigationBarColor: Colors.transparent, 
@@ -10,26 +17,7 @@ void main() {
 }
 
 // ==========================================
-// 1. 🎨 颜色配置 (保持不变)
-// ==========================================
-class AppColors {
-  static const Color lightBackground = Color(0xFFFFFFFF); 
-  static const Color lightCard = Color(0xFFF3F3F3);       
-  static const Color lightAlert = Color(0xFFE5E5E5);      
-  static const Color lightMenu = Color(0xFFEBEBEB);       
-  static const Color lightDivider = Color(0xFFFFFFFF);    
-
-  static const Color darkBackground = Color(0xFF000000);  
-  static const Color darkCard = Color(0xFF414141);        
-  static const Color darkAlert = Color(0xFF1B1B1B);       
-  static const Color darkMenu = Color(0xFF333333);        
-  static const Color darkDivider = Color(0xFF000000);     
-
-  static const Color brandYellow = Color(0xFFD2AE00);     
-}
-
-// ==========================================
-// 2. 🚀 APP 主题配置
+// 2. APP 入口 (极简)
 // ==========================================
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -60,93 +48,9 @@ class _MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
       
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: AppColors.lightBackground, 
-        cardColor: AppColors.lightCard,                     
-        dialogBackgroundColor: AppColors.lightAlert,        
-        dividerColor: AppColors.lightDivider,               
-        dialogTheme: const DialogTheme(
-          backgroundColor: AppColors.lightAlert, 
-          surfaceTintColor: Colors.transparent,  
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18))), 
-        ),
-        popupMenuTheme: const PopupMenuThemeData(
-          color: AppColors.lightMenu,           
-          surfaceTintColor: Colors.transparent, 
-          textStyle: TextStyle(color: Colors.black, fontSize: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
-        ),
-        appBarTheme: const AppBarTheme(
-            backgroundColor: Colors.transparent, 
-            surfaceTintColor: Colors.transparent, 
-            elevation: 0,
-            iconTheme: IconThemeData(color: Colors.black), 
-            titleTextStyle: TextStyle(color: Colors.black, fontSize: 17, fontWeight: FontWeight.w600),
-            systemOverlayStyle: SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.dark, 
-            ),
-        ),
-        switchTheme: SwitchThemeData(
-          thumbColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? Colors.white : const Color(0xFF5D5D5D)), 
-          trackColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFE3E3E3)), 
-          trackOutlineColor: MaterialStateProperty.resolveWith((states) {
-             if (states.contains(MaterialState.selected)) return Colors.transparent;
-             return Colors.black.withOpacity(0.1); 
-          }),
-          trackOutlineWidth: const MaterialStatePropertyAll(1.0),
-        ),
-        textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: Colors.black),      
-          bodyMedium: TextStyle(color: Color(0xFF8E8E93)),
-        ),
-      ),
-
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: AppColors.darkBackground, 
-        cardColor: AppColors.darkCard,                     
-        dialogBackgroundColor: AppColors.darkAlert,        
-        dividerColor: AppColors.darkDivider,               
-        dialogTheme: const DialogTheme(
-          backgroundColor: AppColors.darkAlert, 
-          surfaceTintColor: Colors.transparent, 
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18))),
-        ),
-        popupMenuTheme: const PopupMenuThemeData(
-          color: AppColors.darkMenu,            
-          surfaceTintColor: Colors.transparent, 
-          textStyle: TextStyle(color: Colors.white, fontSize: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
-        ),
-        appBarTheme: const AppBarTheme(
-            backgroundColor: Colors.transparent, 
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
-            iconTheme: IconThemeData(color: Colors.white), 
-            titleTextStyle: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
-            systemOverlayStyle: SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.light, 
-            ),
-        ),
-        switchTheme: SwitchThemeData(
-          thumbColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFC4C4C4)), 
-          trackColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFFFFFFFF) : const Color(0xFF3B3B3B)), 
-          trackOutlineColor: MaterialStateProperty.resolveWith((states) {
-             if (states.contains(MaterialState.selected)) return Colors.transparent;
-             return Colors.white.withOpacity(0.12); 
-          }),
-          trackOutlineWidth: const MaterialStatePropertyAll(1.0),
-        ),
-        textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: Colors.white),       
-          bodyMedium: TextStyle(color: Color(0xFF9E9E9E)), 
-        ),
-      ),
+      // 🌟 直接调用拆分出去的全局主题
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
 
       home: HomePage(
         currentMode: _themeMode,
@@ -159,6 +63,9 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
+// ==========================================
+// 3. 首页 (保持不变)
+// ==========================================
 class HomePage extends StatelessWidget {
   final ThemeMode currentMode;
   final Function(ThemeMode) changeTheme;
@@ -210,7 +117,7 @@ class HomePage extends StatelessWidget {
 }
 
 // ==========================================
-// 4. ⚙️ 设置页 (关键修改：加高标题栏 + 优化渐变)
+// 4. 设置页 (重构版：调用通用组件)
 // ==========================================
 class SettingsPage extends StatefulWidget {
   final ThemeMode currentMode;
@@ -235,6 +142,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(() {
+      // 监听滚动，控制雾化显示
       if (_scrollController.offset > 0 && !_isScrolled) {
         setState(() => _isScrolled = true);
       } else if (_scrollController.offset <= 0 && _isScrolled) {
@@ -249,6 +157,7 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 
+  // 显示颜色选择菜单 (保持业务逻辑在页面内)
   void _showDynamicAccentMenu(BuildContext context) async {
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
     final Size size = renderBox.size; 
@@ -279,6 +188,7 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       position: position,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      // 使用 AppTheme 定义好的颜色
       color: isDark ? AppColors.darkMenu : AppColors.lightMenu, 
       elevation: 4,
       items: accentOptions.map((option) {
@@ -307,6 +217,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  // 显示外观设置弹窗
   void _showAppearanceDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -360,71 +271,19 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final topPadding = MediaQuery.of(context).padding.top + kToolbarHeight;
-    final isDark = theme.brightness == Brightness.dark;
+    final topPadding = MediaQuery.of(context).padding.top + 96; // 96 是 FoggyAppBar 的高度
 
     return Scaffold(
       extendBodyBehindAppBar: true, 
       
-      appBar: AppBar(
-        centerTitle: true,
+      // 🌟 直接调用封装好的雾化标题栏 (一行代码搞定)
+      appBar: FoggyAppBar(
         title: const Text('设置'),
-        
-        // 🌟 核心修正1：加高标题栏
-        // 默认是 56，我们加到 76。
-        // 这多出来的 14px，就是为了让底部的渐变有足够的缓冲空间，不再像一条线。
-        toolbarHeight: 96, 
-        
         leading: IconButton(
           icon: const Icon(Icons.arrow_back), 
           onPressed: () => Navigator.pop(context),
         ),
-        
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        
-        // 🌟 核心修正2：纯雾化渐变 + 加高后的缓冲
-        flexibleSpace: _isScrolled 
-    ? Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              // [1] 顶部起点：0.94 (透气但不透底)
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.94),
-              
-              // [2] 悬停区：0.94 (保持一半高度的实心雾)
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.94),
-              
-              // [3] 启动淡出：0.90 (微微松一口气)
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.90),
-              
-              // [4] 中间过渡：0.75 (开始明显变透)
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.75),
-              
-              // [5] 加速下滑：0.50 (半透明)
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.50),
-              
-              // [6] 边缘缓冲：0.20 (最后的一点点白烟)
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.20),
-              
-              // [7] 终点：0.00 (完全消失)
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.0),
-            ],
-            
-            // 🌟 6段式精密节点：[0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-            // 每隔 10% 的距离微调一次浓度，保证曲线圆润无比。
-            stops: const [0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], 
-          ),
-        ),
-      )
-    : null,
-
-
-
+        isScrolled: _isScrolled, // 传入滚动状态即可
       ),
       
       body: ListView(
@@ -433,6 +292,8 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           const UserProfileHeader(),
           const SizedBox(height: 32),
+          
+          // 🌟 调用通用组件
           const SectionHeader(title: "我的 ChatGPT"),
           SettingsGroup(
             items: [
@@ -440,6 +301,7 @@ class _SettingsPageState extends State<SettingsPage> {
               SettingsItem(icon: Icons.grid_view, title: "应用", onTap: () {}),
             ],
           ),
+          
           const SizedBox(height: 24),
           const SectionHeader(title: "账户"),
           SettingsGroup(
@@ -449,6 +311,7 @@ class _SettingsPageState extends State<SettingsPage> {
               SettingsItem(icon: Icons.email_outlined, title: "电子邮件", subtitle: "275905127@qq.com", onTap: () {}),
             ],
           ),
+          
           const SizedBox(height: 24),
           SettingsGroup(
             items: [
@@ -481,167 +344,5 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          const SectionHeader(title: "常规"),
-          SettingsGroup(
-            items: [
-              SettingsItem(
-                icon: Icons.schema_outlined, 
-                title: "显示传统模型",
-                trailing: Switch(
-                  value: _showLegacyModel, 
-                  onChanged: (val) => setState(() => _showLegacyModel = val),
-                ),
-                onTap: () => setState(() => _showLegacyModel = !_showLegacyModel),
-              ),
-              SettingsItem(
-                icon: Icons.vibration, 
-                title: "触觉反馈",
-                trailing: Switch(
-                  value: _hapticFeedback, 
-                  onChanged: (val) => setState(() => _hapticFeedback = val),
-                ),
-                onTap: () => setState(() => _hapticFeedback = !_hapticFeedback),
-              ),
-              SettingsItem(
-                icon: Icons.language, 
-                title: "语言", 
-                subtitle: "中文", 
-                onTap: () {}
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-           const SectionHeader(title: "通知"),
-           SettingsGroup(
-             items: [
-               SettingsItem(
-                 icon: Icons.notifications_outlined,
-                 title: "通知",
-                 onTap: () {},
-               ),
-             ]
-           ),
-           const SizedBox(height: 300),
-        ],
-      ),
-    );
-  }
-
-  String _getModeName(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.system: return "系统 (默认)";
-      case ThemeMode.light: return "浅色";
-      case ThemeMode.dark: return "深色";
-    }
-  }
-}
-
-// 基础组件
-class UserProfileHeader extends StatelessWidget {
-  const UserProfileHeader({super.key});
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return Column(
-      children: [
-        Container(
-          width: 80, height: 80, 
-          alignment: Alignment.center,
-          decoration: const BoxDecoration(color: AppColors.brandYellow, shape: BoxShape.circle),
-          child: Text("27", style: TextStyle(color: isDark ? Colors.white : Colors.black.withOpacity(0.7), fontSize: 32, fontWeight: FontWeight.w500)),
-        ),
-        const SizedBox(height: 16),
-        Text("星河 於长野", style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 20, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 4),
-        Text("275905127", style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 14)),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFE0E0E0), borderRadius: BorderRadius.circular(20)),
-          child: Text("编辑个人资料", style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 13, fontWeight: FontWeight.w500)),
-        ),
-      ],
-    );
-  }
-}
-// ... 其他组件保持不变 (SectionHeader, SettingsItem, SettingsGroup)
-class SectionHeader extends StatelessWidget {
-  final String title;
-  const SectionHeader({super.key, required this.title});
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 16, bottom: 8),
-      child: Text(title, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w500)),
-    );
-  }
-}
-class SettingsItem {
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final Widget? trailing;
-  final VoidCallback onTap;
-  SettingsItem({required this.icon, required this.title, this.subtitle, this.trailing, required this.onTap});
-}
-class SettingsGroup extends StatelessWidget {
-  final List<SettingsItem> items;
-  static const double largeRadius = 16.0; 
-  static const double smallRadius = 4.0;
-  const SettingsGroup({super.key, required this.items});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      children: List.generate(items.length, (index) {
-        final item = items[index];
-        final bool isFirst = index == 0;
-        final bool isLast = index == items.length - 1;
-        final bool isSingle = items.length == 1;
-        BorderRadius borderRadius;
-        if (isSingle) borderRadius = BorderRadius.circular(largeRadius);
-        else if (isFirst) borderRadius = const BorderRadius.only(topLeft: Radius.circular(largeRadius), topRight: Radius.circular(largeRadius), bottomLeft: Radius.circular(smallRadius), bottomRight: Radius.circular(smallRadius));
-        else if (isLast) borderRadius = const BorderRadius.only(topLeft: Radius.circular(smallRadius), topRight: Radius.circular(smallRadius), bottomLeft: Radius.circular(largeRadius), bottomRight: Radius.circular(largeRadius));
-        else borderRadius = BorderRadius.circular(smallRadius);
-
-        return Column(
-          children: [
-            Container(
-              decoration: BoxDecoration(color: theme.cardColor, borderRadius: borderRadius),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: item.onTap,
-                  borderRadius: borderRadius,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    child: Row(
-                      children: [
-                        Icon(item.icon, color: theme.iconTheme.color, size: 24),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(item.title, style: TextStyle(fontSize: 16, color: theme.textTheme.bodyLarge?.color)),
-                              if (item.subtitle != null) ...[const SizedBox(height: 2), Text(item.subtitle!, style: TextStyle(fontSize: 13, color: theme.textTheme.bodyMedium?.color))],
-                            ],
-                          ),
-                        ),
-                        item.trailing ?? Icon(Icons.chevron_right, color: theme.brightness == Brightness.dark ? const Color(0xFF666666) : const Color(0xFFC7C7CC)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            if (!isLast) Container(height: 2, color: theme.dividerColor),
-          ],
-        );
-      }),
-    );
-  }
-}
+          
+          const SizedBox
