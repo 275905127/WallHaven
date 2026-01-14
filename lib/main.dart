@@ -373,7 +373,7 @@ class _SettingsPageState extends State<SettingsPage> {
         // 🌟 核心修正1：加高标题栏
         // 默认是 56，我们加到 76。
         // 这多出来的 14px，就是为了让底部的渐变有足够的缓冲空间，不再像一条线。
-        toolbarHeight: 80, 
+        toolbarHeight: 76, 
         
         leading: IconButton(
           icon: const Icon(Icons.arrow_back), 
@@ -386,31 +386,34 @@ class _SettingsPageState extends State<SettingsPage> {
         scrolledUnderElevation: 0,
         
         // 🌟 核心修正2：纯雾化渐变 + 加高后的缓冲
-        // SettingsPage -> AppBar -> flexibleSpace
-
-flexibleSpace: _isScrolled 
+        flexibleSpace: _isScrolled 
     ? Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              // 1. 顶部：浓雾 (0.95)
-              // 这里的颜色由主题决定（深色模式黑，浅色模式白）
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.90),
+              // 1. 顶部：锁死高浓度 (0.96)
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.96),
               
-              // 2. 悬崖边缘：保持浓雾 (0.95)
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.90),
+              // 2. 缓冲带起点：依然保持高浓度 (0.96) - 这里的 stop 是 0.5
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.96),
               
-              // 3. 底部：🌟 关键修改：白透！
-              // 我们不用 Colors.transparent，而是用"背景色 + 0.0透明度"。
-              // 这样保证了渐变过程中 RGB 值始终是纯净的白色（或黑色），只有透明度在变。
-              // 彻底消除边缘发灰、发脏的问题！
-              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.02),
+              // 3. 慢速下滑：微降到 0.85 - 这里的 stop 是 0.7
+              // (这一步是为了让眼睛适应变化，消除"分界线感")
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.85),
+              
+              // 4. 加速下滑：降到 0.40 - 这里的 stop 是 0.9
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.40),
+              
+              // 5. 底部：完全消失 - stop 1.0
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.0),
             ],
             
-            // 保持之前的黄金比例，这是解决"雾感"和"无缝"的最佳平衡
-            stops: const [0.0, 0.8, 1.0], 
+            // 🌟 5段式平滑曲线：[0.0, 0.5, 0.7, 0.9, 1.0]
+            // 这就像一个滑滑梯：平路 -> 小坡 -> 大坡 -> 落地。
+            // 彻底消除"断层感"！
+            stops: const [0.0, 0.5, 0.7, 0.9, 1.0], 
           ),
         ),
       )
