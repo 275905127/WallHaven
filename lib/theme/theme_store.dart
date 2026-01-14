@@ -6,10 +6,16 @@ import '../models/image_source.dart';
 class ThemeStore extends ChangeNotifier {
   // === 状态数据 ===
   ThemeMode _mode = ThemeMode.system;
-  // 即使 UI 删除了设置项，变量仍需保留以兼容 AppTheme
-  Color _accentColor = Colors.blue; 
+  Color _accentColor = Colors.blue;
   String _accentName = "蓝色";
-  double _cornerRadius = 16.0;
+  
+  // 🌟 新增：拆分圆角设置
+  double _cardRadius = 16.0;   // 设置页卡片圆角 (默认 16)
+  double _imageRadius = 12.0;  // 首页瀑布流图片圆角 (默认 12)
+
+  // 🌟 新增：自定义颜色 (可为空，为空则跟随系统默认)
+  Color? _customBackgroundColor; 
+  Color? _customCardColor;
 
   // 图源数据
   List<ImageSource> _sources = [ImageSource.wallhaven];
@@ -19,16 +25,22 @@ class ThemeStore extends ChangeNotifier {
   ThemeMode get mode => _mode;
   Color get accentColor => _accentColor;
   String get accentName => _accentName;
-  double get cornerRadius => _cornerRadius;
+  
+  double get cardRadius => _cardRadius;
+  double get imageRadius => _imageRadius;
+  
+  Color? get customBackgroundColor => _customBackgroundColor;
+  Color? get customCardColor => _customCardColor;
+
   List<ImageSource> get sources => _sources;
   ImageSource get currentSource => _currentSource;
 
   ThemeStore() {
-    _currentSource = _sources.first;
+    _currentSource = _sources.first; 
     _loadFromPrefs(); // 启动时读取缓存
   }
 
-  // === 修改并保存 ===
+  // === Actions ===
   
   void setMode(ThemeMode newMode) {
     if (_mode != newMode) {
@@ -45,10 +57,40 @@ class ThemeStore extends ChangeNotifier {
     _saveToPrefs();
   }
 
-  void setCornerRadius(double radius) {
-    _cornerRadius = radius;
-    notifyListeners();
-    _saveToPrefs();
+  // 🌟 设置卡片圆角
+  void setCardRadius(double radius) {
+    if (_cardRadius != radius) {
+      _cardRadius = radius;
+      notifyListeners();
+      _saveToPrefs();
+    }
+  }
+
+  // 🌟 设置图片圆角
+  void setImageRadius(double radius) {
+    if (_imageRadius != radius) {
+      _imageRadius = radius;
+      notifyListeners();
+      _saveToPrefs();
+    }
+  }
+
+  // 🌟 设置自定义背景色 (传 null 恢复默认)
+  void setCustomBackgroundColor(Color? color) {
+    if (_customBackgroundColor != color) {
+      _customBackgroundColor = color;
+      notifyListeners();
+      _saveToPrefs();
+    }
+  }
+
+  // 🌟 设置自定义卡片色 (传 null 恢复默认)
+  void setCustomCardColor(Color? color) {
+    if (_customCardColor != color) {
+      _customCardColor = color;
+      notifyListeners();
+      _saveToPrefs();
+    }
   }
 
   void setSource(ImageSource source) {
@@ -71,11 +113,9 @@ class ThemeStore extends ChangeNotifier {
   }
 
   void removeSource(String id) {
-    // 禁止删除内置源
     if (id == ImageSource.wallhaven.id) return;
 
     _sources.removeWhere((s) => s.id == id);
-    // 如果删除了当前选中的源，重置为默认 Wallhaven
     if (_currentSource.id == id) {
       _currentSource = _sources.firstWhere(
         (s) => s.id == ImageSource.wallhaven.id,
@@ -91,39 +131,38 @@ class ThemeStore extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       
-      // 1. 读取主题 (增加范围保护)
       final modeIndex = prefs.getInt('theme_mode') ?? 0;
       if (modeIndex >= 0 && modeIndex < ThemeMode.values.length) {
         _mode = ThemeMode.values[modeIndex];
       }
       
-      // 2. 读取圆角
-      _cornerRadius = prefs.getDouble('corner_radius') ?? 16.0;
+      // 读取圆角 (兼容旧 key 'corner_radius' 迁移到 'card_radius')
+      _cardRadius = prefs.getDouble('card_radius') ?? prefs.getDouble('corner_radius') ?? 16.0;
+      _imageRadius = prefs.getDouble('image_radius') ?? 12.0;
+
+      // 读取自定义颜色 (保存的是 int 值)
+      final bgVal = prefs.getInt('custom_bg_color');
+      _customBackgroundColor = bgVal != null ? Color(bgVal) : null;
       
-      // 3. 读取图源 (核心修复逻辑)
+      final cardVal = prefs.getInt('custom_card_color');
+      _customCardColor = cardVal != null ? Color(cardVal) : null;
+      
+      // 读取图源
       final sourcesJson = prefs.getStringList('image_sources');
       if (sourcesJson != null) {
         final loadedSources = sourcesJson
             .map((e) => ImageSource.fromJson(jsonDecode(e)))
             .toList();
-
-        // 🌟 关键逻辑：过滤掉旧的 Wallhaven 数据，使用代码中最新的
-        // 这样可以确保"完美接入"，不受旧缓存数据的影响
         loadedSources.removeWhere((s) => s.id == ImageSource.wallhaven.id);
-        
-        // 重新构建列表：内置 Wallhaven + 用户自定义源
         _sources = [ImageSource.wallhaven, ...loadedSources];
       } else {
-        // 首次启动，确保有 Wallhaven
         _sources = [ImageSource.wallhaven];
       }
 
-      // 4. 读取当前选中图源
       final currentSourceId = prefs.getString('current_source_id');
       if (currentSourceId != null) {
         _currentSource = _sources.firstWhere(
           (s) => s.id == currentSourceId,
-          // 如果找不到(比如被删了)，回退到 Wallhaven
           orElse: () => _sources.first,
         );
       } else {
@@ -133,8 +172,6 @@ class ThemeStore extends ChangeNotifier {
     } catch (e) {
       debugPrint("Load Prefs Error: $e");
     } finally {
-      // 🌟 修复主题不生效的关键：
-      // 无论加载成功还是失败，必须通知 UI 刷新，否则界面可能卡在默认状态
       notifyListeners();
     }
   }
@@ -142,8 +179,24 @@ class ThemeStore extends ChangeNotifier {
   Future<void> _saveToPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     prefs.setInt('theme_mode', _mode.index);
-    prefs.setDouble('corner_radius', _cornerRadius);
-    // 序列化时，包含所有源
+    
+    // 保存圆角
+    prefs.setDouble('card_radius', _cardRadius);
+    prefs.setDouble('image_radius', _imageRadius);
+    
+    // 保存颜色 (存 int 值，null 则移除 Key)
+    if (_customBackgroundColor != null) {
+      prefs.setInt('custom_bg_color', _customBackgroundColor!.value);
+    } else {
+      prefs.remove('custom_bg_color');
+    }
+    
+    if (_customCardColor != null) {
+      prefs.setInt('custom_card_color', _customCardColor!.value);
+    } else {
+      prefs.remove('custom_card_color');
+    }
+
     prefs.setStringList('image_sources', _sources.map((s) => jsonEncode(s.toJson())).toList());
     prefs.setString('current_source_id', _currentSource.id);
   }
