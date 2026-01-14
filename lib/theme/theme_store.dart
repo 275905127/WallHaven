@@ -3,6 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/image_source.dart';
 
+// 🌟 新增：全局 ThemeScope 定义，放在 Store 文件中确保全局可引用
+class ThemeScope extends InheritedWidget {
+  final ThemeStore store;
+  const ThemeScope({super.key, required this.store, required super.child});
+
+  static ThemeStore of(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<ThemeScope>();
+    if (scope == null) return ThemeStore(); // 安全回退
+    return scope.store;
+  }
+
+  @override
+  bool updateShouldNotify(ThemeScope oldWidget) => store != oldWidget.store;
+}
+
 class ThemeStore extends ChangeNotifier {
   // === 状态数据 ===
   ThemeMode _mode = ThemeMode.system;
@@ -104,7 +119,6 @@ class ThemeStore extends ChangeNotifier {
     }
   }
 
-  // 🌟 修改：支持添加用户名和 Key
   void addSource(String name, String url, {String? username, String? apiKey}) {
     final newSource = ImageSource(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -118,17 +132,13 @@ class ThemeStore extends ChangeNotifier {
     savePreferences();
   }
 
-  // 🌟 新增：更新现有图源
   void updateSource(ImageSource updatedSource) {
     final index = _sources.indexWhere((s) => s.id == updatedSource.id);
     if (index != -1) {
       _sources[index] = updatedSource;
-      
-      // 如果当前正在使用的源被修改了，也要更新 _currentSource
       if (_currentSource.id == updatedSource.id) {
         _currentSource = updatedSource;
       }
-      
       notifyListeners();
       savePreferences();
     }
@@ -136,7 +146,6 @@ class ThemeStore extends ChangeNotifier {
 
   void removeSource(String id) {
     if (id == ImageSource.wallhaven.id) return;
-
     _sources.removeWhere((s) => s.id == id);
     if (_currentSource.id == id) {
       _currentSource = _sources.firstWhere(
@@ -175,43 +184,27 @@ class ThemeStore extends ChangeNotifier {
   Future<void> _loadFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
       final modeIndex = prefs.getInt('theme_mode') ?? 0;
       if (modeIndex >= 0 && modeIndex < ThemeMode.values.length) {
         _mode = ThemeMode.values[modeIndex];
       }
-      
       _enableCustomColors = prefs.getBool('enable_custom_colors') ?? false;
-      _cardRadius = prefs.getDouble('card_radius') ?? prefs.getDouble('corner_radius') ?? 16.0;
+      _cardRadius = prefs.getDouble('card_radius') ?? 16.0;
       _imageRadius = prefs.getDouble('image_radius') ?? 12.0;
-
       final bgVal = prefs.getInt('custom_bg_color');
       _customBackgroundColor = bgVal != null ? Color(bgVal) : null;
-      
       final cardVal = prefs.getInt('custom_card_color');
       _customCardColor = cardVal != null ? Color(cardVal) : null;
-      
       final sourcesJson = prefs.getStringList('image_sources');
       if (sourcesJson != null) {
-        final loadedSources = sourcesJson
-            .map((e) => ImageSource.fromJson(jsonDecode(e)))
-            .toList();
+        final loadedSources = sourcesJson.map((e) => ImageSource.fromJson(jsonDecode(e))).toList();
         loadedSources.removeWhere((s) => s.id == ImageSource.wallhaven.id);
         _sources = [ImageSource.wallhaven, ...loadedSources];
-      } else {
-        _sources = [ImageSource.wallhaven];
       }
-
       final currentSourceId = prefs.getString('current_source_id');
       if (currentSourceId != null) {
-        _currentSource = _sources.firstWhere(
-          (s) => s.id == currentSourceId,
-          orElse: () => _sources.first,
-        );
-      } else {
-        _currentSource = _sources.first;
+        _currentSource = _sources.firstWhere((s) => s.id == currentSourceId, orElse: () => _sources.first);
       }
-      
     } catch (e) {
       debugPrint("Load Prefs Error: $e");
     } finally {
