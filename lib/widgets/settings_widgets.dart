@@ -38,7 +38,7 @@ class SettingsGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // 🌟 核心修复：读取 split 后的 'cardRadius'，而不是旧的 'cornerRadius'
+    // 🌟 核心修复：确保这里使用的是 cardRadius 而不是旧的 cornerRadius
     final double largeRadius = ThemeScope.of(context).cardRadius;
     
     return Column(
