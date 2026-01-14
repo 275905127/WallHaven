@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/theme_store.dart'; // 引入 Store
 
-// === 1. 设置项数据模型 ===
 class SettingsItem {
   final IconData icon;
   final String title;
@@ -17,7 +17,6 @@ class SettingsItem {
   });
 }
 
-// === 2. 分组标题组件 ===
 class SectionHeader extends StatelessWidget {
   final String title;
   const SectionHeader({super.key, required this.title});
@@ -30,17 +29,17 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
-// === 3. 设置分组容器 (卡片圆角逻辑) ===
 class SettingsGroup extends StatelessWidget {
   final List<SettingsItem> items;
-  static const double largeRadius = 16.0; 
-  static const double smallRadius = 4.0;
+  static const double smallRadius = 4.0; // 小圆角保持不变，用于连接处
   
   const SettingsGroup({super.key, required this.items});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // 🌟 动态获取用户设置的大圆角
+    final double largeRadius = ThemeScope.of(context).cornerRadius;
     
     return Column(
       children: List.generate(items.length, (index) {
@@ -51,8 +50,8 @@ class SettingsGroup extends StatelessWidget {
         
         BorderRadius borderRadius;
         if (isSingle) borderRadius = BorderRadius.circular(largeRadius);
-        else if (isFirst) borderRadius = const BorderRadius.only(topLeft: Radius.circular(largeRadius), topRight: Radius.circular(largeRadius), bottomLeft: Radius.circular(smallRadius), bottomRight: Radius.circular(smallRadius));
-        else if (isLast) borderRadius = const BorderRadius.only(topLeft: Radius.circular(smallRadius), topRight: Radius.circular(smallRadius), bottomLeft: Radius.circular(largeRadius), bottomRight: Radius.circular(largeRadius));
+        else if (isFirst) borderRadius = BorderRadius.only(topLeft: Radius.circular(largeRadius), topRight: Radius.circular(largeRadius), bottomLeft: Radius.circular(smallRadius), bottomRight: Radius.circular(smallRadius));
+        else if (isLast) borderRadius = BorderRadius.only(topLeft: Radius.circular(smallRadius), topRight: Radius.circular(smallRadius), bottomLeft: Radius.circular(largeRadius), bottomRight: Radius.circular(largeRadius));
         else borderRadius = BorderRadius.circular(smallRadius);
 
         return Column(
