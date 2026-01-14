@@ -371,9 +371,9 @@ class _SettingsPageState extends State<SettingsPage> {
         title: const Text('设置'),
         
         // 🌟 核心修正1：加高标题栏
-        // 默认是 56，我们加到 70。
+        // 默认是 56，我们加到 80。
         // 这多出来的 14px，就是为了让底部的渐变有足够的缓冲空间，不再像一条线。
-        toolbarHeight: 76, 
+        toolbarHeight: 80, 
         
         leading: IconButton(
           icon: const Icon(Icons.arrow_back), 
@@ -387,30 +387,32 @@ class _SettingsPageState extends State<SettingsPage> {
         
         // 🌟 核心修正2：纯雾化渐变 + 加高后的缓冲
         flexibleSpace: _isScrolled 
-           ? Container(
-              decoration: BoxDecoration(
-               gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                      // 1. 顶部：极浓 (98%)
-                      theme.scaffoldBackgroundColor.withOpacity(0.98),
-                      // 2. 中间：开始变淡 (85%)
-                      theme.scaffoldBackgroundColor.withOpacity(0.85),
-                      // 3. 接近底部：很淡了 (40%) - 这里是关键缓冲
-                      theme.scaffoldBackgroundColor.withOpacity(0.60),
-                      // 4. 底部：完全透明 (0%)
-                      theme.scaffoldBackgroundColor.withOpacity(0.0),
-                    ],
-                    // 对应上面的颜色位置：
-                    // 0.0 -> 0.4 : 保持浓雾
-                    // 0.4 -> 0.7 : 慢慢变淡
-                    // 0.7 -> 1.0 : 最后这一段非常非常缓地消失，消除白线
-                    stops: const [0.0, 0.85, 0.95, 1.0], 
-                  ),
-                ),
-              )
-            : null,
+    ? Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              // 1. 顶部：高浓度白色 (0.96)
+              theme.scaffoldBackgroundColor.withOpacity(0.96),
+              
+              // 2. 悬崖边缘：依然是高浓度 (0.96)
+              // 这一步是关键！保证中间区域完全不褪色！
+              theme.scaffoldBackgroundColor.withOpacity(0.96),
+              
+              // 3. 底部：完全透明 (0.0)
+              // 只在最后瞬间消失
+              theme.scaffoldBackgroundColor.withOpacity(0.0),
+            ],
+            
+            // 🌟 决胜参数：[0.0, 0.85, 1.0]
+            // 意思就是：前 85% 的高度全是实心的雾！
+            // 只有最后 15% 用来做那个“无缝衔接”。
+            stops: const [0.0, 0.85, 1.0], 
+          ),
+        ),
+      )
+    : null,
 
       ),
       
