@@ -2,19 +2,20 @@ class ImageSource {
   final String id;
   final String name;
   final String baseUrl;
-  final String? apiKey; // 🌟 新增：支持 API Key (用于解锁 Wallhaven 高级内容)
-  final bool isBuiltIn; // 是否内置
+  final String? apiKey;    // API Key
+  final String? username;  // 🌟 新增：用户名
+  final bool isBuiltIn;    // 是否内置
 
   const ImageSource({
     required this.id,
     required this.name,
     required this.baseUrl,
     this.apiKey,
+    this.username,
     this.isBuiltIn = false,
   });
 
   // 🌟 Wallhaven 完美接入配置
-  // 官方文档: https://wallhaven.cc/help/api
   static const ImageSource wallhaven = ImageSource(
     id: 'wallhaven_official',
     name: 'Wallhaven',
@@ -22,12 +23,30 @@ class ImageSource {
     isBuiltIn: true,
   );
 
+  // 🌟 辅助方法：复制并修改 (用于更新操作)
+  ImageSource copyWith({
+    String? name,
+    String? baseUrl,
+    String? apiKey,
+    String? username,
+  }) {
+    return ImageSource(
+      id: id, // ID 保持不变
+      isBuiltIn: isBuiltIn, // 内置属性保持不变
+      name: name ?? this.name,
+      baseUrl: baseUrl ?? this.baseUrl,
+      apiKey: apiKey ?? this.apiKey,
+      username: username ?? this.username,
+    );
+  }
+
   // 序列化逻辑 (保存到本地)
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
     'baseUrl': baseUrl,
-    'apiKey': apiKey, // 保存 Key
+    'apiKey': apiKey, 
+    'username': username, // 保存用户名
     'isBuiltIn': isBuiltIn,
   };
 
@@ -37,16 +56,18 @@ class ImageSource {
       id: json['id'],
       name: json['name'],
       baseUrl: json['baseUrl'],
-      apiKey: json['apiKey'], // 读取 Key
+      apiKey: json['apiKey'],
+      username: json['username'], // 读取用户名
       isBuiltIn: json['isBuiltIn'] ?? false,
     );
   }
 
-  // 辅助方法：生成带 Key 的请求头 (预留给网络层使用)
+  // 辅助方法：生成带 Key 的请求头
   Map<String, String> get headers {
+    final Map<String, String> h = {};
     if (apiKey != null && apiKey!.isNotEmpty) {
-      return {'X-API-Key': apiKey!};
+      h['X-API-Key'] = apiKey!;
     }
-    return {};
+    return h;
   }
 }
