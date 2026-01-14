@@ -42,15 +42,15 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       themeMode: store.mode,
-      theme: AppTheme.light(store.accentColor),
-      darkTheme: AppTheme.dark(store.accentColor),
+      theme: AppTheme.light(store.accentColor, customBg: store.customBackgroundColor, customCard: store.customCardColor),
+      darkTheme: AppTheme.dark(store.accentColor, customBg: store.customBackgroundColor, customCard: store.customCardColor),
       home: const HomePage(),
     );
   }
 }
 
 // ==========================================
-// 🏠 首页 (重构版：瀑布流 + 雾化栏)
+// 🏠 首页 (瀑布流 + 雾化栏)
 // ==========================================
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -143,7 +143,6 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       extendBodyBehindAppBar: true, // 让瀑布流冲到状态栏下面
       
-      // 🌟 使用雾化标题栏
       appBar: FoggyAppBar(
         title: const Text("Wallhaven Pro"),
         isScrolled: _isScrolled,
@@ -181,7 +180,8 @@ class _HomePageState extends State<HomePage> {
                     child: Container(
                       decoration: BoxDecoration(
                         color: theme.cardColor,
-                        borderRadius: BorderRadius.circular(store.cornerRadius), // 🌟 使用全局自定义圆角
+                        // 🌟 修改点：这里改为读取 imageRadius (首页图片圆角)
+                        borderRadius: BorderRadius.circular(store.imageRadius), 
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: AspectRatio(
@@ -205,16 +205,9 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// ... SettingsPage 和其他代码保持不变 ...
-// (为了节省篇幅，SettingsPage 等代码请保持你上一次修改后的原样，不需要变动)
-// 如果你需要我再次提供 SettingsPage 的完整代码以防万一，请告诉我。
-// 但根据约定，这里我只提供了 main.dart 的核心变动部分（Imports + main + MyApp + HomePage）。
-// 你需要把原本 main.dart 下面的 SettingsPage 等代码接在后面。
-
 // ==========================================
-// 👇 以下代码请直接拼接到 HomePage 后面 (保持原来的 SettingsPage 逻辑)
+// ⚙️ 设置页 (主页)
 // ==========================================
-
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
   @override
@@ -328,7 +321,7 @@ class _SettingsPageState extends State<SettingsPage> {
              SettingsItem(
                icon: Icons.person_outline, 
                title: "个性化", 
-               subtitle: "自定义圆角",
+               subtitle: "自定义圆角与颜色", // 更新副标题
                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalizationPage())),
              ),
              SettingsItem(
