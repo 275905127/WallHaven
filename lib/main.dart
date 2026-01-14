@@ -371,9 +371,9 @@ class _SettingsPageState extends State<SettingsPage> {
         title: const Text('设置'),
         
         // 🌟 核心修正1：加高标题栏
-        // 默认是 56，我们加到 80。
+        // 默认是 56，我们加到 76。
         // 这多出来的 14px，就是为了让底部的渐变有足够的缓冲空间，不再像一条线。
-        toolbarHeight: 80, 
+        toolbarHeight: 76, 
         
         leading: IconButton(
           icon: const Icon(Icons.arrow_back), 
@@ -393,22 +393,21 @@ class _SettingsPageState extends State<SettingsPage> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              // 1. 顶部：高浓度白色 (0.96)
-              theme.scaffoldBackgroundColor.withOpacity(0.96),
+              // 1. 顶部：0.9 (90%白色)
+              // 这里不能是 1.0，也不能是 0.99，否则太死板。
+              // 0.9 刚好能保证文字清晰，同时让底下的黄色圆圈透出来。
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.90),
               
-              // 2. 悬崖边缘：依然是高浓度 (0.96)
-              // 这一步是关键！保证中间区域完全不褪色！
-              theme.scaffoldBackgroundColor.withOpacity(0.96),
-              
-              // 3. 底部：完全透明 (0.0)
-              // 只在最后瞬间消失
-              theme.scaffoldBackgroundColor.withOpacity(0.0),
+              // 2. 底部：0.0 (完全透明)
+              // 物理消除底部分界线
+              (theme.brightness == Brightness.dark ? Colors.black : Colors.white).withOpacity(0.0),
             ],
             
-            // 🌟 决胜参数：[0.0, 0.85, 1.0]
-            // 意思就是：前 85% 的高度全是实心的雾！
-            // 只有最后 15% 用来做那个“无缝衔接”。
-            stops: const [0.0, 0.85, 1.0], 
+            // 🌟 核心修正：回归最纯粹的 [0.0, 1.0]
+            // 不要任何中间节点！
+            // 让颜色从最顶端就开始均匀地往下变淡，一直淡化到底端。
+            // 这种"全程式"的渐变，是物理上最顺滑的，绝对不会有线。
+            stops: const [0.0, 1.0], 
           ),
         ),
       )
