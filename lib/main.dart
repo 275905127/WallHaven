@@ -1,3 +1,4 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -24,7 +25,7 @@ void main() async {
       store: themeStore,
       child: ListenableBuilder(
         listenable: themeStore,
-        builder: (context, child) => MyApp(), // ✅ 不要 const
+        builder: (context, child) => MyApp(),
       ),
     ),
   );
@@ -42,7 +43,7 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      themeMode: store.mode,
+      themeMode: store.mode, // ✅ 自定义颜色开启时已由 store 接管为固定模式
       theme: AppTheme.light(
         store.accentColor,
         customBg: customBg,
@@ -126,7 +127,6 @@ class _HomePageState extends State<HomePage> {
     final store = ThemeScope.of(context);
     final theme = Theme.of(context);
 
-    // ✅ 让首页也监听 store：imageRadius / 主题变化能实时刷新卡片圆角
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {
@@ -163,9 +163,7 @@ class _HomePageState extends State<HomePage> {
                       final double aspectRatio = (paper.width / paper.height).clamp(0.5, 2.0);
 
                       return GestureDetector(
-                        onTap: () {
-                          debugPrint("Clicked: ${paper.id}");
-                        },
+                        onTap: () => debugPrint("Clicked: ${paper.id}"),
                         child: Container(
                           decoration: BoxDecoration(
                             color: theme.cardColor,
@@ -251,7 +249,6 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
 
-    // ✅ 设置页监听 store：subtitle / 主题配置实时刷新
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {
