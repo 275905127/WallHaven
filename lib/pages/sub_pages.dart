@@ -208,9 +208,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
                       Text("颜色模式", style: TextStyle(fontSize: 16, color: fg)),
                       const SizedBox(height: 2),
                       Text(
-                        disabled
-                            ? "已被「自定义颜色」接管"
-                            : (store.enableThemeMode ? _modeLabel(store.preferredMode) : "关闭：跟随系统"),
+                        disabled ? "已被「自定义颜色」接管" : (store.enableThemeMode ? _modeLabel(store.preferredMode) : "关闭：跟随系统"),
                         style: TextStyle(fontSize: 13, color: disabled ? fg : theme.textTheme.bodyMedium?.color),
                       ),
                     ],
@@ -309,12 +307,8 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
             padding: const EdgeInsets.fromLTRB(16, 110, 16, 20),
             children: [
               const SectionHeader(title: "界面风格"),
-
-              // ✅ 颜色模式：折叠收纳（开关=展开，关=收起）；自定义颜色开时禁用并强制收起
               _themeModeFold(context, store),
-
               const SizedBox(height: 12),
-
               SettingsGroup(
                 items: [
                   SettingsItem(
@@ -339,9 +333,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
                           border: Border.all(color: Colors.grey.withOpacity(0.5)),
                           shape: BoxShape.circle,
                         ),
-                        child: store.customBackgroundColor == null
-                            ? const Icon(Icons.auto_awesome, size: 14, color: Colors.grey)
-                            : null,
+                        child: store.customBackgroundColor == null ? const Icon(Icons.auto_awesome, size: 14, color: Colors.grey) : null,
                       ),
                       onTap: () => _showHexColorDialog(
                         context,
@@ -362,9 +354,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
                           border: Border.all(color: Colors.grey.withOpacity(0.5)),
                           shape: BoxShape.circle,
                         ),
-                        child: store.customCardColor == null
-                            ? const Icon(Icons.auto_awesome, size: 14, color: Colors.grey)
-                            : null,
+                        child: store.customCardColor == null ? const Icon(Icons.auto_awesome, size: 14, color: Colors.grey) : null,
                       ),
                       onTap: () => _showHexColorDialog(
                         context,
@@ -376,7 +366,6 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
                   ],
                 ],
               ),
-
               const SizedBox(height: 24),
               const SectionHeader(title: "圆角设置"),
               _radiusSlider(context, "卡片圆角", store.cardRadius, (val) => store.setCardRadius(val), () => store.savePreferences()),
