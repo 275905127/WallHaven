@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-// 引入你之前拆分好的模块
+// 引入模块
 import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
+import 'theme/theme_store.dart'; // 引入状态仓库
 import 'widgets/foggy_app_bar.dart';
 import 'widgets/settings_widgets.dart';
 
@@ -12,65 +13,51 @@ void main() {
     statusBarColor: Colors.transparent, 
     systemNavigationBarColor: Colors.transparent, 
   ));
-  runApp(const MyApp());
+  
+  // 1. 在最顶层创建 Store
+  final themeStore = ThemeStore();
+
+  // 2. 注入 Scope，并使用 ListenableBuilder 监听变化
+  runApp(
+    ThemeScope(
+      store: themeStore,
+      child: ListenableBuilder(
+        listenable: themeStore,
+        builder: (context, child) => const MyApp(),
+      ),
+    ),
+  );
 }
 
 // ==========================================
 // APP 入口
 // ==========================================
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  ThemeMode _themeMode = ThemeMode.system; 
-  Color _accentColor = Colors.blue; 
-  String _accentName = "蓝色";
-
-  void changeTheme(ThemeMode mode) {
-    setState(() => _themeMode = mode);
-  }
-
-  void changeAccent(Color color, String name) {
-    setState(() {
-      _accentColor = color;
-      _accentName = name;
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
+    // 3. 直接从 Context 获取当前状态
+    final store = ThemeScope.of(context);
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      themeMode: _themeMode,
-      // 调用封装好的主题
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      home: HomePage(
-        currentMode: _themeMode,
-        changeTheme: changeTheme,
-        currentAccentName: _accentName,
-        currentAccentColor: _accentColor,
-        changeAccent: changeAccent,
-      ),
+      themeMode: store.mode, // 动态绑定模式
+      
+      // 动态生成带颜色的主题
+      theme: AppTheme.light(store.accentColor),
+      darkTheme: AppTheme.dark(store.accentColor),
+
+      home: const HomePage(), // 看！不需要传任何参数了！
     );
   }
 }
 
 // ==========================================
-// 首页 (保持不变)
+// 首页
 // ==========================================
 class HomePage extends StatelessWidget {
-  final ThemeMode currentMode;
-  final Function(ThemeMode) changeTheme;
-  final String currentAccentName;
-  final Color currentAccentColor;
-  final Function(Color, String) changeAccent;
-
-  const HomePage({super.key, required this.currentMode, required this.changeTheme, required this.currentAccentName, required this.currentAccentColor, required this.changeAccent});
+  const HomePage({super.key}); // 干净的构造函数
 
   @override
   Widget build(BuildContext context) {
@@ -82,17 +69,10 @@ class HomePage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () {
+              // 页面跳转也不需要传参了
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => SettingsPage(
-                    currentMode: currentMode,
-                    onThemeChanged: changeTheme,
-                    currentAccentName: currentAccentName,
-                    currentAccentColor: currentAccentColor,
-                    onAccentChanged: changeAccent,
-                  ),
-                ),
+                MaterialPageRoute(builder: (context) => const SettingsPage()),
               );
             },
           ),
@@ -114,16 +94,10 @@ class HomePage extends StatelessWidget {
 }
 
 // ==========================================
-// ⚙️ 设置页 (已根据需求重构)
+// ⚙️ 设置页
 // ==========================================
 class SettingsPage extends StatefulWidget {
-  final ThemeMode currentMode;
-  final Function(ThemeMode) onThemeChanged;
-  final String currentAccentName;
-  final Color currentAccentColor;
-  final Function(Color, String) onAccentChanged;
-
-  const SettingsPage({super.key, required this.currentMode, required this.onThemeChanged, required this.currentAccentName, required this.currentAccentColor, required this.onAccentChanged});
+  const SettingsPage({super.key}); // 干净的构造函数
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -132,7 +106,6 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final ScrollController _scrollController = ScrollController();
   bool _isScrolled = false;
-  // 已删除常规设置相关的变量 (_showLegacyModel, _hapticFeedback)
 
   @override
   void initState() {
@@ -169,6 +142,10 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // 获取当前状态
+    final store = ThemeScope.of(context);
+
     final List<Map<String, dynamic>> accentOptions = [
       {"color": Colors.grey, "name": "默认", "isDefault": true},
       {"color": Colors.blue, "name": "蓝色"},
@@ -198,7 +175,8 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(width: 12),
               Text(option["name"], style: TextStyle(fontSize: 16, color: isDark ? Colors.white : Colors.black)),
               const Spacer(),
-              if (widget.currentAccentName == option["name"])
+              // 判断当前选中
+              if (store.accentName == option["name"])
                 Icon(Icons.check, size: 20, color: isDark ? Colors.white : Colors.black),
             ],
           ),
@@ -207,7 +185,8 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     if (result != null) {
-      widget.onAccentChanged(result["color"], result["name"]);
+      // 🌟 直接调用全局状态修改
+      store.setAccent(result["color"], result["name"]);
     }
   }
 
@@ -216,7 +195,10 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (context) {
-        ThemeMode tempMode = widget.currentMode;
+        // 获取当前状态
+        final store = ThemeScope.of(context);
+        ThemeMode tempMode = store.mode;
+
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
@@ -237,7 +219,8 @@ class _SettingsPageState extends State<SettingsPage> {
               actions: [
                 TextButton(
                   onPressed: () {
-                    widget.onThemeChanged(tempMode);
+                    // 🌟 确认后提交修改
+                    store.setMode(tempMode);
                     Navigator.pop(context);
                   },
                   child: Text("确定", style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black, fontWeight: FontWeight.w600)),
@@ -265,7 +248,9 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final topPadding = MediaQuery.of(context).padding.top + 96; // 适配 FoggyAppBar 高度
+    final topPadding = MediaQuery.of(context).padding.top + 96;
+    // 获取当前状态用于显示
+    final store = ThemeScope.of(context);
 
     return Scaffold(
       extendBodyBehindAppBar: true, 
@@ -286,26 +271,22 @@ class _SettingsPageState extends State<SettingsPage> {
           const UserProfileHeader(),
           const SizedBox(height: 32),
           
-          // 🌟 修改点 1：组名改为"外观"
           const SectionHeader(title: "外观"),
           SettingsGroup(
             items: [
-              // 保留个性化
               SettingsItem(icon: Icons.person_outline, title: "个性化", onTap: () {}),
               
-              // 🌟 修改点 2 & 3：在这里插入"主题"，顶替掉原来的"应用"
               SettingsItem(
                 icon: Icons.wb_sunny_outlined, 
-                title: "主题", // 原名"外观"改为"主题"
-                subtitle: _getModeName(widget.currentMode), 
+                title: "主题", 
+                subtitle: _getModeName(store.mode), // 读取状态
                 onTap: () => _showAppearanceDialog(context)
               ),
 
-              // 🌟 补充：将"重点色"也移到这里，保证功能完整性且不孤立
               SettingsItem(
                 icon: Icons.color_lens_outlined, 
                 title: "重点色", 
-                subtitle: widget.currentAccentName, 
+                subtitle: store.accentName, // 读取状态
                 trailing: Builder(
                   builder: (innerContext) {
                     return GestureDetector(
@@ -313,7 +294,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(width: 12, height: 12, decoration: BoxDecoration(color: widget.currentAccentColor, shape: BoxShape.circle)),
+                          Container(width: 12, height: 12, decoration: BoxDecoration(color: store.accentColor, shape: BoxShape.circle)), // 读取状态
                           const SizedBox(width: 8),
                           Icon(Icons.keyboard_arrow_down, color: theme.iconTheme.color!.withOpacity(0.5)), 
                         ],
@@ -336,8 +317,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
           
-          // 🌟 修改点 4：已彻底删除"常规"和"通知"的所有设置项
-          
           const SizedBox(height: 300),
         ],
       ),
@@ -353,7 +332,6 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-// 个人资料头部 (保持不变)
 class UserProfileHeader extends StatelessWidget {
   const UserProfileHeader({super.key});
   @override
