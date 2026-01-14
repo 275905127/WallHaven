@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-// 1. 引入拆分出去的模块
+// 引入你之前拆分好的模块
 import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
 import 'widgets/foggy_app_bar.dart';
 import 'widgets/settings_widgets.dart';
 
 void main() {
-  // 保持沉浸式状态栏设置
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent, 
     systemNavigationBarColor: Colors.transparent, 
@@ -17,7 +16,7 @@ void main() {
 }
 
 // ==========================================
-// 2. APP 入口 (极简)
+// APP 入口
 // ==========================================
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -47,11 +46,9 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
-      
-      // 🌟 直接调用拆分出去的全局主题
+      // 调用封装好的主题
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-
       home: HomePage(
         currentMode: _themeMode,
         changeTheme: changeTheme,
@@ -64,7 +61,7 @@ class _MyAppState extends State<MyApp> {
 }
 
 // ==========================================
-// 3. 首页 (保持不变)
+// 首页 (保持不变)
 // ==========================================
 class HomePage extends StatelessWidget {
   final ThemeMode currentMode;
@@ -117,7 +114,7 @@ class HomePage extends StatelessWidget {
 }
 
 // ==========================================
-// 4. 设置页 (重构版：调用通用组件)
+// ⚙️ 设置页 (已根据需求重构)
 // ==========================================
 class SettingsPage extends StatefulWidget {
   final ThemeMode currentMode;
@@ -135,14 +132,12 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final ScrollController _scrollController = ScrollController();
   bool _isScrolled = false;
-  bool _showLegacyModel = false;
-  bool _hapticFeedback = true;
+  // 已删除常规设置相关的变量 (_showLegacyModel, _hapticFeedback)
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(() {
-      // 监听滚动，控制雾化显示
       if (_scrollController.offset > 0 && !_isScrolled) {
         setState(() => _isScrolled = true);
       } else if (_scrollController.offset <= 0 && _isScrolled) {
@@ -157,7 +152,7 @@ class _SettingsPageState extends State<SettingsPage> {
     super.dispose();
   }
 
-  // 显示颜色选择菜单 (保持业务逻辑在页面内)
+  // 重点色菜单
   void _showDynamicAccentMenu(BuildContext context) async {
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
     final Size size = renderBox.size; 
@@ -188,7 +183,6 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       position: position,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      // 使用 AppTheme 定义好的颜色
       color: isDark ? AppColors.darkMenu : AppColors.lightMenu, 
       elevation: 4,
       items: accentOptions.map((option) {
@@ -217,7 +211,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // 显示外观设置弹窗
+  // 主题选择弹窗
   void _showAppearanceDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -271,19 +265,18 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final topPadding = MediaQuery.of(context).padding.top + 96; // 96 是 FoggyAppBar 的高度
+    final topPadding = MediaQuery.of(context).padding.top + 96; // 适配 FoggyAppBar 高度
 
     return Scaffold(
       extendBodyBehindAppBar: true, 
       
-      // 🌟 直接调用封装好的雾化标题栏 (一行代码搞定)
       appBar: FoggyAppBar(
         title: const Text('设置'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back), 
           onPressed: () => Navigator.pop(context),
         ),
-        isScrolled: _isScrolled, // 传入滚动状态即可
+        isScrolled: _isScrolled,
       ),
       
       body: ListView(
@@ -293,34 +286,22 @@ class _SettingsPageState extends State<SettingsPage> {
           const UserProfileHeader(),
           const SizedBox(height: 32),
           
-          // 🌟 调用通用组件
-          const SectionHeader(title: "我的 ChatGPT"),
+          // 🌟 修改点 1：组名改为"外观"
+          const SectionHeader(title: "外观"),
           SettingsGroup(
             items: [
+              // 保留个性化
               SettingsItem(icon: Icons.person_outline, title: "个性化", onTap: () {}),
-              SettingsItem(icon: Icons.grid_view, title: "应用", onTap: () {}),
-            ],
-          ),
-          
-          const SizedBox(height: 24),
-          const SectionHeader(title: "账户"),
-          SettingsGroup(
-            items: [
-              SettingsItem(icon: Icons.work_outline, title: "工作空间", subtitle: "个人", onTap: () {}),
-              SettingsItem(icon: Icons.star_outline, title: "升级至 Pro", onTap: () {}),
-              SettingsItem(icon: Icons.email_outlined, title: "电子邮件", subtitle: "275905127@qq.com", onTap: () {}),
-            ],
-          ),
-          
-          const SizedBox(height: 24),
-          SettingsGroup(
-            items: [
+              
+              // 🌟 修改点 2 & 3：在这里插入"主题"，顶替掉原来的"应用"
               SettingsItem(
                 icon: Icons.wb_sunny_outlined, 
-                title: "外观", 
+                title: "主题", // 原名"外观"改为"主题"
                 subtitle: _getModeName(widget.currentMode), 
                 onTap: () => _showAppearanceDialog(context)
               ),
+
+              // 🌟 补充：将"重点色"也移到这里，保证功能完整性且不孤立
               SettingsItem(
                 icon: Icons.color_lens_outlined, 
                 title: "重点色", 
@@ -346,49 +327,18 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           
           const SizedBox(height: 24),
-          const SectionHeader(title: "常规"),
+          const SectionHeader(title: "账户"),
           SettingsGroup(
             items: [
-              SettingsItem(
-                icon: Icons.schema_outlined, 
-                title: "显示传统模型",
-                // 直接传 Switch 组件
-                trailing: Switch(
-                  value: _showLegacyModel, 
-                  onChanged: (val) => setState(() => _showLegacyModel = val),
-                ),
-                onTap: () => setState(() => _showLegacyModel = !_showLegacyModel),
-              ),
-              SettingsItem(
-                icon: Icons.vibration, 
-                title: "触觉反馈",
-                trailing: Switch(
-                  value: _hapticFeedback, 
-                  onChanged: (val) => setState(() => _hapticFeedback = val),
-                ),
-                onTap: () => setState(() => _hapticFeedback = !_hapticFeedback),
-              ),
-              SettingsItem(
-                icon: Icons.language, 
-                title: "语言", 
-                subtitle: "中文", 
-                onTap: () {}
-              ),
+              SettingsItem(icon: Icons.work_outline, title: "工作空间", subtitle: "个人", onTap: () {}),
+              SettingsItem(icon: Icons.star_outline, title: "升级至 Pro", onTap: () {}),
+              SettingsItem(icon: Icons.email_outlined, title: "电子邮件", subtitle: "275905127@qq.com", onTap: () {}),
             ],
           ),
           
-          const SizedBox(height: 24),
-           const SectionHeader(title: "通知"),
-           SettingsGroup(
-             items: [
-               SettingsItem(
-                 icon: Icons.notifications_outlined,
-                 title: "通知",
-                 onTap: () {},
-               ),
-             ]
-           ),
-           const SizedBox(height: 300),
+          // 🌟 修改点 4：已彻底删除"常规"和"通知"的所有设置项
+          
+          const SizedBox(height: 300),
         ],
       ),
     );
@@ -403,9 +353,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-// ==========================================
-// 5. 个人资料头部 (仅在本页使用，暂未拆分)
-// ==========================================
+// 个人资料头部 (保持不变)
 class UserProfileHeader extends StatelessWidget {
   const UserProfileHeader({super.key});
   @override
