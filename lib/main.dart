@@ -1,9 +1,8 @@
-import 'dart:ui' as ui; // 🌟 必须引入，用于模糊
+import 'dart:ui' as ui; // 引入 UI 库用于模糊
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 void main() {
-  // 1. 沉浸式状态栏
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent, 
     systemNavigationBarColor: Colors.transparent, 
@@ -12,24 +11,21 @@ void main() {
 }
 
 // ==========================================
-// 1. 🎨 颜色配置 (原版保持不变)
+// 1. 🎨 颜色配置 (保持不变)
 // ==========================================
 class AppColors {
-  // --- ☀️ 浅色模式 ---
   static const Color lightBackground = Color(0xFFFFFFFF); 
   static const Color lightCard = Color(0xFFF3F3F3);       
   static const Color lightAlert = Color(0xFFE5E5E5);      
   static const Color lightMenu = Color(0xFFEBEBEB);       
   static const Color lightDivider = Color(0xFFFFFFFF);    
 
-  // --- 🌙 深色模式 ---
   static const Color darkBackground = Color(0xFF000000);  
   static const Color darkCard = Color(0xFF414141);        
   static const Color darkAlert = Color(0xFF1B1B1B);       
   static const Color darkMenu = Color(0xFF333333);        
   static const Color darkDivider = Color(0xFF000000);     
 
-  // --- 品牌色 ---
   static const Color brandYellow = Color(0xFFD2AE00);     
 }
 
@@ -65,7 +61,6 @@ class _MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
       
-      // === ☀️ 浅色主题 ===
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
@@ -73,20 +68,17 @@ class _MyAppState extends State<MyApp> {
         cardColor: AppColors.lightCard,                     
         dialogBackgroundColor: AppColors.lightAlert,        
         dividerColor: AppColors.lightDivider,               
-        
         dialogTheme: const DialogTheme(
           backgroundColor: AppColors.lightAlert, 
           surfaceTintColor: Colors.transparent,  
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18))), 
         ),
-        
         popupMenuTheme: const PopupMenuThemeData(
           color: AppColors.lightMenu,           
           surfaceTintColor: Colors.transparent, 
           textStyle: TextStyle(color: Colors.black, fontSize: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
         ),
-
         appBarTheme: const AppBarTheme(
             backgroundColor: Colors.transparent, 
             surfaceTintColor: Colors.transparent, 
@@ -98,7 +90,6 @@ class _MyAppState extends State<MyApp> {
               statusBarIconBrightness: Brightness.dark, 
             ),
         ),
-        
         switchTheme: SwitchThemeData(
           thumbColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? Colors.white : const Color(0xFF5D5D5D)), 
           trackColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFE3E3E3)), 
@@ -114,7 +105,6 @@ class _MyAppState extends State<MyApp> {
         ),
       ),
 
-      // === 🌙 深色主题 ===
       darkTheme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
@@ -122,20 +112,17 @@ class _MyAppState extends State<MyApp> {
         cardColor: AppColors.darkCard,                     
         dialogBackgroundColor: AppColors.darkAlert,        
         dividerColor: AppColors.darkDivider,               
-        
         dialogTheme: const DialogTheme(
           backgroundColor: AppColors.darkAlert, 
           surfaceTintColor: Colors.transparent, 
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(18))),
         ),
-
         popupMenuTheme: const PopupMenuThemeData(
           color: AppColors.darkMenu,            
           surfaceTintColor: Colors.transparent, 
           textStyle: TextStyle(color: Colors.white, fontSize: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
         ),
-
         appBarTheme: const AppBarTheme(
             backgroundColor: Colors.transparent, 
             surfaceTintColor: Colors.transparent,
@@ -147,7 +134,6 @@ class _MyAppState extends State<MyApp> {
               statusBarIconBrightness: Brightness.light, 
             ),
         ),
-        
         switchTheme: SwitchThemeData(
           thumbColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFF0D0D0D) : const Color(0xFFC4C4C4)), 
           trackColor: MaterialStateProperty.resolveWith((states) => states.contains(MaterialState.selected) ? const Color(0xFFFFFFFF) : const Color(0xFF3B3B3B)), 
@@ -174,9 +160,6 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-// ==========================================
-// 3. 🏠 首页
-// ==========================================
 class HomePage extends StatelessWidget {
   final ThemeMode currentMode;
   final Function(ThemeMode) changeTheme;
@@ -228,7 +211,7 @@ class HomePage extends StatelessWidget {
 }
 
 // ==========================================
-// 4. ⚙️ 设置页 (终极方案：渐变雾化)
+// 4. ⚙️ 设置页 (核心修改：渐变雾化消除分层)
 // ==========================================
 class SettingsPage extends StatefulWidget {
   final ThemeMode currentMode;
@@ -397,26 +380,26 @@ class _SettingsPageState extends State<SettingsPage> {
         elevation: 0,
         scrolledUnderElevation: 0,
         
-        // 🌟 终极修正：渐变雾化效果 (同时使用微模糊和渐变)
+        // 🌟 终极修正：渐变雾化
+        // 1. 微量模糊 (Sigma 3.0)：保持内容清晰
+        // 2. 垂直渐变 (0.95 -> 0.0)：从浓雾到完全透明，物理消除底部硬线
         flexibleSpace: _isScrolled 
             ? ClipRect(
                 child: BackdropFilter(
-                  // 1. 微量模糊 (Sigma 5.0)：柔化像素纹理，但不影响辨识度
-                  filter: ui.ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), 
+                  // 模糊度保持极低，保证清晰度
+                  filter: ui.ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0), 
                   child: Container(
                     decoration: BoxDecoration(
-                      // 2. 垂直透明度渐变：彻底消除底部的硬线
+                      // 关键：背景色从上到下渐变，底部淡出为0
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          // 顶部：浓雾 (95%不透明)，保证标题清晰
-                          theme.scaffoldBackgroundColor.withOpacity(0.95),
-                          // 底部：完全消散 (0%不透明)，物理上消除分界线
-                          theme.scaffoldBackgroundColor.withOpacity(0.0),
+                          theme.scaffoldBackgroundColor.withOpacity(0.95), // 顶部浓雾
+                          theme.scaffoldBackgroundColor.withOpacity(0.0),  // 底部完全消失
                         ],
-                        // 调整渐变位置，让大部分区域是浓雾，只在最后快速消散
-                        stops: const [0.7, 1.0],
+                        // 浓雾一直延伸到 70% 的位置，最后 30% 快速淡出，保证消除硬边
+                        stops: const [0.7, 1.0], 
                       ),
                     ),
                   ),
@@ -431,7 +414,6 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           const UserProfileHeader(),
           const SizedBox(height: 32),
-
           const SectionHeader(title: "我的 ChatGPT"),
           SettingsGroup(
             items: [
@@ -440,7 +422,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
           const SizedBox(height: 24),
-
           const SectionHeader(title: "账户"),
           SettingsGroup(
             items: [
@@ -450,7 +431,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
           const SizedBox(height: 24),
-
           SettingsGroup(
             items: [
               SettingsItem(
@@ -482,9 +462,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
-
           const SizedBox(height: 24),
-
           const SectionHeader(title: "常规"),
           SettingsGroup(
             items: [
@@ -514,9 +492,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
-          
           const SizedBox(height: 24),
-          
            const SectionHeader(title: "通知"),
            SettingsGroup(
              items: [
@@ -542,18 +518,13 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-// ==========================================
-// 5. 🧩 基础组件封装
-// ==========================================
-
+// 基础组件 (保持不变)
 class UserProfileHeader extends StatelessWidget {
   const UserProfileHeader({super.key});
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-
     return Column(
       children: [
         Container(
@@ -576,7 +547,7 @@ class UserProfileHeader extends StatelessWidget {
     );
   }
 }
-
+// ... (其他组件保持不变，代码已包含在上面)
 class SectionHeader extends StatelessWidget {
   final String title;
   const SectionHeader({super.key, required this.title});
