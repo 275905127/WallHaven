@@ -1,4 +1,3 @@
-// lib/widgets/settings_widgets.dart
 import 'package:flutter/material.dart';
 import '../theme/theme_store.dart';
 import '../theme/app_tokens.dart';
@@ -22,13 +21,16 @@ class SettingsItem {
 class SectionHeader extends StatelessWidget {
   final String title;
   const SectionHeader({super.key, required this.title});
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(left: 16, bottom: 8),
       child: Text(
         title,
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w500),
+        style: theme.textTheme.bodyLarge
+            ?.copyWith(fontSize: 13, fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -45,11 +47,13 @@ class SettingsGroup extends StatelessWidget {
     final double largeRadius = ThemeScope.of(context).cardRadius;
 
     BorderRadius _radiusFor(int index) {
-      final bool isFirst = index == 0;
-      final bool isLast = index == items.length - 1;
-      final bool isSingle = items.length == 1;
+      final isFirst = index == 0;
+      final isLast = index == items.length - 1;
+      final isSingle = items.length == 1;
 
-      if (isSingle) return BorderRadius.circular(largeRadius);
+      if (isSingle) {
+        return BorderRadius.circular(largeRadius);
+      }
       if (isFirst) {
         return BorderRadius.only(
           topLeft: Radius.circular(largeRadius),
@@ -69,51 +73,79 @@ class SettingsGroup extends StatelessWidget {
       return BorderRadius.circular(tokens.smallRadius);
     }
 
+    Widget _divider() {
+      // 🔒 唯一合法分割方式：2px 背景缝（tokens）
+      return Container(
+        height: tokens.dividerThickness,
+        color: tokens.dividerColor,
+      );
+    }
+
     return Column(
       children: List.generate(items.length, (index) {
         final item = items[index];
         final br = _radiusFor(index);
-        final bool isLast = index == items.length - 1;
+        final isLast = index == items.length - 1;
 
         return Column(
           children: [
             Container(
-              decoration: BoxDecoration(color: theme.cardColor, borderRadius: br),
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                borderRadius: br,
+              ),
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: item.onTap,
                   borderRadius: br,
+                  onTap: item.onTap,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
                     child: Row(
                       children: [
-                        Icon(item.icon, color: theme.iconTheme.color, size: 24),
+                        Icon(item.icon,
+                            size: 24, color: theme.iconTheme.color),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
                             children: [
-                              Text(item.title, style: TextStyle(fontSize: 16, color: theme.textTheme.bodyLarge?.color)),
+                              Text(
+                                item.title,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: theme
+                                      .textTheme.bodyLarge?.color,
+                                ),
+                              ),
                               if (item.subtitle != null) ...[
                                 const SizedBox(height: 2),
-                                Text(item.subtitle!, style: TextStyle(fontSize: 13, color: theme.textTheme.bodyMedium?.color)),
+                                Text(
+                                  item.subtitle!,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: theme.textTheme.bodyMedium
+                                        ?.color,
+                                  ),
+                                ),
                               ],
                             ],
                           ),
                         ),
                         item.trailing ??
-                            Icon(
-                              Icons.chevron_right,
-                              color: tokens.chevronColor,
-                            ),
+                            Icon(Icons.chevron_right,
+                                color: tokens.chevronColor),
                       ],
                     ),
                   ),
                 ),
               ),
             ),
-            if (!isLast) Container(height: tokens.dividerThickness, color: tokens.dividerColor),
+            if (!isLast) _divider(),
           ],
         );
       }),
