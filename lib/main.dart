@@ -345,4 +345,92 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
           
-          const SizedBox
+          const SizedBox(height: 24),
+          const SectionHeader(title: "常规"),
+          SettingsGroup(
+            items: [
+              SettingsItem(
+                icon: Icons.schema_outlined, 
+                title: "显示传统模型",
+                // 直接传 Switch 组件
+                trailing: Switch(
+                  value: _showLegacyModel, 
+                  onChanged: (val) => setState(() => _showLegacyModel = val),
+                ),
+                onTap: () => setState(() => _showLegacyModel = !_showLegacyModel),
+              ),
+              SettingsItem(
+                icon: Icons.vibration, 
+                title: "触觉反馈",
+                trailing: Switch(
+                  value: _hapticFeedback, 
+                  onChanged: (val) => setState(() => _hapticFeedback = val),
+                ),
+                onTap: () => setState(() => _hapticFeedback = !_hapticFeedback),
+              ),
+              SettingsItem(
+                icon: Icons.language, 
+                title: "语言", 
+                subtitle: "中文", 
+                onTap: () {}
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 24),
+           const SectionHeader(title: "通知"),
+           SettingsGroup(
+             items: [
+               SettingsItem(
+                 icon: Icons.notifications_outlined,
+                 title: "通知",
+                 onTap: () {},
+               ),
+             ]
+           ),
+           const SizedBox(height: 300),
+        ],
+      ),
+    );
+  }
+
+  String _getModeName(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.system: return "系统 (默认)";
+      case ThemeMode.light: return "浅色";
+      case ThemeMode.dark: return "深色";
+    }
+  }
+}
+
+// ==========================================
+// 5. 个人资料头部 (仅在本页使用，暂未拆分)
+// ==========================================
+class UserProfileHeader extends StatelessWidget {
+  const UserProfileHeader({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Column(
+      children: [
+        Container(
+          width: 80, height: 80, 
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(color: AppColors.brandYellow, shape: BoxShape.circle),
+          child: Text("27", style: TextStyle(color: isDark ? Colors.white : Colors.black.withOpacity(0.7), fontSize: 32, fontWeight: FontWeight.w500)),
+        ),
+        const SizedBox(height: 16),
+        Text("星河 於长野", style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 20, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Text("275905127", style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 14)),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFE0E0E0), borderRadius: BorderRadius.circular(20)),
+          child: Text("编辑个人资料", style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 13, fontWeight: FontWeight.w500)),
+        ),
+      ],
+    );
+  }
+}
