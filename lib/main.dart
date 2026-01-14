@@ -39,67 +39,52 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
+    
+    // 🌟 核心修改：只有当 switch 打开时，才传入自定义颜色，否则传 null (使用系统/深浅主题)
+    final customBg = store.enableCustomColors ? store.customBackgroundColor : null;
+    final customCard = store.enableCustomColors ? store.customCardColor : null;
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       themeMode: store.mode,
-      // 🌟 核心：确保自定义颜色被传入
-      theme: AppTheme.light(store.accentColor, customBg: store.customBackgroundColor, customCard: store.customCardColor),
-      darkTheme: AppTheme.dark(store.accentColor, customBg: store.customBackgroundColor, customCard: store.customCardColor),
+      theme: AppTheme.light(store.accentColor, customBg: customBg, customCard: customCard),
+      darkTheme: AppTheme.dark(store.accentColor, customBg: customBg, customCard: customCard),
       home: const HomePage(),
     );
   }
 }
 
-// ... (HomePage, SettingsPage, UserProfileHeader 保持不变，请继续保留原代码)
-// 为节省篇幅，这里省略后续未改动代码，请直接拼接
-// ==========================================
-// 🏠 首页 (瀑布流 + 雾化栏)
-// ==========================================
+// 🏠 首页 (HomePage) - 保持不变
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
-
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
   final ScrollController _scrollController = ScrollController();
-  
-  // 数据状态
   final List<Wallpaper> _wallpapers = [];
   int _page = 1;
   bool _isLoading = false;
-  bool _isScrolled = false; // 控制雾化
+  bool _isScrolled = false; 
 
   @override
   void initState() {
     super.initState();
     _initData();
-    
-    // 监听滚动：1.控制雾化 2.触底加载
     _scrollController.addListener(() {
-      // 1. 雾化控制
-      if (_scrollController.offset > 0 && !_isScrolled) {
-        setState(() => _isScrolled = true);
-      } else if (_scrollController.offset <= 0 && _isScrolled) {
-        setState(() => _isScrolled = false);
-      }
-
-      // 2. 触底加载 (预加载 200px)
-      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-        _loadMore();
-      }
+      if (_scrollController.offset > 0 && !_isScrolled) setState(() => _isScrolled = true);
+      else if (_scrollController.offset <= 0 && _isScrolled) setState(() => _isScrolled = false);
+      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) _loadMore();
     });
   }
 
-  // 初始化数据
   Future<void> _initData() async {
     setState(() => _isLoading = true);
     await _fetchWallpapers();
     setState(() => _isLoading = false);
   }
 
-  // 加载更多
   Future<void> _loadMore() async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
@@ -108,24 +93,16 @@ class _HomePageState extends State<HomePage> {
     setState(() => _isLoading = false);
   }
 
-  // 核心请求逻辑
   Future<void> _fetchWallpapers() async {
-    final store = ThemeScope.of(context); // 获取全局状态 (图源信息)
-    
+    final store = ThemeScope.of(context);
     final newItems = await WallhavenApi.getWallpapers(
       baseUrl: store.currentSource.baseUrl,
       apiKey: store.currentSource.apiKey,
       page: _page,
     );
-
-    if (mounted) {
-      setState(() {
-        _wallpapers.addAll(newItems);
-      });
-    }
+    if (mounted) setState(() => _wallpapers.addAll(newItems));
   }
 
-  // 刷新逻辑
   Future<void> _onRefresh() async {
     _page = 1;
     _wallpapers.clear();
@@ -144,8 +121,7 @@ class _HomePageState extends State<HomePage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      extendBodyBehindAppBar: true, // 让瀑布流冲到状态栏下面
-      
+      extendBodyBehindAppBar: true,
       appBar: FoggyAppBar(
         title: const Text("Wallhaven Pro"),
         isScrolled: _isScrolled,
@@ -157,33 +133,26 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(width: 8),
         ],
       ),
-      
       body: _wallpapers.isEmpty && _isLoading
-          ? const Center(child: CircularProgressIndicator()) // 首次加载 loading
+          ? const Center(child: CircularProgressIndicator()) 
           : RefreshIndicator(
               onRefresh: _onRefresh,
-              edgeOffset: 100, // 避开标题栏
+              edgeOffset: 100, 
               child: MasonryGridView.count(
                 controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(12, 100, 12, 20), // 顶部留出标题栏高度
-                crossAxisCount: 2, // 双列
+                padding: const EdgeInsets.fromLTRB(12, 100, 12, 20),
+                crossAxisCount: 2, 
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
                 itemCount: _wallpapers.length,
                 itemBuilder: (context, index) {
                   final paper = _wallpapers[index];
-                  // 计算图片高度比例，防止跳动
                   final double aspectRatio = (paper.width / paper.height).clamp(0.5, 2.0);
-
                   return GestureDetector(
-                    onTap: () {
-                      // TODO: 点击进入详情页
-                      print("Clicked: ${paper.id}");
-                    },
+                    onTap: () { print("Clicked: ${paper.id}"); },
                     child: Container(
                       decoration: BoxDecoration(
                         color: theme.cardColor,
-                        // 🌟 修改点：这里改为读取 imageRadius (首页图片圆角)
                         borderRadius: BorderRadius.circular(store.imageRadius), 
                       ),
                       clipBehavior: Clip.antiAlias,
@@ -192,10 +161,7 @@ class _HomePageState extends State<HomePage> {
                         child: CachedNetworkImage(
                           imageUrl: paper.thumb,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(
-                            color: theme.cardColor,
-                            child: const Center(child: Icon(Icons.image, color: Colors.grey)),
-                          ),
+                          placeholder: (context, url) => Container(color: theme.cardColor, child: const Center(child: Icon(Icons.image, color: Colors.grey))),
                           errorWidget: (context, url, error) => const Icon(Icons.error),
                         ),
                       ),
@@ -230,47 +196,6 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  void _showAppearanceDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        final store = ThemeScope.of(context);
-        ThemeMode tempMode = store.mode;
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text("外观"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildRadio(context, "系统 (默认)", ThemeMode.system, tempMode, (v) => setState(() => tempMode = v!)),
-                  _buildRadio(context, "浅色", ThemeMode.light, tempMode, (v) => setState(() => tempMode = v!)),
-                  _buildRadio(context, "深色", ThemeMode.dark, tempMode, (v) => setState(() => tempMode = v!)),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () { 
-                    store.setMode(tempMode); 
-                    Navigator.pop(context); 
-                  },
-                  child: const Text("确定"),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildRadio(BuildContext ctx, String title, ThemeMode val, ThemeMode group, ValueChanged<ThemeMode?> change) {
-    return RadioListTile<ThemeMode>(
-      title: Text(title), value: val, groupValue: group, onChanged: change,
-      activeColor: Theme.of(ctx).colorScheme.primary, contentPadding: EdgeInsets.zero,
-    );
-  }
-
   void _showSourceSelectionDialog(BuildContext context) {
     final store = ThemeScope.of(context);
     final theme = Theme.of(context);
@@ -296,14 +221,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  String _getModeName(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.system: return "系统 (默认)";
-      case ThemeMode.light: return "浅色";
-      case ThemeMode.dark: return "深色";
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
@@ -324,15 +241,10 @@ class _SettingsPageState extends State<SettingsPage> {
              SettingsItem(
                icon: Icons.person_outline, 
                title: "个性化", 
-               subtitle: "自定义圆角与颜色", // 更新副标题
+               subtitle: "自定义圆角与颜色", 
                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalizationPage())),
              ),
-             SettingsItem(
-               icon: Icons.wb_sunny_outlined, 
-               title: "主题", 
-               subtitle: _getModeName(store.mode),
-               onTap: () => _showAppearanceDialog(context)
-             ),
+             // 🗑️ 主题设置项已移除，搬家到了 PersonalizationPage
           ]),
           
           const SizedBox(height: 24),
