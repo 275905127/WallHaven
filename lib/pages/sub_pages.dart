@@ -368,7 +368,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
               ),
               const SizedBox(height: 24),
               const SectionHeader(title: "圆角设置"),
-              _radiusSlider(context, "卡片圆角", store.cardRadius, (val) => store.setCardRadius(val), () => store.savePreferences()),
+              _radiusSlider(context, "全局圆角", store.cardRadius, (val) => store.setCardRadius(val), () => store.savePreferences()),
               const SizedBox(height: 12),
               _radiusSlider(context, "图片圆角", store.imageRadius, (val) => store.setImageRadius(val), () => store.savePreferences()),
             ],
