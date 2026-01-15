@@ -2,6 +2,8 @@
 // ⚠️ 警示：筛选项必须与 Wallhaven 官方参数 1:1 对应；文案可中文化但参数值不可乱改。
 // ⚠️ 警示：UI 风格只允许黑白灰；禁止引入蓝/绿/红等高饱和“装饰色”。
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/theme_store.dart';
@@ -61,14 +63,23 @@ class WallhavenFilters {
 
 class FilterDrawer extends StatefulWidget {
   final WallhavenFilters initial;
+
+  /// ✅ 选中即生效：任何筛选变化都会触发 onApply
   final ValueChanged<WallhavenFilters> onApply;
+
+  /// ✅ 重置（仍保留）
   final VoidCallback onReset;
+
+  /// ✅ 右下角“设置”入口（由外部提供打开设置页的动作）
+  /// 这里不直接 import SettingsPage，避免依赖入口文件里的类。
+  final VoidCallback? onOpenSettings;
 
   const FilterDrawer({
     super.key,
     required this.initial,
     required this.onApply,
     required this.onReset,
+    this.onOpenSettings,
   });
 
   @override
@@ -78,6 +89,8 @@ class FilterDrawer extends StatefulWidget {
 class _FilterDrawerState extends State<FilterDrawer> {
   late WallhavenFilters _f;
   late TextEditingController _qCtrl;
+
+  Timer? _qDebounce;
 
   // 展开状态（全部折叠行）
   bool _sortingExpanded = false;
@@ -198,6 +211,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
 
   @override
   void dispose() {
+    _qDebounce?.cancel();
     _qCtrl.dispose();
     super.dispose();
   }
@@ -228,6 +242,37 @@ class _FilterDrawerState extends State<FilterDrawer> {
         ],
       ),
     );
+  }
+
+  // =========================
+  // ✅ 选中即生效（统一出口）
+  // =========================
+  void _commitApply({bool closeExpanded = false}) {
+    if (!mounted) return;
+
+    if (closeExpanded) {
+      _sortingExpanded = false;
+      _topRangeExpanded = false;
+      _orderExpanded = false;
+      _categoriesExpanded = false;
+      _purityExpanded = false;
+      _resolutionsExpanded = false;
+      _atleastExpanded = false;
+      _ratiosExpanded = false;
+      _colorsExpanded = false;
+    }
+
+    final next = _f.copyWith(query: _qCtrl.text);
+    widget.onApply(next);
+  }
+
+  void _debounceQueryApply(String v) {
+    _qDebounce?.cancel();
+    _qDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      setState(() => _f = _f.copyWith(query: v));
+      _commitApply();
+    });
   }
 
   // ====== SettingsGroup 风格：2px 背景缝 + 连接处 smallRadius(固定4) + 外轮廓走全局 cardRadius ======
@@ -614,8 +659,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     final colorsValue = _f.colors.trim().replaceAll('#', '');
 
     // —— 折叠行“组”：按 SettingsGroup 规则堆叠
-    final groupRows = <Widget>[];
-
     final rowDefs = <_RowDef>[
       _RowDef(
         title: '排序方式',
@@ -632,6 +675,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
               _sortingExpanded = false;
               if (v != 'toplist') _topRangeExpanded = false;
             });
+            _commitApply();
           },
         ),
       ),
@@ -650,6 +694,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
                 _f = _f.copyWith(topRange: v);
                 _topRangeExpanded = false;
               });
+              _commitApply();
             },
           ),
         ),
@@ -667,6 +712,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
               _f = _f.copyWith(order: v);
               _orderExpanded = false;
             });
+            _commitApply();
           },
         ),
       ),
@@ -681,17 +727,26 @@ class _FilterDrawerState extends State<FilterDrawer> {
             _CheckItem(
               label: '常规',
               value: _f.categories.length > 0 ? _f.categories[0] == '1' : true,
-              onChanged: (v) => setState(() => _f = _f.copyWith(categories: _bit3(_f.categories, 0, v, defaultPad: '1'))),
+              onChanged: (v) {
+                setState(() => _f = _f.copyWith(categories: _bit3(_f.categories, 0, v, defaultPad: '1')));
+                _commitApply();
+              },
             ),
             _CheckItem(
               label: '动漫',
               value: _f.categories.length > 1 ? _f.categories[1] == '1' : true,
-              onChanged: (v) => setState(() => _f = _f.copyWith(categories: _bit3(_f.categories, 1, v, defaultPad: '1'))),
+              onChanged: (v) {
+                setState(() => _f = _f.copyWith(categories: _bit3(_f.categories, 1, v, defaultPad: '1')));
+                _commitApply();
+              },
             ),
             _CheckItem(
               label: '人物',
               value: _f.categories.length > 2 ? _f.categories[2] == '1' : true,
-              onChanged: (v) => setState(() => _f = _f.copyWith(categories: _bit3(_f.categories, 2, v, defaultPad: '1'))),
+              onChanged: (v) {
+                setState(() => _f = _f.copyWith(categories: _bit3(_f.categories, 2, v, defaultPad: '1')));
+                _commitApply();
+              },
             ),
           ],
         ),
@@ -707,17 +762,26 @@ class _FilterDrawerState extends State<FilterDrawer> {
             _CheckItem(
               label: 'SFW',
               value: _f.purity.length > 0 ? _f.purity[0] == '1' : true,
-              onChanged: (v) => setState(() => _f = _f.copyWith(purity: _bit3(_f.purity, 0, v, defaultPad: '0'))),
+              onChanged: (v) {
+                setState(() => _f = _f.copyWith(purity: _bit3(_f.purity, 0, v, defaultPad: '0')));
+                _commitApply();
+              },
             ),
             _CheckItem(
               label: 'Sketchy',
               value: _f.purity.length > 1 ? _f.purity[1] == '1' : false,
-              onChanged: (v) => setState(() => _f = _f.copyWith(purity: _bit3(_f.purity, 1, v, defaultPad: '0'))),
+              onChanged: (v) {
+                setState(() => _f = _f.copyWith(purity: _bit3(_f.purity, 1, v, defaultPad: '0')));
+                _commitApply();
+              },
             ),
             _CheckItem(
               label: 'NSFW',
               value: _f.purity.length > 2 ? _f.purity[2] == '1' : false,
-              onChanged: (v) => setState(() => _f = _f.copyWith(purity: _bit3(_f.purity, 2, v, defaultPad: '0'))),
+              onChanged: (v) {
+                setState(() => _f = _f.copyWith(purity: _bit3(_f.purity, 2, v, defaultPad: '0')));
+                _commitApply();
+              },
             ),
           ],
         ),
@@ -731,7 +795,10 @@ class _FilterDrawerState extends State<FilterDrawer> {
           context: context,
           options: _resolutionOptions,
           selected: selectedRes,
-          onChanged: (set) => setState(() => _f = _f.copyWith(resolutions: _setToCsv(set))),
+          onChanged: (set) {
+            setState(() => _f = _f.copyWith(resolutions: _setToCsv(set)));
+            _commitApply();
+          },
         ),
       ),
       _RowDef(
@@ -751,6 +818,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
               _f = _f.copyWith(atleast: v.trim());
               _atleastExpanded = false;
             });
+            _commitApply();
           },
         ),
       ),
@@ -763,7 +831,10 @@ class _FilterDrawerState extends State<FilterDrawer> {
           context: context,
           options: _ratioOptions,
           selected: selectedRatios,
-          onChanged: (set) => setState(() => _f = _f.copyWith(ratios: _setToCsv(set))),
+          onChanged: (set) {
+            setState(() => _f = _f.copyWith(ratios: _setToCsv(set)));
+            _commitApply();
+          },
         ),
       ),
       _RowDef(
@@ -783,11 +854,13 @@ class _FilterDrawerState extends State<FilterDrawer> {
               _f = _f.copyWith(colors: v.trim().replaceAll('#', ''));
               _colorsExpanded = false;
             });
+            _commitApply();
           },
         ),
       ),
     ];
 
+    final groupRows = <Widget>[];
     for (int i = 0; i < rowDefs.length; i++) {
       final def = rowDefs[i];
       final br = _groupRadiusFor(context, i, rowDefs.length);
@@ -811,73 +884,73 @@ class _FilterDrawerState extends State<FilterDrawer> {
       child: SafeArea(
         child: Material(
           color: theme.scaffoldBackgroundColor,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
-            child: Column(
-              children: [
-                Row(
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+                child: Column(
                   children: [
-                    Expanded(
-                      child: Text(
-                        "筛选",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: theme.textTheme.bodyLarge?.color,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            "筛选",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                          ),
                         ),
-                      ),
+                        TextButton(
+                          onPressed: () {
+                            widget.onReset();
+                            // 重置后立刻生效
+                            setState(() => _f = const WallhavenFilters());
+                            _qCtrl.text = '';
+                            _commitApply(closeExpanded: true);
+                          },
+                          child: Text(
+                            "重置",
+                            style: TextStyle(color: mono.withOpacity(0.7)),
+                          ),
+                        ),
+                      ],
                     ),
-                    TextButton(
-                      onPressed: () {
-                        widget.onReset();
-                        Navigator.of(context).maybePop();
-                      },
-                      child: Text(
-                        "重置",
-                        style: TextStyle(color: mono.withOpacity(0.7)),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: ListView(
+                        children: [
+                          // ✅ 关键词：不折叠，独立输入框（输入防抖后即生效）
+                          _section(
+                            context,
+                            "关键词",
+                            _KeywordInput(
+                              controller: _qCtrl,
+                              onChanged: _debounceQueryApply,
+                            ),
+                          ),
+
+                          // ✅ 其它全部：SettingsGroup 风格折叠行
+                          ...groupRows,
+
+                          const SizedBox(height: 80), // 给右下角按钮留呼吸
+                        ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: ListView(
-                    children: [
-                      // ✅ 关键词：不折叠，独立输入框
-                      _section(
-                        context,
-                        "关键词",
-                        _KeywordInput(
-                          controller: _qCtrl,
-                          onChanged: (v) => setState(() => _f = _f.copyWith(query: v)),
-                        ),
-                      ),
+              ),
 
-                      // ✅ 其它全部：SettingsGroup 风格折叠行
-                      ...groupRows,
-                    ],
-                  ),
+              // ✅ 右下角：设置入口（黑白灰）
+              Positioned(
+                right: 16,
+                bottom: 16,
+                child: _SettingsFab(
+                  onTap: widget.onOpenSettings,
                 ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: mono,
-                      foregroundColor: theme.brightness == Brightness.dark ? Colors.black : Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      elevation: 0,
-                    ),
-                    onPressed: () {
-                      widget.onApply(_f.copyWith(query: _qCtrl.text));
-                      Navigator.of(context).maybePop();
-                    },
-                    child: const Text("应用筛选"),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -932,6 +1005,40 @@ class _KeywordInput extends StatelessWidget {
       ),
       style: TextStyle(color: theme.textTheme.bodyLarge?.color),
       onChanged: onChanged,
+    );
+  }
+}
+
+class _SettingsFab extends StatelessWidget {
+  final VoidCallback? onTap;
+  const _SettingsFab({required this.onTap});
+
+  Color _monoPrimary(BuildContext context) {
+    final b = Theme.of(context).brightness;
+    return b == Brightness.dark ? Colors.white : Colors.black;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final mono = _monoPrimary(context);
+    final r = ThemeScope.of(context).cardRadius;
+
+    return Material(
+      color: theme.cardColor,
+      borderRadius: BorderRadius.circular(r),
+      child: InkWell(
+        onTap: onTap, // 外部传进来
+        borderRadius: BorderRadius.circular(r),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(r),
+            border: Border.all(color: mono.withOpacity(0.12), width: 1),
+          ),
+          child: Icon(Icons.settings_outlined, color: theme.iconTheme.color, size: 22),
+        ),
+      ),
     );
   }
 }
