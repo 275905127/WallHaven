@@ -174,8 +174,10 @@ class _HomePageState extends State<HomePage> {
         return Scaffold(
           key: _scaffoldKey,
 
-          // ✅ 左侧右滑筛选：drawer + 允许左侧边缘拖拽打开
+          // ✅ 左侧右滑（核心）
           drawerEnableOpenDragGesture: true,
+          drawerEdgeDragWidth: 110, // 关键：避免和系统返回硬刚
+          drawerDragStartBehavior: DragStartBehavior.down,
           drawer: Drawer(
             width: _drawerWidth(context),
             child: FilterDrawer(
