@@ -1,4 +1,3 @@
-// lib/main.dart
 import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -16,9 +15,9 @@ import 'pages/sub_pages.dart';
 import 'pages/filter_drawer.dart';
 import 'pages/wallpaper_detail_page.dart';
 
-// ✅ domain/data
 import 'domain/entities/filter_spec.dart';
 import 'domain/entities/search_query.dart';
+import 'domain/entities/source_kind.dart';
 import 'domain/entities/wallpaper_item.dart';
 import 'data/http/http_client.dart';
 import 'data/repository/wallpaper_repository.dart';
@@ -74,7 +73,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// 🏠 首页
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
   @override
@@ -82,12 +80,12 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  static const String _kFiltersPrefsKey = 'filters_v2'; // ✅ 版本升级
+  static const String _kFiltersPrefsKey = 'filters_v3'; // ✅ 再升级：避免读旧格式
+  static const int _kRandomBatchSize = 20; // ✅ 随机源每次“加载更多”补多少张
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _scrollController = ScrollController();
 
-  // ✅ UI 只持有 domain items
   final List<WallpaperItem> _items = [];
 
   int _page = 1;
@@ -101,7 +99,6 @@ class _HomePageState extends State<HomePage> {
   late final SourceFactory _factory;
   late final WallpaperRepository _repo;
 
-  // ✅ 通用筛选
   FilterSpec _filters = const FilterSpec();
 
   @override
@@ -110,10 +107,6 @@ class _HomePageState extends State<HomePage> {
 
     _http = HttpClient();
     _factory = SourceFactory(http: _http);
-
-    // ✅ 注意：initState 里拿 context 可能踩 InheritedWidget 更新时序
-    // 但你这里依赖 ThemeScope.of(context) 来拿默认 source；通常是安全的（MyApp 先 build）
-    // 如果你遇到异常，把 _repo 初始化挪到 didChangeDependencies（我先不改结构）。
     _repo = WallpaperRepository(_factory.fromStore(ThemeScope.of(context)));
 
     _bootstrap();
@@ -134,10 +127,6 @@ class _HomePageState extends State<HomePage> {
     await _initData();
   }
 
-  // ===========================
-  // ✅ FilterSpec 持久化
-  // ===========================
-
   Map<String, dynamic> _filtersToJson(FilterSpec f) => {
         'text': f.text,
         'sortBy': f.sortBy?.name,
@@ -149,13 +138,12 @@ class _HomePageState extends State<HomePage> {
         'rating': f.rating.map((e) => e.name).toList(),
         'categories': f.categories.toList(),
         'timeRange': f.timeRange,
+        'extras': f.extras,
       };
 
   FilterSpec _filtersFromJson(Map<String, dynamic> m) {
     Set<String> toSet(dynamic v) {
-      if (v is List) {
-        return v.map((e) => e?.toString() ?? '').where((s) => s.trim().isNotEmpty).toSet();
-      }
+      if (v is List) return v.map((e) => e?.toString() ?? '').where((s) => s.trim().isNotEmpty).toSet();
       return <String>{};
     }
 
@@ -196,12 +184,14 @@ class _HomePageState extends State<HomePage> {
       return null;
     }
 
-    // ⚠️ color 规范化：去掉 #，空则 null
-    String? normalizeColor(dynamic v) {
-      final s = toOptString(v);
-      if (s == null) return null;
-      final t = s.replaceAll('#', '').trim();
-      return t.isEmpty ? null : t;
+    final extras = <String, String>{};
+    final ex = m['extras'];
+    if (ex is Map) {
+      for (final e in ex.entries) {
+        final k = e.key.toString().trim();
+        if (k.isEmpty) continue;
+        extras[k] = (e.value ?? '').toString();
+      }
     }
 
     return FilterSpec(
@@ -211,10 +201,11 @@ class _HomePageState extends State<HomePage> {
       resolutions: toSet(m['resolutions']),
       atleast: toOptString(m['atleast']),
       ratios: toSet(m['ratios']),
-      color: normalizeColor(m['color']),
+      color: toOptString(m['color']),
       rating: ratingFrom(m['rating']),
       categories: toSet(m['categories']),
       timeRange: toOptString(m['timeRange']),
+      extras: extras,
     );
   }
 
@@ -247,10 +238,6 @@ class _HomePageState extends State<HomePage> {
     } catch (_) {}
   }
 
-  // ===========================
-  // ✅ 数据加载
-  // ===========================
-
   Future<void> _initData() async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
@@ -269,6 +256,8 @@ class _HomePageState extends State<HomePage> {
 
     final nextPage = _page + 1;
     final ok = await _fetchItems(page: nextPage);
+
+    // ✅ 只有 pagedSearch 成功才推进 page；random 不需要 page，但也沿用你的 UI 逻辑
     if (ok) _page = nextPage;
 
     if (mounted) setState(() => _isLoading = false);
@@ -278,18 +267,35 @@ class _HomePageState extends State<HomePage> {
     final store = ThemeScope.of(context);
 
     try {
-      // ✅ 切源：只在这里做“source 切换”
       final src = _factory.fromStore(store);
       _repo.setSource(src);
 
-      // ✅ SearchQuery 只带 filters，source 自己翻译成 queryParameters
-      final newItems = await _repo.search(
-        SearchQuery(page: page, filters: _filters),
-      );
+      if (_repo.kind == SourceKind.pagedSearch) {
+        final newItems = await _repo.search(SearchQuery(page: page, filters: _filters));
+        if (!mounted) return false;
+        setState(() => _items.addAll(newItems));
+        return true;
+      }
 
-      if (!mounted) return false;
-      setState(() => _items.addAll(newItems));
-      return true;
+      // ✅ random：滑到底补图（A）
+      int added = 0;
+      final seen = <String>{..._items.map((e) => e.preview.toString())};
+
+      for (int i = 0; i < _kRandomBatchSize; i++) {
+        final it = await _repo.random(_filters);
+        if (it == null) continue;
+
+        final key = it.preview.toString();
+        if (key.isEmpty || seen.contains(key)) continue;
+
+        seen.add(key);
+        added++;
+        if (!mounted) return false;
+
+        setState(() => _items.add(it));
+      }
+
+      return added > 0;
     } catch (e) {
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -366,7 +372,6 @@ class _HomePageState extends State<HomePage> {
       builder: (context, _) {
         final theme = Theme.of(context);
 
-        // ✅ 切源自动刷新（只负责触发，不负责创建 source）
         final currentId = store.currentSourceConfig.id;
         if (_lastSourceConfigId == null) {
           _lastSourceConfigId = currentId;
@@ -380,7 +385,9 @@ class _HomePageState extends State<HomePage> {
           }
         }
 
-        final caps = _repo.source.capabilities;
+        final src = _factory.fromStore(store);
+        final caps = src.capabilities;
+
         final isDark = theme.brightness == Brightness.dark;
         final overlay = _drawerOpen
             ? SystemUiOverlayStyle(
@@ -416,16 +423,16 @@ class _HomePageState extends State<HomePage> {
               ),
               clipBehavior: Clip.antiAlias,
               child: FilterDrawer(
-  initial: _filters,
-  capabilities: caps,
-  onApply: _applyFilters,
-  onReset: _resetFilters,
-  onOpenSettings: _openSettingsFromDrawer,
-),
+                initial: _filters,
+                capabilities: caps,
+                onApply: _applyFilters,
+                onReset: _resetFilters,
+                onOpenSettings: _openSettingsFromDrawer,
+              ),
             ),
             extendBodyBehindAppBar: true,
             appBar: FoggyAppBar(
-              title: const Text("Wallhaven"),
+              title: Text(store.currentSourceConfig.name),
               isScrolled: _isScrolled,
               fogStrength: 0.82,
               actions: const [],
@@ -458,6 +465,7 @@ class _HomePageState extends State<HomePage> {
                               builder: (_) => WallpaperDetailPage(
                                 id: item.id,
                                 heroThumb: imageUrl,
+                                item: item,
                               ),
                             ),
                           ),
