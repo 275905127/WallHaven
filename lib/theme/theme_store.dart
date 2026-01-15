@@ -1,3 +1,6 @@
+import '../data/http/http_client.dart';
+import '../data/source_factory.dart';
+import '../domain/entities/source_capabilities.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
