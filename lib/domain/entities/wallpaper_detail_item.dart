@@ -9,11 +9,11 @@ class WallpaperDetailItem {
   final int width;
   final int height;
 
-  final Uri? shortUrl;
-  final Uri? sourceUrl;
-
   final String? author;
   final Uri? authorAvatar;
+
+  final Uri? shortUrl;
+  final Uri? sourceUrl;
 
   final int? views;
   final int? favorites;
@@ -27,7 +27,7 @@ class WallpaperDetailItem {
   final List<String> tags;
   final List<String> colors;
 
-  /// ✅ 通用展示字段：UI 不再 hardcode “纯净度/分类”等语义
+  /// ✅ 通用详情展示字段：source 决定 label/value，UI 只渲染
   final List<DetailField> fields;
 
   final Map<String, dynamic> extra;
@@ -38,19 +38,26 @@ class WallpaperDetailItem {
     required this.image,
     required this.width,
     required this.height,
-    this.shortUrl,
-    this.sourceUrl,
+
     this.author,
     this.authorAvatar,
+
+    this.shortUrl,
+    this.sourceUrl,
+
     this.views,
     this.favorites,
+
     this.resolution,
     this.ratio,
+
     this.fileSize,
     this.fileType,
-    required this.tags,
-    required this.colors,
-    required this.fields,
+
+    this.tags = const [],
+    this.colors = const [],
+
+    this.fields = const [],
     this.extra = const {},
   });
 
