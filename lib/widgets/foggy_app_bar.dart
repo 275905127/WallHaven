@@ -16,7 +16,7 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
   });
 
   @override
-  Size get preferredSize => const Size.fromHeight(96); // 保持 96 高度
+  Size get preferredSize => const Size.fromHeight(76); // 保持 76 高度
 
   @override
   Widget build(BuildContext context) {
