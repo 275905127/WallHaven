@@ -335,7 +335,7 @@ class _HomePageState extends State<HomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       // ✅ 去掉 const，避免 “找不到 const 构造” 的报错
-      Navigator.push(context, MaterialPageRoute(builder: (context) => SettingsPage()));
+      Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPage()));
     });
   }
 
