@@ -1,12 +1,12 @@
-import 'package:dio/dio.dart';
+// lib/sources/wallhaven_source_plugin.dart
 import 'source_plugin.dart';
-import '../api/wallhaven_api.dart';
 
 class WallhavenSourcePlugin implements SourcePlugin {
   static const String kId = 'wallhaven';
 
-  // 不要 const 绑死编译期常量，直接用 final
-  static final String kDefaultBaseUrl = WallhavenClient.kDefaultBaseUrl;
+  // 这里别再依赖 WallhavenClient 常量：你要“彻底解耦”，就别把 api 层拖进来
+  // Wallhaven 官方默认 baseUrl 就写死在配置层即可（风险：以后改域名，你只改这里/默认配置）
+  static const String kDefaultBaseUrl = 'https://wallhaven.cc';
 
   @override
   String get pluginId => kId;
@@ -16,8 +16,7 @@ class WallhavenSourcePlugin implements SourcePlugin {
 
   @override
   SourceConfig defaultConfig() {
-    // ❌ 这里不能 const
-    return SourceConfig(
+    return const SourceConfig(
       id: 'default_wallhaven',
       pluginId: kId,
       name: 'Wallhaven',
@@ -48,26 +47,11 @@ class WallhavenSourcePlugin implements SourcePlugin {
       return t.isEmpty ? null : t;
     }
 
+    // ✅ 配置层只负责“清洗”，不做请求、不做字段映射
     s['baseUrl'] = normBaseUrl((s['baseUrl'] as String?) ?? kDefaultBaseUrl);
     s['apiKey'] = normOpt(s['apiKey']);
     s['username'] = normOpt(s['username']);
+
     return s;
-  }
-
-  @override
-  WallpaperSourceClient createClient({
-    required Map<String, dynamic> settings,
-    Dio? dio, // ✅ 必须跟接口一致
-  }) {
-    final fixed = sanitizeSettings(settings);
-    final baseUrl = fixed['baseUrl'] as String;
-    final apiKey = fixed['apiKey'] as String?;
-
-    final c = WallhavenClient(
-      dio: dio ?? Dio(),
-      baseUrl: baseUrl,
-      apiKey: apiKey,
-    );
-    return WallhavenClientAdapter(c);
   }
 }
