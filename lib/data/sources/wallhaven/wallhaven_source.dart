@@ -14,18 +14,28 @@ class WallhavenSource implements WallpaperSource {
   final String pluginId = 'wallhaven';
 
   final HttpClient _http;
+  final String baseUrl;
   final String? apiKey;
 
   WallhavenSource({
     required this.sourceId,
     required HttpClient http,
+    required this.baseUrl,
     this.apiKey,
   }) : _http = http;
+
+  String _api(String path) {
+    // baseUrl: https://wallhaven.cc
+    var b = baseUrl.trim();
+    if (b.endsWith('/')) b = b.substring(0, b.length - 1);
+    if (!path.startsWith('/')) path = '/$path';
+    return '$b$path';
+  }
 
   @override
   Future<List<WallpaperItem>> search(SearchQuery query) async {
     final resp = await _http.dio.get(
-      'https://wallhaven.cc/api/v1/search',
+      _api('/api/v1/search'),
       queryParameters: <String, dynamic>{
         'page': query.page,
         ...query.params,
@@ -53,12 +63,10 @@ class WallhavenSource implements WallpaperSource {
       final thumbSmall = (thumbs?['small'] as String?)?.trim() ?? '';
       final path = (j['path'] as String?)?.trim() ?? '';
 
-      // ✅ 预览图兜底：large -> small -> path
       final previewUrl = thumbLarge.isNotEmpty
           ? thumbLarge
           : (thumbSmall.isNotEmpty ? thumbSmall : path);
 
-      // 没有任何可用 URL，直接丢弃（不要造 about:blank）
       if (previewUrl.isEmpty) continue;
 
       final w = _asInt(j['dimension_x']);
@@ -90,7 +98,7 @@ class WallhavenSource implements WallpaperSource {
   Future<WallpaperDetailItem?> detail(String id) async {
     try {
       final resp = await _http.dio.get(
-        'https://wallhaven.cc/api/v1/w/$id',
+        _api('/api/v1/w/$id'),
         queryParameters: <String, dynamic>{
           if (apiKey != null && apiKey!.isNotEmpty) 'apikey': apiKey,
         },
@@ -122,7 +130,9 @@ class WallhavenSource implements WallpaperSource {
         image: Uri.parse(path),
         width: w,
         height: h,
-        author: (uploader?['username'] as String?)?.trim().isNotEmpty == true ? (uploader?['username'] as String).trim() : null,
+        author: (uploader?['username'] as String?)?.trim().isNotEmpty == true
+            ? (uploader?['username'] as String).trim()
+            : null,
         authorAvatar: _bestAvatarUri(avatar),
         shortUrl: Uri.tryParse(((j['short_url'] as String?) ?? '').trim()),
         sourceUrl: Uri.tryParse(((j['source'] as String?) ?? '').trim()),
@@ -144,8 +154,6 @@ class WallhavenSource implements WallpaperSource {
       return null;
     }
   }
-
-  // ===== helpers =====
 
   int _asInt(dynamic v) {
     if (v is int) return v;
