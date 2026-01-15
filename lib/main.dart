@@ -1,5 +1,6 @@
 // lib/main.dart
 import 'dart:convert';
+import 'pages/settings_page.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
