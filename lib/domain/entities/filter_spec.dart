@@ -1,5 +1,4 @@
 // lib/domain/entities/filter_spec.dart
-
 enum SortOrder { asc, desc }
 
 enum SortBy {
@@ -8,7 +7,7 @@ enum SortBy {
   views,
   favorites,
   random,
-  toplist, // “意图”存在即可，source 可忽略/降级
+  toplist,
 }
 
 enum RatingLevel {
@@ -23,26 +22,14 @@ class FilterSpec {
   final SortBy? sortBy;
   final SortOrder? order;
 
-  /// "1920x1080"
-  final Set<String> resolutions;
+  final Set<String> resolutions; // "1920x1080"
+  final String? atleast;         // "1920x1080"
+  final Set<String> ratios;      // "16x9"
+  final String? color;           // hex without "#"
 
-  /// "1920x1080"
-  final String? atleast;
-
-  /// "16x9"
-  final Set<String> ratios;
-
-  /// hex without '#'
-  final String? color;
-
-  /// 通用分级：source 自己映射到 purity/rating/nsfw
-  final Set<RatingLevel> rating;
-
-  /// 通用分类：由 source 的 capabilities 提供 options（id/label）
-  final Set<String> categories;
-
-  /// 时间窗：由 source 的 capabilities 提供 options（id/label）
-  final String? timeRange;
+  final Set<RatingLevel> rating; // safe/questionable/explicit
+  final Set<String> categories;  // source-defined ids
+  final String? timeRange;       // source-defined id
 
   const FilterSpec({
     this.text = '',
