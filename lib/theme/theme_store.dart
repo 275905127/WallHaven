@@ -394,6 +394,7 @@ class ThemeStore extends ChangeNotifier {
         id: c.id,
         name: c.name,
         baseUrl: (c.settings['baseUrl'] as String?) ?? '',
+        driver: c.pluginId.isEmpty ? 'unknown' : c.pluginId, // ✅ 必填兜底
         apiKey: (c.settings['apiKey'] as String?),
         username: (c.settings['username'] as String?),
         isBuiltIn: false,
