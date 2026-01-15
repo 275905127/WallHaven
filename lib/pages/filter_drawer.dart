@@ -271,6 +271,38 @@ class _FilterDrawerState extends State<FilterDrawer> {
     );
   }
 
+  // 子组：用同样的 2px 背景缝堆叠，不允许用 BorderSide 细线
+  BorderRadius _subRadiusFor(BuildContext context, int index, int length) {
+    final tokens = Theme.of(context).extension<AppTokens>()!;
+    final r = tokens.smallRadius;
+
+    final isFirst = index == 0;
+    final isLast = index == length - 1;
+    final isSingle = length == 1;
+
+    if (isSingle) return BorderRadius.circular(r);
+
+    if (isFirst) {
+      return BorderRadius.only(
+        topLeft: Radius.circular(r),
+        topRight: Radius.circular(r),
+        bottomLeft: Radius.circular(r),
+        bottomRight: Radius.circular(r),
+      );
+    }
+
+    if (isLast) {
+      return BorderRadius.only(
+        topLeft: Radius.circular(r),
+        topRight: Radius.circular(r),
+        bottomLeft: Radius.circular(r),
+        bottomRight: Radius.circular(r),
+      );
+    }
+
+    return BorderRadius.circular(r);
+  }
+
   // 折叠行（像 SettingsItem 一样的“行”），右侧三角；展开内容直接接在同一张卡里
   Widget _groupCollapseRow({
     required BuildContext context,
@@ -336,14 +368,12 @@ class _FilterDrawerState extends State<FilterDrawer> {
               ),
               AnimatedCrossFade(
                 firstChild: const SizedBox.shrink(),
-                secondChild: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    border: Border(
-                      top: BorderSide(color: mono.withOpacity(0.10), width: 1),
-                    ),
-                  ),
-                  child: expandedChild,
+                secondChild: Column(
+                  children: [
+                    // ✅ 规范：分割必须是 2px 背景缝（tokens），禁止 1px 线
+                    _groupGap(context),
+                    expandedChild,
+                  ],
                 ),
                 crossFadeState: expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
                 duration: tokens.expandDuration,
@@ -371,34 +401,44 @@ class _FilterDrawerState extends State<FilterDrawer> {
       children: List.generate(items.length, (i) {
         final it = items[i];
         final selected = it.value == value;
+        final br = _subRadiusFor(context, i, items.length);
         final isLast = i == items.length - 1;
 
-        return InkWell(
-          onTap: () => onPick(it.value),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              border: Border(
-                bottom: isLast ? BorderSide.none : BorderSide(color: mono.withOpacity(0.10), width: 1),
+        return Column(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                borderRadius: br,
               ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    it.label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: theme.textTheme.bodyLarge?.color,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              clipBehavior: Clip.antiAlias,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => onPick(it.value),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            it.label,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: theme.textTheme.bodyLarge?.color,
+                              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                        if (selected) Icon(Icons.check, size: 18, color: mono),
+                      ],
                     ),
                   ),
                 ),
-                if (selected) Icon(Icons.check, size: 18, color: mono),
-              ],
+              ),
             ),
-          ),
+            if (!isLast) _groupGap(context),
+          ],
         );
       }),
     );
@@ -467,40 +507,49 @@ class _FilterDrawerState extends State<FilterDrawer> {
     return Column(
       children: List.generate(items.length, (i) {
         final it = items[i];
+        final br = _subRadiusFor(context, i, items.length);
         final isLast = i == items.length - 1;
 
-        return InkWell(
-          onTap: () => it.onChanged(!it.value),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              border: Border(
-                bottom: isLast ? BorderSide.none : BorderSide(color: mono.withOpacity(0.10), width: 1),
+        return Column(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                borderRadius: br,
               ),
-            ),
-            child: Row(
-              children: [
-                Checkbox(
-                  value: it.value,
-                  onChanged: (v) => it.onChanged(v ?? false),
-                  checkColor: theme.brightness == Brightness.dark ? Colors.black : Colors.white,
-                  fillColor: MaterialStateProperty.resolveWith((states) {
-                    if (states.contains(MaterialState.selected)) return mono;
-                    return mono.withOpacity(0.08);
-                  }),
-                  side: BorderSide(color: mono.withOpacity(0.18)),
-                ),
-                Expanded(
-                  child: Text(
-                    it.label,
-                    style: TextStyle(fontSize: 14, color: theme.textTheme.bodyLarge?.color),
+              clipBehavior: Clip.antiAlias,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => it.onChanged(!it.value),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: it.value,
+                          onChanged: (v) => it.onChanged(v ?? false),
+                          checkColor: theme.brightness == Brightness.dark ? Colors.black : Colors.white,
+                          fillColor: MaterialStateProperty.resolveWith((states) {
+                            if (states.contains(MaterialState.selected)) return mono;
+                            return mono.withOpacity(0.08);
+                          }),
+                          side: BorderSide(color: mono.withOpacity(0.18)),
+                        ),
+                        Expanded(
+                          child: Text(
+                            it.label,
+                            style: TextStyle(fontSize: 14, color: theme.textTheme.bodyLarge?.color),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                if (it.value) Icon(Icons.check, size: 18, color: mono),
-              ],
+              ),
             ),
-          ),
+            if (!isLast) _groupGap(context),
+          ],
         );
       }),
     );
@@ -577,15 +626,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     // —— 折叠行“组”：按 SettingsGroup 规则堆叠
     final groupRows = <Widget>[];
 
-    // 1) 排序方式
-    // 2) 榜单时间范围（仅 toplist）
-    // 3) 排序方向
-    // 4) 分类
-    // 5) 分级
-    // 6) 分辨率
-    // 7) 最小分辨率
-    // 8) 比例
-    // 9) 颜色
     final rowDefs = <_RowDef>[
       _RowDef(
         title: '排序方式',
