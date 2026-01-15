@@ -136,47 +136,74 @@ class _HomePageState extends State<HomePage> {
   // ✅ FilterSpec 持久化（可选但你要“零占位可用”，我给你做了）
   // ---------------------------
   Map<String, dynamic> _filtersToJson(FilterSpec f) => {
-        'text': f.text,
-        'sort': f.sort,
-        'order': f.order,
-        'resolutions': f.resolutions.toList(),
-        'atleast': f.atleast,
-        'ratios': f.ratios.toList(),
-        'color': f.color,
-        'ratings': f.ratings.toList(),
-        'categories': f.categories.toList(),
-        'timeRange': f.timeRange,
-      };
+  'text': f.text,
+  'sortBy': f.sortBy?.name,
+  'order': f.order?.name,
+  'resolutions': f.resolutions.toList(),
+  'atleast': f.atleast,
+  'ratios': f.ratios.toList(),
+  'color': f.color,
+  'rating': f.rating.map((e) => e.name).toList(),
+  'categories': f.categories.toList(),
+  'timeRange': f.timeRange,
+};
 
-  FilterSpec _filtersFromJson(Map<String, dynamic> m) {
-    Set<String> toSet(dynamic v) {
-      if (v is List) {
-        return v.map((e) => e?.toString() ?? '').where((s) => s.trim().isNotEmpty).toSet();
-      }
-      return <String>{};
-    }
-
-    String? toOptString(dynamic v) {
-      if (v is String) {
-        final t = v.trim();
-        return t.isEmpty ? null : t;
-      }
-      return null;
-    }
-
-    return FilterSpec(
-      text: (m['text'] is String) ? (m['text'] as String) : '',
-      sort: toOptString(m['sort']),
-      order: toOptString(m['order']),
-      resolutions: toSet(m['resolutions']),
-      atleast: toOptString(m['atleast']),
-      ratios: toSet(m['ratios']),
-      color: toOptString(m['color']),
-      ratings: toSet(m['ratings']),
-      categories: toSet(m['categories']),
-      timeRange: toOptString(m['timeRange']),
-    );
+FilterSpec _filtersFromJson(Map<String, dynamic> m) {
+  Set<String> toSet(dynamic v) {
+    if (v is List) return v.map((e) => e?.toString() ?? '').where((s) => s.trim().isNotEmpty).toSet();
+    return <String>{};
   }
+
+  SortBy? sortByFrom(dynamic v) {
+    if (v is! String) return null;
+    for (final e in SortBy.values) {
+      if (e.name == v) return e;
+    }
+    return null;
+  }
+
+  SortOrder? orderFrom(dynamic v) {
+    if (v is! String) return null;
+    for (final e in SortOrder.values) {
+      if (e.name == v) return e;
+    }
+    return null;
+  }
+
+  Set<RatingLevel> ratingFrom(dynamic v) {
+    final out = <RatingLevel>{};
+    if (v is! List) return out;
+    for (final x in v) {
+      final s = x?.toString();
+      if (s == null) continue;
+      for (final e in RatingLevel.values) {
+        if (e.name == s) out.add(e);
+      }
+    }
+    return out;
+  }
+
+  String? toOptString(dynamic v) {
+    if (v is String) {
+      final t = v.trim();
+      return t.isEmpty ? null : t;
+    }
+    return null;
+  }
+
+  return FilterSpec(
+    text: (m['text'] is String) ? (m['text'] as String) : '',
+    sortBy: sortByFrom(m['sortBy']),
+    order: orderFrom(m['order']),
+    resolutions: toSet(m['resolutions']),
+    atleast: toOptString(m['atleast']),
+    ratios: toSet(m['ratios']),
+    color: toOptString(m['color']),
+    rating: ratingFrom(m['rating']),
+    categories: toSet(m['categories']),
+    timeRange: toOptString(m['timeRange']),
+  );
+}
 
   Future<void> _loadPersistedFilters() async {
     try {
