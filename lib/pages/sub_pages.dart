@@ -1,9 +1,14 @@
 // lib/pages/sub_pages.dart
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import '../theme/theme_store.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/foggy_app_bar.dart';
 import '../widgets/settings_widgets.dart';
+
+// ⚠️ 这些 import 你项目里可能还在用（比如类型/常量）
+// 如果 analyzer 报 unused，你自己删掉即可，不影响运行。
 import '../models/image_source.dart';
 import '../sources/source_plugin.dart';
 
@@ -169,7 +174,6 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
     final tokens = theme.extension<AppTokens>()!;
     final bool disabled = store.enableCustomColors;
 
-    // 规则：开关控制展开/收起；自定义颜色开启时不可选并强制收起
     final bool switchValue = disabled ? false : store.enableThemeMode;
     final bool expanded = switchValue;
 
@@ -238,7 +242,6 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
             activeColor: theme.colorScheme.primary,
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),
           ),
-          // ✅ 回归：2px 背景缝分割（走 tokens）
           Container(height: tokens.dividerThickness, color: tokens.dividerColor),
           RadioListTile<ThemeMode>(
             title: const Text("浅色"),
@@ -263,7 +266,6 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
 
     Widget expandedBlock = Column(
       children: [
-        // ✅ header 与 body 的“背景缝”必须画出来（2px）
         Container(height: tokens.dividerThickness, color: tokens.dividerColor),
         bodyCard,
       ],
@@ -409,7 +411,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
   }
 
   bool _isBuiltInConfig(SourceConfig c) {
-    // 约定：默认插件实例 id = default_<pluginId>
     return c.id.startsWith('default_');
   }
 
@@ -433,65 +434,230 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
   void _showAddSourceDialog(BuildContext context) {
     final store = ThemeScope.of(context);
 
-    // 目前 registry 只有 wallhaven 插件，所以这里先做 wallhaven 风格的“添加实例”
+    // A：粘贴 JSON
+    final jsonCtrl = TextEditingController();
+
+    // B：表单生成 JSON（最简：name + baseUrl + listKey）
     final nameCtrl = TextEditingController();
     final urlCtrl = TextEditingController();
-    final userCtrl = TextEditingController();
-    final keyCtrl = TextEditingController();
+    final listKeyCtrl = TextEditingController(text: "@direct");
+
+    String? errorText;
+
+    void toast(String msg) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
+
+    bool _looksLikeJson(String s) {
+      final t = s.trim();
+      return t.startsWith('{') && t.endsWith('}');
+    }
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("添加图源"),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: "名称 *", hintText: "例如: My Server"),
-                autofocus: true,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (dialogCtx, setState) {
+          return DefaultTabController(
+            length: 2,
+            child: AlertDialog(
+              titlePadding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              actionsPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+              title: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("添加图源"),
+                  SizedBox(height: 10),
+                  TabBar(
+                    tabs: [
+                      Tab(text: "A 粘贴配置"),
+                      Tab(text: "B 表单添加"),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: urlCtrl,
-                decoration: const InputDecoration(labelText: "API 地址 *", hintText: "https://..."),
-              ),
-              const SizedBox(height: 16),
-              const Divider(),
-              const SizedBox(height: 16),
-              TextField(
-                controller: userCtrl,
-                decoration: const InputDecoration(labelText: "用户名 (可选)", hintText: "API 不需要则不填"),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: keyCtrl,
-                decoration: const InputDecoration(labelText: "API Key (可选)", hintText: "用于认证"),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消")),
-          TextButton(
-            onPressed: () {
-              final name = nameCtrl.text.trim();
-              final url = urlCtrl.text.trim();
-              if (name.isEmpty || url.isEmpty) return;
+              content: SizedBox(
+                width: 520,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (errorText != null) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          const Icon(Icons.error_outline, size: 18, color: Colors.red),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(errorText!, style: const TextStyle(color: Colors.red))),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    Flexible(
+                      child: TabBarView(
+                        children: [
+                          // =======================
+                          // A：粘贴 JSON
+                          // =======================
+                          SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(height: 10),
+                                TextField(
+                                  controller: jsonCtrl,
+                                  minLines: 8,
+                                  maxLines: 14,
+                                  decoration: const InputDecoration(
+                                    labelText: "配置 JSON",
+                                    hintText: "直接粘贴完整配置（包含 name/baseUrl/listKey/filters 等）",
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (_) => setState(() => errorText = null),
+                                ),
+                                const SizedBox(height: 10),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: TextButton.icon(
+                                    onPressed: () {
+                                      // 给个最小示例（不会影响你粘贴别的）
+                                      const sample = {
+                                        "name": "示例 (随机直链)",
+                                        "baseUrl": "https://example.com/api/random",
+                                        "listKey": "@direct",
+                                        "filters": []
+                                      };
+                                      jsonCtrl.text = const JsonEncoder.withIndent("  ").convert(sample);
+                                      setState(() => errorText = null);
+                                    },
+                                    icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+                                    label: const Text("填充示例"),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                              ],
+                            ),
+                          ),
 
-              store.addWallhavenSource(
-                name: name,
-                url: url,
-                username: userCtrl.text,
-                apiKey: keyCtrl.text,
-              );
+                          // =======================
+                          // B：表单生成 JSON（无脑）
+                          // =======================
+                          SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(height: 10),
+                                TextField(
+                                  controller: nameCtrl,
+                                  decoration: const InputDecoration(
+                                    labelText: "名称 *",
+                                    hintText: "例如：Luvbree（随机直链）",
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (_) => setState(() => errorText = null),
+                                ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: urlCtrl,
+                                  decoration: const InputDecoration(
+                                    labelText: "API 地址 *",
+                                    hintText: "例如：https://www.luvbree.com/api/image/random",
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (_) => setState(() => errorText = null),
+                                ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: listKeyCtrl,
+                                  decoration: const InputDecoration(
+                                    labelText: "listKey（默认 @direct）",
+                                    hintText: "@direct 表示返回的是直链",
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (_) => setState(() => errorText = null),
+                                ),
+                                const SizedBox(height: 12),
+                                const Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    "说明：这里先生成最简配置（filters 为空）。\n你要更复杂的 filters，走 A 粘贴配置。",
+                                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: const Text("取消"),
+                ),
+                TextButton(
+                  onPressed: () {
+                    // 根据当前 tab 决定走 A 还是 B
+                    final tab = DefaultTabController.of(dialogCtx).index;
 
-              Navigator.pop(context);
-            },
-            child: const Text("添加"),
-          ),
-        ],
+                    try {
+                      setState(() => errorText = null);
+
+                      if (tab == 0) {
+                        // A：粘贴 JSON
+                        final raw = jsonCtrl.text.trim();
+                        if (raw.isEmpty) {
+                          setState(() => errorText = "你没粘贴任何配置。");
+                          return;
+                        }
+                        if (!_looksLikeJson(raw)) {
+                          setState(() => errorText = "这看起来不像 JSON（需要以 { 开头，以 } 结尾）。");
+                          return;
+                        }
+
+                        // ✅ 入口最终版：交给 store 解析 + 入库
+                        store.addSourceFromJsonString(raw);
+
+                        Navigator.pop(dialogCtx);
+                        toast("已添加图源");
+                        return;
+                      }
+
+                      // B：表单
+                      final name = nameCtrl.text.trim();
+                      final url = urlCtrl.text.trim();
+                      final listKey = listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
+
+                      if (name.isEmpty || url.isEmpty) {
+                        setState(() => errorText = "名称和 API 地址是必填。");
+                        return;
+                      }
+
+                      // ✅ 表单就是“无脑”：直接生成一个最简 JSON 丢给同一个入口
+                      final cfg = <String, dynamic>{
+                        "name": name,
+                        "baseUrl": url,
+                        "listKey": listKey,
+                        "filters": <dynamic>[],
+                      };
+                      store.addSourceFromJsonString(jsonEncode(cfg));
+
+                      Navigator.pop(dialogCtx);
+                      toast("已添加图源");
+                    } catch (e) {
+                      setState(() => errorText = "添加失败：$e");
+                    }
+                  },
+                  child: const Text("添加"),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -540,13 +706,8 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
             onPressed: () {
               final nextSettings = Map<String, dynamic>.from(cfg.settings);
 
-              // 默认插件实例：不允许改 name/baseUrl，但允许配 username/apiKey
               if (!builtIn) {
-                final n = nameCtrl.text.trim();
                 final u = urlCtrl.text.trim();
-                if (n.isNotEmpty) {
-                  // name 在 SourceConfig 顶层
-                }
                 if (u.isNotEmpty) nextSettings['baseUrl'] = u;
               }
 
@@ -608,14 +769,11 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // 当前源标记
                         if (isCurrent) const Icon(Icons.check, size: 18),
-                        // 编辑
                         IconButton(
                           icon: const Icon(Icons.edit_outlined),
                           onPressed: () => _showEditConfigDialog(context, cfg),
                         ),
-                        // 删除（默认插件实例不允许删）
                         if (!builtIn)
                           IconButton(
                             icon: const Icon(Icons.delete_outline, color: Colors.red),
@@ -628,7 +786,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                           ),
                       ],
                     ),
-                    // ✅ 点击行：切换当前源（不再把“切换”和“编辑”绑死）
                     onTap: () => store.setCurrentSourceConfig(cfg.id),
                   );
                 }).toList(),
