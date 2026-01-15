@@ -1,11 +1,9 @@
 // lib/theme/theme_store.dart
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../sources/source_registry.dart';
-import '../sources/source_plugin.dart';
-import '../sources/wallhaven_source_plugin.dart';
 
 import '../models/image_source.dart';
 
@@ -17,9 +15,7 @@ class ThemeScope extends InheritedWidget {
   static ThemeStore of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<ThemeScope>();
     assert(scope != null, 'ThemeScope not found in widget tree');
-    if (scope == null) {
-      throw FlutterError('ThemeScope not found in widget tree');
-    }
+    if (scope == null) throw FlutterError('ThemeScope not found in widget tree');
     return scope.store;
   }
 
@@ -36,10 +32,7 @@ class SourceConfig {
   final String id; // 实例 id
   final String pluginId; // 插件 id（wallhaven / 自定义插件…）
   final String name; // 展示名
-
-  /// 插件私有配置（key/value）
-  /// - Wallhaven: baseUrl, apiKey, username
-  final Map<String, dynamic> settings;
+  final Map<String, dynamic> settings; // 插件私有配置
 
   const SourceConfig({
     required this.id,
@@ -79,11 +72,7 @@ class SourceConfig {
 
 abstract class SourcePlugin {
   String get pluginId;
-
-  /// 默认展示名（不等于实例名，实例可改）
   String get defaultName;
-
-  /// 生成一个默认实例配置（作为“内置默认源插件”）
   SourceConfig defaultConfig();
 
   /// ✅ 兼容层：把 SourceConfig 转回旧 ImageSource（仅用于过渡）
@@ -94,6 +83,7 @@ abstract class SourcePlugin {
 /// - 注意：这里只是“描述+配置映射”，不是网络层
 class WallhavenPlugin implements SourcePlugin {
   static const String kId = 'wallhaven';
+  static const String kDefaultBaseUrl = 'https://wallhaven.cc/api/v1';
 
   @override
   String get pluginId => kId;
@@ -101,15 +91,13 @@ class WallhavenPlugin implements SourcePlugin {
   @override
   String get defaultName => 'Wallhaven';
 
-  static const String kDefaultBaseUrl = 'https://wallhaven.cc/api/v1';
-
   @override
   SourceConfig defaultConfig() {
-    return SourceConfig(
-      id: 'default_${WallhavenPlugin.kId}',
+    return const SourceConfig(
+      id: 'default_wallhaven',
       pluginId: WallhavenPlugin.kId,
-      name: defaultName,
-      settings: const {
+      name: 'Wallhaven',
+      settings: {
         'baseUrl': kDefaultBaseUrl,
         'apiKey': null,
         'username': null,
@@ -126,32 +114,27 @@ class WallhavenPlugin implements SourcePlugin {
       id: c.id,
       name: c.name,
       baseUrl: baseUrl,
-      driver: WallhavenPlugin.kId, // ✅ 必填
       apiKey: apiKey,
       username: username,
       // ✅ 只有默认实例算 built-in（否则用户添加的都算自定义）
-      isBuiltIn: c.id == 'default_${WallhavenPlugin.kId}',
+      isBuiltIn: c.id == 'default_wallhaven',
     );
   }
+}
 
 class SourceRegistry {
   final Map<String, SourcePlugin> _plugins;
-
   SourceRegistry._(this._plugins);
 
   factory SourceRegistry.defaultRegistry() {
-    final plugins = <String, SourcePlugin>{
+    return SourceRegistry._({
       WallhavenPlugin.kId: WallhavenPlugin(),
-    };
-    return SourceRegistry._(plugins);
+    });
   }
 
   SourcePlugin? plugin(String pluginId) => _plugins[pluginId];
 
-  SourceConfig defaultConfig() {
-    // 你以后可以改成：从某个“首选默认插件”里取
-    return _plugins[WallhavenPlugin.kId]!.defaultConfig();
-  }
+  SourceConfig defaultConfig() => _plugins[WallhavenPlugin.kId]!.defaultConfig();
 }
 
 class ThemeStore extends ChangeNotifier {
@@ -197,16 +180,18 @@ class ThemeStore extends ChangeNotifier {
   List<SourceConfig> get sourceConfigs => _sourceConfigs;
   SourceConfig get currentSourceConfig => _currentConfig;
 
+  /// ✅ 你截图里的两个 getter（给 main.dart / UI 快速取配置用）
+  SourcePlugin? get currentPlugin => _registry.plugin(_currentConfig.pluginId);
+  Map<String, dynamic> get currentPluginSettings => _currentConfig.settings;
+
   /// ✅ 兼容旧接口：给旧 UI / 旧调用链用（后续会删）
   List<ImageSource> get sources => _sourceConfigs.map(_toLegacy).toList();
   ImageSource get currentSource => _toLegacy(_currentConfig);
 
   ThemeStore() {
-    // 默认先塞一个默认插件实例（避免启动空列表）
     final def = _registry.defaultConfig();
     _sourceConfigs = [def];
     _currentConfig = def;
-
     _loadFromPrefs();
   }
 
@@ -283,7 +268,7 @@ class ThemeStore extends ChangeNotifier {
   }
 
   // ======================
-  // ✅ Source 新接口（插件化）
+  // ✅ Source Actions（插件化）
   // ======================
 
   void setCurrentSourceConfig(String configId) {
@@ -320,8 +305,9 @@ class ThemeStore extends ChangeNotifier {
     final idx = _sourceConfigs.indexWhere((c) => c.id == updated.id);
     if (idx == -1) return;
 
-    // 基础清洗（只对 wallhaven 做：baseUrl/apiKey/username）
     var fixed = updated;
+
+    // ✅ 基础清洗：按插件分发（目前只有 wallhaven）
     if (updated.pluginId == WallhavenPlugin.kId) {
       final s = Map<String, dynamic>.from(updated.settings);
       final baseUrl = (s['baseUrl'] as String?) ?? WallhavenPlugin.kDefaultBaseUrl;
@@ -342,17 +328,15 @@ class ThemeStore extends ChangeNotifier {
   }
 
   void removeSourceConfig(String id) {
-    // 默认插件实例不允许删（你真要删，也得先有其它源兜底）
-    final isDefault = id == 'default_${WallhavenPlugin.kId}';
+    // 默认插件实例不允许删（你要删就先保证还有别的源能顶）
+    final isDefault = id == 'default_wallhaven';
     if (isDefault) return;
 
     final next = _sourceConfigs.where((c) => c.id != id).toList();
     if (next.isEmpty) return;
 
     _sourceConfigs = next;
-    if (_currentConfig.id == id) {
-      _currentConfig = _sourceConfigs.first;
-    }
+    if (_currentConfig.id == id) _currentConfig = _sourceConfigs.first;
 
     notifyListeners();
     savePreferences();
@@ -362,18 +346,14 @@ class ThemeStore extends ChangeNotifier {
   // ✅ 旧接口兼容（别让其它文件现在就炸）
   // ===================================
 
-  void setSource(ImageSource source) {
-    // 老 UI 点选时会传 ImageSource，我们映射回 configId
-    setCurrentSourceConfig(source.id);
-  }
+  void setSource(ImageSource source) => setCurrentSourceConfig(source.id);
 
   void addSource(String name, String url, {String? username, String? apiKey}) {
-    // 老 UI 添加：只能当成 wallhaven 风格源（过渡）
+    // 旧 UI 添加：过渡期只当 wallhaven 风格源
     addWallhavenSource(name: name, url: url, username: username, apiKey: apiKey);
   }
 
   void updateSource(ImageSource updatedSource) {
-    // 老 UI 编辑：映射成 wallhaven config 更新（过渡）
     final cfg = SourceConfig(
       id: updatedSource.id,
       pluginId: WallhavenPlugin.kId,
@@ -392,12 +372,10 @@ class ThemeStore extends ChangeNotifier {
   ImageSource _toLegacy(SourceConfig c) {
     final p = _registry.plugin(c.pluginId);
     if (p == null) {
-      // 未知插件：给一个“空壳”避免崩
       return ImageSource(
         id: c.id,
         name: c.name,
         baseUrl: (c.settings['baseUrl'] as String?) ?? '',
-        driver: c.pluginId.isEmpty ? 'unknown' : c.pluginId, // ✅ 必填兜底
         apiKey: (c.settings['apiKey'] as String?),
         username: (c.settings['username'] as String?),
         isBuiltIn: false,
@@ -441,8 +419,6 @@ class ThemeStore extends ChangeNotifier {
         _sourceConfigs.map((c) => jsonEncode(c.toJson())).toList(),
       );
       prefs.setString('current_source_config_id', _currentConfig.id);
-
-      // （可选）保留旧 keys 不写也行，但我不再维护旧 keys
     });
   }
 
@@ -452,11 +428,7 @@ class ThemeStore extends ChangeNotifier {
 
       // ===== theme prefs =====
       final modeIndex = prefs.getInt('theme_mode') ?? 0;
-      if (modeIndex >= 0 && modeIndex < ThemeMode.values.length) {
-        _preferredMode = ThemeMode.values[modeIndex];
-      } else {
-        _preferredMode = ThemeMode.system;
-      }
+      _preferredMode = (modeIndex >= 0 && modeIndex < ThemeMode.values.length) ? ThemeMode.values[modeIndex] : ThemeMode.system;
 
       _enableThemeMode = prefs.getBool('enable_theme_mode') ?? true;
 
@@ -484,28 +456,22 @@ class ThemeStore extends ChangeNotifier {
             .where((c) => c.id.isNotEmpty && c.pluginId.isNotEmpty)
             .toList();
 
-        if (loaded.isNotEmpty) {
-          _sourceConfigs = loaded;
-        } else {
-          _sourceConfigs = [_registry.defaultConfig()];
-        }
+        _sourceConfigs = loaded.isNotEmpty ? loaded : [_registry.defaultConfig()];
 
         final currentId = prefs.getString('current_source_config_id');
-        if (currentId != null) {
-          _currentConfig = _sourceConfigs.firstWhere((c) => c.id == currentId, orElse: () => _sourceConfigs.first);
-        } else {
-          _currentConfig = _sourceConfigs.first;
-        }
+        _currentConfig = (currentId != null)
+            ? _sourceConfigs.firstWhere((c) => c.id == currentId, orElse: () => _sourceConfigs.first)
+            : _sourceConfigs.first;
       } else {
         // ✅ 迁移旧：image_sources/current_source_id → source_configs/current_source_config_id
         final legacy = prefs.getStringList('image_sources');
+
         if (legacy != null && legacy.isNotEmpty) {
           final legacySources = legacy
               .map((e) => ImageSource.fromJson(jsonDecode(e) as Map<String, dynamic>))
               .where((s) => s.id.isNotEmpty && s.baseUrl.isNotEmpty)
               .toList();
 
-          // 旧结构只有 wallhaven 风格：全部映射到 wallhaven 插件 config
           final mapped = legacySources.map((s) {
             return SourceConfig(
               id: s.id,
@@ -522,17 +488,14 @@ class ThemeStore extends ChangeNotifier {
           _sourceConfigs = mapped.isNotEmpty ? mapped : [_registry.defaultConfig()];
 
           final legacyCurrentId = prefs.getString('current_source_id');
-          if (legacyCurrentId != null) {
-            _currentConfig = _sourceConfigs.firstWhere((c) => c.id == legacyCurrentId, orElse: () => _sourceConfigs.first);
-          } else {
-            _currentConfig = _sourceConfigs.first;
-          }
+          _currentConfig = (legacyCurrentId != null)
+              ? _sourceConfigs.firstWhere((c) => c.id == legacyCurrentId, orElse: () => _sourceConfigs.first)
+              : _sourceConfigs.first;
 
           // 写回新 key（一次迁移）
-          prefs.setStringList('source_configs', _sourceConfigs.map((c) => jsonEncode(c.toJson())).toList());
-          prefs.setString('current_source_config_id', _currentConfig.id);
+          await prefs.setStringList('source_configs', _sourceConfigs.map((c) => jsonEncode(c.toJson())).toList());
+          await prefs.setString('current_source_config_id', _currentConfig.id);
         } else {
-          // 完全没有：使用默认插件实例
           final def = _registry.defaultConfig();
           _sourceConfigs = [def];
           _currentConfig = def;
