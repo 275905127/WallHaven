@@ -332,6 +332,8 @@ class _HomePageState extends State<HomePage> {
             // ✅ 标题：Wallhaven Pro -> Wallhaven
             title: const Text("Wallhaven"),
             isScrolled: _isScrolled,
+            // ✅ 主页雾化更淡（分控）
+            fogStrength: 0.82,
             // ✅ 主页右上角设置入口移除（筛选页右下角）
             actions: const [],
           ),
@@ -461,6 +463,8 @@ class _SettingsPageState extends State<SettingsPage> {
             title: const Text('设置'),
             leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
             isScrolled: _isScrolled,
+            // ✅ 设置页雾化维持更稳（分控）
+            fogStrength: 1.0,
           ),
           body: ListView(
             controller: _sc,
