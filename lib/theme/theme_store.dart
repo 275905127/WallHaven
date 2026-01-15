@@ -116,7 +116,6 @@ class WallhavenPlugin implements SourcePlugin {
       baseUrl: baseUrl,
       apiKey: apiKey,
       username: username,
-      // ✅ 只有默认实例算 built-in（否则用户添加的都算自定义）
       isBuiltIn: c.id == 'default_wallhaven',
     );
   }
@@ -184,32 +183,6 @@ class ThemeStore extends ChangeNotifier {
   SourcePlugin? get currentPlugin => _registry.plugin(_currentConfig.pluginId);
   Map<String, dynamic> get currentPluginSettings => _currentConfig.settings;
 
-  /// ✅ 统一出口：当前源连接信息（只暴露 UI 需要的，不把网络塞进 store）
-  /// - 未来你新增插件时，在这里按 pluginId 分支返回对应结构
-  String get currentBaseUrl {
-    if (_currentConfig.pluginId == WallhavenPlugin.kId) {
-      final s = _currentConfig.settings;
-      final raw = (s['baseUrl'] as String?)?.trim();
-      return _normalizeBaseUrl(raw?.isNotEmpty == true ? raw! : WallhavenPlugin.kDefaultBaseUrl);
-    }
-    // 未知插件：返回空，调用点应该自己处理（并提示用户）
-    return '';
-  }
-
-  String? get currentApiKey {
-    final s = _currentConfig.settings;
-    final raw = (s['apiKey'] as String?)?.trim();
-    if (raw == null || raw.isEmpty) return null;
-    return raw;
-  }
-
-  String? get currentUsername {
-    final s = _currentConfig.settings;
-    final raw = (s['username'] as String?)?.trim();
-    if (raw == null || raw.isEmpty) return null;
-    return raw;
-  }
-
   /// ✅ 兼容旧接口：给旧 UI / 旧调用链用（后续会删）
   List<ImageSource> get sources => _sourceConfigs.map(_toLegacy).toList();
   ImageSource get currentSource => _toLegacy(_currentConfig);
@@ -230,7 +203,7 @@ class ThemeStore extends ChangeNotifier {
     _mode = _enableThemeMode ? _preferredMode : ThemeMode.system;
   }
 
-  // ===== Theme Actions（原样）=====
+  // ===== Theme Actions =====
   void setPreferredMode(ThemeMode newMode) {
     if (_preferredMode == newMode) return;
     _preferredMode = newMode;
@@ -299,9 +272,9 @@ class ThemeStore extends ChangeNotifier {
 
   void setCurrentSourceConfig(String configId) {
     if (_currentConfig.id == configId) return;
-    final idx = _sourceConfigs.indexWhere((c) => c.id == configId);
-    if (idx == -1) return;
-    _currentConfig = _sourceConfigs[idx];
+    final found = _sourceConfigs.where((c) => c.id == configId).toList();
+    if (found.isEmpty) return;
+    _currentConfig = found.first;
     notifyListeners();
     savePreferences();
   }
@@ -336,8 +309,7 @@ class ThemeStore extends ChangeNotifier {
     // ✅ 基础清洗：按插件分发（目前只有 wallhaven）
     if (updated.pluginId == WallhavenPlugin.kId) {
       final s = Map<String, dynamic>.from(updated.settings);
-      final rawBase = (s['baseUrl'] as String?)?.trim();
-      final baseUrl = (rawBase != null && rawBase.isNotEmpty) ? rawBase : WallhavenPlugin.kDefaultBaseUrl;
+      final baseUrl = (s['baseUrl'] as String?) ?? WallhavenPlugin.kDefaultBaseUrl;
       s['baseUrl'] = _normalizeBaseUrl(baseUrl);
       s['username'] = _normalizeOptional(s['username'] as String?);
       s['apiKey'] = _normalizeOptional(s['apiKey'] as String?);
@@ -355,7 +327,7 @@ class ThemeStore extends ChangeNotifier {
   }
 
   void removeSourceConfig(String id) {
-    // 默认插件实例不允许删
+    // 默认插件实例不允许删（你要删就先保证还有别的源能顶）
     final isDefault = id == 'default_wallhaven';
     if (isDefault) return;
 
@@ -376,6 +348,7 @@ class ThemeStore extends ChangeNotifier {
   void setSource(ImageSource source) => setCurrentSourceConfig(source.id);
 
   void addSource(String name, String url, {String? username, String? apiKey}) {
+    // 旧 UI 添加：过渡期只当 wallhaven 风格源
     addWallhavenSource(name: name, url: url, username: username, apiKey: apiKey);
   }
 
@@ -488,20 +461,6 @@ class ThemeStore extends ChangeNotifier {
         _currentConfig = (currentId != null)
             ? _sourceConfigs.firstWhere((c) => c.id == currentId, orElse: () => _sourceConfigs.first)
             : _sourceConfigs.first;
-
-        // ✅ 防御：把 wallhaven baseUrl 再清洗一遍，防止脏数据导致请求炸
-        _sourceConfigs = _sourceConfigs.map((c) {
-          if (c.pluginId != WallhavenPlugin.kId) return c;
-          final s = Map<String, dynamic>.from(c.settings);
-          final raw = (s['baseUrl'] as String?)?.trim();
-          final baseUrl = (raw != null && raw.isNotEmpty) ? raw : WallhavenPlugin.kDefaultBaseUrl;
-          s['baseUrl'] = _normalizeBaseUrl(baseUrl);
-          s['username'] = _normalizeOptional(s['username'] as String?);
-          s['apiKey'] = _normalizeOptional(s['apiKey'] as String?);
-          return c.copyWith(settings: s);
-        }).toList();
-
-        _currentConfig = _sourceConfigs.firstWhere((c) => c.id == _currentConfig.id, orElse: () => _sourceConfigs.first);
       } else {
         // ✅ 迁移旧：image_sources/current_source_id → source_configs/current_source_config_id
         final legacy = prefs.getStringList('image_sources');
