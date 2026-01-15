@@ -5,7 +5,7 @@ import '../api/wallhaven_api.dart';
 class WallhavenSourcePlugin implements SourcePlugin {
   static const String kId = 'wallhaven';
 
-  // 这里可以继续复用 WallhavenClient 默认值
+  // 不要 const 绑死编译期常量，直接用 final
   static final String kDefaultBaseUrl = WallhavenClient.kDefaultBaseUrl;
 
   @override
@@ -16,7 +16,7 @@ class WallhavenSourcePlugin implements SourcePlugin {
 
   @override
   SourceConfig defaultConfig() {
-    // ❌ 不能 const（kDefaultBaseUrl 不是编译期常量）
+    // ❌ 这里不能 const
     return SourceConfig(
       id: 'default_wallhaven',
       pluginId: kId,
@@ -37,9 +37,7 @@ class WallhavenSourcePlugin implements SourcePlugin {
       var u = v.trim();
       if (u.isEmpty) return kDefaultBaseUrl;
       if (!u.startsWith('http://') && !u.startsWith('https://')) u = 'https://$u';
-      while (u.endsWith('/')) {
-        u = u.substring(0, u.length - 1);
-      }
+      while (u.endsWith('/')) u = u.substring(0, u.length - 1);
       return u;
     }
 
@@ -53,21 +51,20 @@ class WallhavenSourcePlugin implements SourcePlugin {
     s['baseUrl'] = normBaseUrl((s['baseUrl'] as String?) ?? kDefaultBaseUrl);
     s['apiKey'] = normOpt(s['apiKey']);
     s['username'] = normOpt(s['username']);
-
     return s;
   }
 
   @override
   WallpaperSourceClient createClient({
     required Map<String, dynamic> settings,
-    required Dio dio, // ✅ 和 main.dart 的调用对齐
+    Dio? dio, // ✅ 必须跟接口一致
   }) {
     final fixed = sanitizeSettings(settings);
     final baseUrl = fixed['baseUrl'] as String;
     final apiKey = fixed['apiKey'] as String?;
 
     final c = WallhavenClient(
-      dio: dio,
+      dio: dio ?? Dio(),
       baseUrl: baseUrl,
       apiKey: apiKey,
     );
