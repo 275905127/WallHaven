@@ -1,16 +1,13 @@
-// ⚠️ 警示：详情页背景必须使用全局背景色（Theme scaffoldBackgroundColor），禁止手写彩色背景。
-// ⚠️ 警示：整体只允许黑白灰；图标与信息展示保持克制，不要花里胡哨。
-
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../api/wallhaven_api.dart';
+import 'package:dio/dio.dart';
+
 import '../models/wallpaper.dart';
 import '../theme/theme_store.dart';
+import '../sources/source_plugin.dart';
 
 class WallpaperDetailPage extends StatefulWidget {
   final String id;
-
-  /// 让进来就先有图，不等接口
   final String? heroThumb;
 
   const WallpaperDetailPage({
@@ -27,53 +24,40 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
   WallpaperDetail? _detail;
   bool _loading = true;
 
+  // ✅ 复用 Dio（避免重复创建）
+  final Dio _dio = Dio();
+
   @override
   void initState() {
     super.initState();
     _load();
   }
 
-  void _ensureWallhaven(ThemeStore store) {
-    // 现在详情页只支持 wallhaven。以后你接入其它源，再在这里扩展。
-    if (store.currentSourceConfig.pluginId != WallhavenPlugin.kId) {
-      throw UnsupportedError('当前图源暂不支持详情页：${store.currentSourceConfig.pluginId}');
-    }
-  }
-
   Future<void> _load() async {
-    final store = ThemeScope.of(context);
-
     try {
-      _ensureWallhaven(store);
+      final store = ThemeScope.of(context);
 
-      final settings = store.currentPluginSettings;
+      final SourcePlugin plugin = store.currentPlugin;
+      final settings = store.currentSettings;
 
-      final baseUrl = (settings['baseUrl'] as String?)?.trim();
-      final apiKey = (settings['apiKey'] as String?)?.trim();
-
-      final client = WallhavenClient(
-        baseUrl: (baseUrl == null || baseUrl.isEmpty) ? null : baseUrl,
-        apiKey: (apiKey == null || apiKey.isEmpty) ? null : apiKey,
+      final WallpaperSourceClient client = plugin.createClient(
+        settings: settings,
+        dio: _dio,
       );
 
       final data = await client.detail(id: widget.id);
-      if (!mounted) return;
 
+      if (!mounted) return;
       setState(() {
         _detail = data;
         _loading = false;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _detail = null;
         _loading = false;
       });
-
-      // 给一个最小提示，别炸 UI
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加载失败：$e')),
-      );
     }
   }
 
@@ -125,7 +109,6 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      // ✅ 背景走全局 scaffoldBackgroundColor（Scaffold 默认就是它，这里不手写颜色）
       body: SafeArea(
         top: true,
         bottom: true,
@@ -179,7 +162,6 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
             ),
           ),
           const SizedBox(height: 14),
-
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
@@ -206,7 +188,6 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
               ],
             ),
           ),
-
           const SizedBox(height: 14),
           _tagsPanel(context),
         ],
