@@ -94,6 +94,9 @@ class _HomePageState extends State<HomePage> {
 
   WallhavenFilters _filters = const WallhavenFilters();
 
+  // ✅ 关键：用于检测“图源切换”，切换后自动刷新列表
+  String? _lastSourceConfigId;
+
   @override
   void initState() {
     super.initState();
@@ -183,17 +186,16 @@ class _HomePageState extends State<HomePage> {
     if (mounted) setState(() => _isLoading = false);
   }
 
-  /// ✅ 取当前插件配置（目前只支持 wallhaven）
-  ({String baseUrl, String? apiKey}) _wallhavenConn(ThemeStore store) {
-    final p = store.currentPlugin;
-    if (p == null || p.pluginId != WallhavenPlugin.kId) {
-      throw UnsupportedError('Current plugin not supported for wallpaper fetching: ${store.currentSourceConfig.pluginId}');
+  /// ✅ 目前只支持 wallhaven 插件：如果未来你有别的插件，
+  /// 就在这里按 pluginId 分支并走对应 client/api
+  void _ensureSupported(ThemeStore store) {
+    final pluginId = store.currentSourceConfig.pluginId;
+    if (pluginId != WallhavenPlugin.kId) {
+      throw UnsupportedError('当前插件不支持拉取壁纸：$pluginId');
     }
-
-    final s = store.currentPluginSettings;
-    final baseUrl = (s['baseUrl'] as String?)?.trim() ?? WallhavenPlugin.kDefaultBaseUrl;
-    final apiKey = (s['apiKey'] as String?)?.trim();
-    return (baseUrl: baseUrl, apiKey: (apiKey != null && apiKey.isNotEmpty) ? apiKey : null);
+    if (store.currentBaseUrl.trim().isEmpty) {
+      throw StateError('当前图源 baseUrl 为空');
+    }
   }
 
   Future<void> _fetchWallpapers() async {
@@ -201,11 +203,11 @@ class _HomePageState extends State<HomePage> {
     final f = _filters;
 
     try {
-      final conn = _wallhavenConn(store);
+      _ensureSupported(store);
 
       final newItems = await WallhavenApi.getWallpapers(
-        baseUrl: conn.baseUrl,
-        apiKey: conn.apiKey,
+        baseUrl: store.currentBaseUrl,
+        apiKey: store.currentApiKey,
         page: _page,
         sorting: f.sorting,
         order: f.order,
@@ -223,7 +225,6 @@ class _HomePageState extends State<HomePage> {
       setState(() => _wallpapers.addAll(newItems));
     } catch (e) {
       if (!mounted) return;
-      // 失败别炸：给个最小提示
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('图源请求失败：$e')),
       );
@@ -295,6 +296,18 @@ class _HomePageState extends State<HomePage> {
       listenable: store,
       builder: (context, _) {
         final theme = Theme.of(context);
+
+        // ✅ 图源切换自动刷新（你现在缺的就是这个）
+        final currId = store.currentSourceConfig.id;
+        if (_lastSourceConfigId == null) {
+          _lastSourceConfigId = currId;
+        } else if (_lastSourceConfigId != currId) {
+          _lastSourceConfigId = currId;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _initData();
+          });
+        }
 
         final isDark = theme.brightness == Brightness.dark;
         final overlay = _drawerOpen
