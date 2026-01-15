@@ -1,77 +1,22 @@
 // lib/pages/filter_drawer.dart
-// ⚠️ 警示：筛选项必须与 Wallhaven 官方参数 1:1 对应；文案可中文化但参数值不可乱改。
-// ⚠️ 警示：UI 风格只允许黑白灰；禁止引入蓝/绿/红等高饱和“装饰色”。
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../theme/theme_store.dart';
 import '../theme/app_tokens.dart';
-
-class WallhavenFilters {
-  final String query;
-  final String sorting; // date_added / relevance / random / views / favorites / toplist
-  final String order; // desc / asc
-  final String categories; // 111
-  final String purity; // 100
-  final String resolutions; // "1920x1080,2560x1440" or ""
-  final String ratios; // "16x9,21x9" or ""
-  final String atleast; // "1920x1080" or ""
-  final String colors; // "660000" or ""
-  final String topRange; // 1d/3d/1w/1M/3M/6M/1y or ""
-
-  const WallhavenFilters({
-    this.query = '',
-    this.sorting = 'toplist',
-    this.order = 'desc',
-    this.categories = '111',
-    this.purity = '100',
-    this.resolutions = '',
-    this.ratios = '',
-    this.atleast = '',
-    this.colors = '',
-    this.topRange = '1M',
-  });
-
-  WallhavenFilters copyWith({
-    String? query,
-    String? sorting,
-    String? order,
-    String? categories,
-    String? purity,
-    String? resolutions,
-    String? ratios,
-    String? atleast,
-    String? colors,
-    String? topRange,
-  }) {
-    return WallhavenFilters(
-      query: query ?? this.query,
-      sorting: sorting ?? this.sorting,
-      order: order ?? this.order,
-      categories: categories ?? this.categories,
-      purity: purity ?? this.purity,
-      resolutions: resolutions ?? this.resolutions,
-      ratios: ratios ?? this.ratios,
-      atleast: atleast ?? this.atleast,
-      colors: colors ?? this.colors,
-      topRange: topRange ?? this.topRange,
-    );
-  }
-}
+import '../domain/search/query_spec.dart';
 
 class FilterDrawer extends StatefulWidget {
-  final WallhavenFilters initial;
+  final QuerySpec initial;
 
   /// ✅ 选中即生效：任何筛选变化都会触发 onApply
-  final ValueChanged<WallhavenFilters> onApply;
+  final ValueChanged<QuerySpec> onApply;
 
   /// ✅ 重置（仍保留）
   final VoidCallback onReset;
 
-  /// ✅ 右下角“设置”入口（由外部提供打开设置页的动作）
-  /// 这里不直接 import SettingsPage，避免依赖入口文件里的类。
   final VoidCallback? onOpenSettings;
 
   const FilterDrawer({
@@ -87,12 +32,11 @@ class FilterDrawer extends StatefulWidget {
 }
 
 class _FilterDrawerState extends State<FilterDrawer> {
-  late WallhavenFilters _f;
+  late QuerySpec _q;
   late TextEditingController _qCtrl;
 
   Timer? _qDebounce;
 
-  // 展开状态（全部折叠行）
   bool _sortingExpanded = false;
   bool _topRangeExpanded = false;
   bool _orderExpanded = false;
@@ -103,20 +47,18 @@ class _FilterDrawerState extends State<FilterDrawer> {
   bool _ratiosExpanded = false;
   bool _colorsExpanded = false;
 
-  // ===== 官方参数值不改：value 必须是 wallhaven 接受的值 =====
-
-  static const List<_PickItem<String>> _sortingItems = [
-    _PickItem('toplist', '榜单'),
-    _PickItem('date_added', '最新'),
-    _PickItem('favorites', '收藏'),
-    _PickItem('views', '浏览'),
-    _PickItem('random', '随机'),
-    _PickItem('relevance', '相关'),
+  static const List<_PickItem<SortKey>> _sortingItems = [
+    _PickItem(SortKey.toplist, '榜单'),
+    _PickItem(SortKey.latest, '最新'),
+    _PickItem(SortKey.favorites, '收藏'),
+    _PickItem(SortKey.views, '浏览'),
+    _PickItem(SortKey.random, '随机'),
+    _PickItem(SortKey.relevance, '相关'),
   ];
 
-  static const List<_PickItem<String>> _orderItems = [
-    _PickItem('desc', '降序'),
-    _PickItem('asc', '升序'),
+  static const List<_PickItem<SortOrder>> _orderItems = [
+    _PickItem(SortOrder.desc, '降序'),
+    _PickItem(SortOrder.asc, '升序'),
   ];
 
   static const List<_PickItem<String>> _topRangeItems = [
@@ -198,8 +140,8 @@ class _FilterDrawerState extends State<FilterDrawer> {
   @override
   void initState() {
     super.initState();
-    _f = widget.initial;
-    _qCtrl = TextEditingController(text: _f.query);
+    _q = widget.initial;
+    _qCtrl = TextEditingController(text: _q.text);
   }
 
   @override
@@ -214,9 +156,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     return b == Brightness.dark ? Colors.white : Colors.black;
   }
 
-  // =========================
-  // ✅ 选中即生效（统一出口）
-  // =========================
   void _commitApply({bool closeExpanded = false}) {
     if (!mounted) return;
 
@@ -232,7 +171,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
       _colorsExpanded = false;
     }
 
-    final next = _f.copyWith(query: _qCtrl.text);
+    final next = _q.copyWith(text: _qCtrl.text);
     widget.onApply(next);
   }
 
@@ -240,7 +179,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
     _qDebounce?.cancel();
     _qDebounce = Timer(const Duration(milliseconds: 350), () {
       if (!mounted) return;
-      setState(() => _f = _f.copyWith(query: v));
+      setState(() => _q = _q.copyWith(text: v));
       _commitApply();
     });
   }
@@ -288,7 +227,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
   BorderRadius _subRadiusFor(BuildContext context, int index, int length) {
     final tokens = Theme.of(context).extension<AppTokens>()!;
     final r = tokens.smallRadius;
-    if (length == 1) return BorderRadius.circular(r);
     return BorderRadius.circular(r);
   }
 
@@ -374,11 +312,11 @@ class _FilterDrawerState extends State<FilterDrawer> {
     );
   }
 
-  Widget _singlePickList({
+  Widget _singlePickList<T>({
     required BuildContext context,
-    required List<_PickItem<String>> items,
-    required String value,
-    required ValueChanged<String> onPick,
+    required List<_PickItem<T>> items,
+    required T value,
+    required ValueChanged<T> onPick,
   }) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
@@ -541,27 +479,14 @@ class _FilterDrawerState extends State<FilterDrawer> {
     );
   }
 
-  Set<String> _csvToSet(String csv) {
-    final s = csv.trim();
-    if (s.isEmpty) return <String>{};
-    return s.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
-  }
-
-  String _setToCsv(Set<String> set) {
-    if (set.isEmpty) return '';
-    final list = set.toList()..sort();
-    return list.join(',');
-  }
-
-  String _labelFromPick(List<_PickItem<String>> items, String value, {String fallback = '-'}) {
+  String _labelFromPick<T>(List<_PickItem<T>> items, T value, {String fallback = '-'}) {
     for (final it in items) {
       if (it.value == value) return it.label;
     }
     return fallback;
   }
 
-  String _summaryCsv(String csv, {String empty = '不限'}) {
-    final set = _csvToSet(csv);
+  String _summarySet(Set<String> set, {String empty = '不限'}) {
     if (set.isEmpty) return empty;
     final list = set.toList()..sort();
     if (list.length <= 2) return list.join('，');
@@ -569,41 +494,29 @@ class _FilterDrawerState extends State<FilterDrawer> {
   }
 
   String _summaryCategories() {
-    final s = _f.categories.padRight(3, '1');
-    final List<String> on = [];
-    if (s.isNotEmpty && s[0] == '1') on.add('常规');
-    if (s.length > 1 && s[1] == '1') on.add('动漫');
-    if (s.length > 2 && s[2] == '1') on.add('人物');
-    if (on.isEmpty) return '不限';
-    return on.join('，');
+    final on = <String>[];
+    if (_q.categories.contains(Category.general)) on.add('常规');
+    if (_q.categories.contains(Category.anime)) on.add('动漫');
+    if (_q.categories.contains(Category.people)) on.add('人物');
+    return on.isEmpty ? '不限' : on.join('，');
   }
 
-  String _summaryPurity() {
-    final s = _f.purity.padRight(3, '0');
-    final List<String> on = [];
-    if (s.isNotEmpty && s[0] == '1') on.add('SFW');
-    if (s.length > 1 && s[1] == '1') on.add('Sketchy');
-    if (s.length > 2 && s[2] == '1') on.add('NSFW');
-    if (on.isEmpty) return '不限';
-    return on.join('，');
+  String _summaryRatings() {
+    final on = <String>[];
+    if (_q.ratings.contains(Rating.sfw)) on.add('SFW');
+    if (_q.ratings.contains(Rating.sketchy)) on.add('Sketchy');
+    if (_q.ratings.contains(Rating.nsfw)) on.add('NSFW');
+    return on.isEmpty ? '不限' : on.join('，');
   }
 
-  String _summaryAtleast() {
-    final v = _f.atleast.trim();
-    return v.isEmpty ? '不限' : v;
-  }
-
-  String _summaryColor() {
-    final v = _f.colors.trim().replaceAll('#', '');
-    return v.isEmpty ? '不限' : v.toUpperCase();
-  }
+  String _summaryAtleast() => _q.atleast.trim().isEmpty ? '不限' : _q.atleast.trim();
+  String _summaryColor() => _q.colorHex.trim().isEmpty ? '不限' : _q.colorHex.trim().replaceAll('#', '').toUpperCase();
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
 
-    // ✅ 抽屉页期望：状态栏与筛选页背景同步（如果没生效，是被 AppBar/systemOverlayStyle 覆盖了）
     final isDark = theme.brightness == Brightness.dark;
     final overlay = SystemUiOverlayStyle(
       statusBarColor: theme.scaffoldBackgroundColor,
@@ -613,43 +526,39 @@ class _FilterDrawerState extends State<FilterDrawer> {
       systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
     );
 
-    final selectedRes = _csvToSet(_f.resolutions);
-    final selectedRatios = _csvToSet(_f.ratios);
-    final colorsValue = _f.colors.trim().replaceAll('#', '');
-
     final rowDefs = <_RowDef>[
       _RowDef(
         title: '排序方式',
-        valueLabel: _labelFromPick(_sortingItems, _f.sorting, fallback: _f.sorting),
+        valueLabel: _labelFromPick(_sortingItems, _q.sort),
         expanded: _sortingExpanded,
         onToggle: () => setState(() => _sortingExpanded = !_sortingExpanded),
-        child: _singlePickList(
+        child: _singlePickList<SortKey>(
           context: context,
           items: _sortingItems,
-          value: _f.sorting,
+          value: _q.sort,
           onPick: (v) {
             setState(() {
-              _f = _f.copyWith(sorting: v);
+              _q = _q.copyWith(sort: v);
               _sortingExpanded = false;
-              if (v != 'toplist') _topRangeExpanded = false;
+              if (v != SortKey.toplist) _topRangeExpanded = false;
             });
             _commitApply();
           },
         ),
       ),
-      if (_f.sorting == 'toplist')
+      if (_q.sort == SortKey.toplist)
         _RowDef(
           title: '榜单时间范围',
-          valueLabel: _labelFromPick(_topRangeItems, _f.topRange, fallback: _f.topRange),
+          valueLabel: _labelFromPick(_topRangeItems, _q.toplistRange, fallback: _q.toplistRange),
           expanded: _topRangeExpanded,
           onToggle: () => setState(() => _topRangeExpanded = !_topRangeExpanded),
-          child: _singlePickList(
+          child: _singlePickList<String>(
             context: context,
             items: _topRangeItems,
-            value: _f.topRange,
+            value: _q.toplistRange,
             onPick: (v) {
               setState(() {
-                _f = _f.copyWith(topRange: v);
+                _q = _q.copyWith(toplistRange: v);
                 _topRangeExpanded = false;
               });
               _commitApply();
@@ -658,16 +567,16 @@ class _FilterDrawerState extends State<FilterDrawer> {
         ),
       _RowDef(
         title: '排序方向',
-        valueLabel: _labelFromPick(_orderItems, _f.order, fallback: _f.order),
+        valueLabel: _labelFromPick(_orderItems, _q.order),
         expanded: _orderExpanded,
         onToggle: () => setState(() => _orderExpanded = !_orderExpanded),
-        child: _singlePickList(
+        child: _singlePickList<SortOrder>(
           context: context,
           items: _orderItems,
-          value: _f.order,
+          value: _q.order,
           onPick: (v) {
             setState(() {
-              _f = _f.copyWith(order: v);
+              _q = _q.copyWith(order: v);
               _orderExpanded = false;
             });
             _commitApply();
@@ -684,25 +593,31 @@ class _FilterDrawerState extends State<FilterDrawer> {
           items: [
             _CheckItem(
               label: '常规',
-              value: _f.categories.length > 0 ? _f.categories[0] == '1' : true,
+              value: _q.categories.contains(Category.general),
               onChanged: (v) {
-                setState(() => _f = _f.copyWith(categories: _bit3(_f.categories, 0, v, defaultPad: '1')));
+                final next = Set<Category>.from(_q.categories);
+                v ? next.add(Category.general) : next.remove(Category.general);
+                setState(() => _q = _q.copyWith(categories: next));
                 _commitApply();
               },
             ),
             _CheckItem(
               label: '动漫',
-              value: _f.categories.length > 1 ? _f.categories[1] == '1' : true,
+              value: _q.categories.contains(Category.anime),
               onChanged: (v) {
-                setState(() => _f = _f.copyWith(categories: _bit3(_f.categories, 1, v, defaultPad: '1')));
+                final next = Set<Category>.from(_q.categories);
+                v ? next.add(Category.anime) : next.remove(Category.anime);
+                setState(() => _q = _q.copyWith(categories: next));
                 _commitApply();
               },
             ),
             _CheckItem(
               label: '人物',
-              value: _f.categories.length > 2 ? _f.categories[2] == '1' : true,
+              value: _q.categories.contains(Category.people),
               onChanged: (v) {
-                setState(() => _f = _f.copyWith(categories: _bit3(_f.categories, 2, v, defaultPad: '1')));
+                final next = Set<Category>.from(_q.categories);
+                v ? next.add(Category.people) : next.remove(Category.people);
+                setState(() => _q = _q.copyWith(categories: next));
                 _commitApply();
               },
             ),
@@ -711,7 +626,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
       ),
       _RowDef(
         title: '分级',
-        valueLabel: _summaryPurity(),
+        valueLabel: _summaryRatings(),
         expanded: _purityExpanded,
         onToggle: () => setState(() => _purityExpanded = !_purityExpanded),
         child: _multiCheckList(
@@ -719,25 +634,31 @@ class _FilterDrawerState extends State<FilterDrawer> {
           items: [
             _CheckItem(
               label: 'SFW',
-              value: _f.purity.length > 0 ? _f.purity[0] == '1' : true,
+              value: _q.ratings.contains(Rating.sfw),
               onChanged: (v) {
-                setState(() => _f = _f.copyWith(purity: _bit3(_f.purity, 0, v, defaultPad: '0')));
+                final next = Set<Rating>.from(_q.ratings);
+                v ? next.add(Rating.sfw) : next.remove(Rating.sfw);
+                setState(() => _q = _q.copyWith(ratings: next));
                 _commitApply();
               },
             ),
             _CheckItem(
               label: 'Sketchy',
-              value: _f.purity.length > 1 ? _f.purity[1] == '1' : false,
+              value: _q.ratings.contains(Rating.sketchy),
               onChanged: (v) {
-                setState(() => _f = _f.copyWith(purity: _bit3(_f.purity, 1, v, defaultPad: '0')));
+                final next = Set<Rating>.from(_q.ratings);
+                v ? next.add(Rating.sketchy) : next.remove(Rating.sketchy);
+                setState(() => _q = _q.copyWith(ratings: next));
                 _commitApply();
               },
             ),
             _CheckItem(
               label: 'NSFW',
-              value: _f.purity.length > 2 ? _f.purity[2] == '1' : false,
+              value: _q.ratings.contains(Rating.nsfw),
               onChanged: (v) {
-                setState(() => _f = _f.copyWith(purity: _bit3(_f.purity, 2, v, defaultPad: '0')));
+                final next = Set<Rating>.from(_q.ratings);
+                v ? next.add(Rating.nsfw) : next.remove(Rating.nsfw);
+                setState(() => _q = _q.copyWith(ratings: next));
                 _commitApply();
               },
             ),
@@ -746,15 +667,15 @@ class _FilterDrawerState extends State<FilterDrawer> {
       ),
       _RowDef(
         title: '分辨率（精确匹配）',
-        valueLabel: _summaryCsv(_f.resolutions),
+        valueLabel: _summarySet(_q.resolutions),
         expanded: _resolutionsExpanded,
         onToggle: () => setState(() => _resolutionsExpanded = !_resolutionsExpanded),
         child: _multiChipPicker(
           context: context,
           options: _resolutionOptions,
-          selected: selectedRes,
+          selected: _q.resolutions,
           onChanged: (set) {
-            setState(() => _f = _f.copyWith(resolutions: _setToCsv(set)));
+            setState(() => _q = _q.copyWith(resolutions: set));
             _commitApply();
           },
         ),
@@ -764,16 +685,16 @@ class _FilterDrawerState extends State<FilterDrawer> {
         valueLabel: _summaryAtleast(),
         expanded: _atleastExpanded,
         onToggle: () => setState(() => _atleastExpanded = !_atleastExpanded),
-        child: _singlePickList(
+        child: _singlePickList<String>(
           context: context,
           items: [
             const _PickItem('', '不限'),
             ..._atleastOptions.where((e) => e.isNotEmpty).map((e) => _PickItem(e, e)),
           ],
-          value: _f.atleast.trim(),
+          value: _q.atleast.trim(),
           onPick: (v) {
             setState(() {
-              _f = _f.copyWith(atleast: v.trim());
+              _q = _q.copyWith(atleast: v.trim());
               _atleastExpanded = false;
             });
             _commitApply();
@@ -782,15 +703,15 @@ class _FilterDrawerState extends State<FilterDrawer> {
       ),
       _RowDef(
         title: '比例',
-        valueLabel: _summaryCsv(_f.ratios),
+        valueLabel: _summarySet(_q.ratios),
         expanded: _ratiosExpanded,
         onToggle: () => setState(() => _ratiosExpanded = !_ratiosExpanded),
         child: _multiChipPicker(
           context: context,
           options: _ratioOptions,
-          selected: selectedRatios,
+          selected: _q.ratios,
           onChanged: (set) {
-            setState(() => _f = _f.copyWith(ratios: _setToCsv(set)));
+            setState(() => _q = _q.copyWith(ratios: set));
             _commitApply();
           },
         ),
@@ -800,16 +721,16 @@ class _FilterDrawerState extends State<FilterDrawer> {
         valueLabel: _summaryColor(),
         expanded: _colorsExpanded,
         onToggle: () => setState(() => _colorsExpanded = !_colorsExpanded),
-        child: _singlePickList(
+        child: _singlePickList<String>(
           context: context,
           items: [
             const _PickItem('', '不限'),
             ..._colorOptions.map((c) => _PickItem(c, c.toUpperCase())),
           ],
-          value: colorsValue,
+          value: _q.colorHex.trim().replaceAll('#', ''),
           onPick: (v) {
             setState(() {
-              _f = _f.copyWith(colors: v.trim().replaceAll('#', ''));
+              _q = _q.copyWith(colorHex: v.trim().replaceAll('#', ''));
               _colorsExpanded = false;
             });
             _commitApply();
@@ -862,7 +783,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
                         TextButton(
                           onPressed: () {
                             widget.onReset();
-                            setState(() => _f = const WallhavenFilters());
+                            setState(() => _q = const QuerySpec());
                             _qCtrl.text = '';
                             _commitApply(closeExpanded: true);
                           },
@@ -877,7 +798,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
                     Expanded(
                       child: ListView(
                         children: [
-                          // ✅ 搜索框：卡片底色；无描边；提示在 hint；不再单独“关键词”标题 → 整体上移
                           Padding(
                             padding: const EdgeInsets.only(bottom: 14),
                             child: _KeywordInput(
@@ -893,8 +813,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
                   ],
                 ),
               ),
-
-              // ✅ 设置按钮：仅图标，无底色/无描边
               Positioned(
                 right: 16,
                 bottom: 16,
@@ -907,8 +825,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     );
   }
 }
-
-// ====== 小组件：关键词输入（不折叠）======
 
 class _KeywordInput extends StatelessWidget {
   final TextEditingController controller;
@@ -924,7 +840,6 @@ class _KeywordInput extends StatelessWidget {
     final theme = Theme.of(context);
     final r = ThemeScope.of(context).cardRadius;
 
-    // ✅ 用 Container 承担“卡片底色 + 圆角裁切”，TextField 内部彻底无 border
     return ClipRRect(
       borderRadius: BorderRadius.circular(r),
       child: Container(
@@ -976,8 +891,6 @@ class _SettingsFab extends StatelessWidget {
   }
 }
 
-// ====== tiny models ======
-
 class _PickItem<T> {
   final T value;
   final String label;
@@ -1009,11 +922,4 @@ class _RowDef {
     required this.onToggle,
     required this.child,
   });
-}
-
-// 3 位 bit helper：categories 默认 pad '1'，purity 默认 pad '0'
-String _bit3(String old, int index, bool on, {required String defaultPad}) {
-  final chars = old.padRight(3, defaultPad).split('');
-  if (index >= 0 && index < 3) chars[index] = on ? '1' : '0';
-  return chars.take(3).join();
 }
