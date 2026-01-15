@@ -221,29 +221,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     return b == Brightness.dark ? Colors.white : Colors.black;
   }
 
-  TextStyle _titleStyle(BuildContext context) {
-    final theme = Theme.of(context);
-    return TextStyle(
-      fontSize: 16,
-      fontWeight: FontWeight.w600,
-      color: theme.textTheme.bodyLarge?.color,
-    );
-  }
-
-  Widget _section(BuildContext context, String title, Widget child) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: _titleStyle(context)),
-          const SizedBox(height: 10),
-          child,
-        ],
-      ),
-    );
-  }
-
   // =========================
   // ✅ 选中即生效（统一出口）
   // =========================
@@ -268,7 +245,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
 
   void _debounceQueryApply(String v) {
     _qDebounce?.cancel();
-    _qDebounce = Timer(const Duration(milliseconds: 350), () {
+    _qDebounce = Timer(const Duration(milliseconds: 280), () {
       if (!mounted) return;
       setState(() => _f = _f.copyWith(query: v));
       _commitApply();
@@ -642,7 +619,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final mono = _monoPrimary(context);
 
     // ✅ 状态栏与筛选页背景同步（颜色/图标明暗跟随当前 Theme）
     final isDark = theme.brightness == Brightness.dark;
@@ -887,7 +863,8 @@ class _FilterDrawerState extends State<FilterDrawer> {
           child: Stack(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+                // ✅ 取消“关键词标题”后整体自然上移：顶部间距稍收紧
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
                 child: Column(
                   children: [
                     Row(
@@ -912,7 +889,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
                           },
                           child: Text(
                             "重置",
-                            style: TextStyle(color: mono.withOpacity(0.7)),
+                            style: TextStyle(color: _monoPrimary(context).withOpacity(0.7)),
                           ),
                         ),
                       ],
@@ -921,15 +898,16 @@ class _FilterDrawerState extends State<FilterDrawer> {
                     Expanded(
                       child: ListView(
                         children: [
-                          // ✅ 关键词：不折叠，独立输入框（输入防抖后即生效）
-                          _section(
-                            context,
-                            "关键词",
-                            _KeywordInput(
-                              controller: _qCtrl,
-                              onChanged: _debounceQueryApply,
-                            ),
+                          // ✅ 搜索框：改为图中那种样式
+                          // - 取消上方“关键词”提示
+                          // - 提示放进输入框
+                          // - 底色 = theme.cardColor（你说的）
+                          _SearchBar(
+                            controller: _qCtrl,
+                            onChanged: _debounceQueryApply,
                           ),
+
+                          const SizedBox(height: 12),
 
                           // ✅ 其它全部：SettingsGroup 风格折叠行
                           ...groupRows,
@@ -958,13 +936,14 @@ class _FilterDrawerState extends State<FilterDrawer> {
   }
 }
 
-// ====== 小组件：关键词输入（不折叠）======
-
-class _KeywordInput extends StatelessWidget {
+// ======================
+// ✅ 抽屉页搜索框（新样式）
+// ======================
+class _SearchBar extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
 
-  const _KeywordInput({
+  const _SearchBar({
     required this.controller,
     required this.onChanged,
   });
@@ -978,33 +957,35 @@ class _KeywordInput extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
-
-    // 外轮廓跟随全局圆角
     final r = ThemeScope.of(context).cardRadius;
 
     return TextField(
       controller: controller,
+      onChanged: onChanged,
+      textInputAction: TextInputAction.search,
       decoration: InputDecoration(
-        hintText: "输入关键字（留空为不限）",
+        hintText: "搜索",
         hintStyle: TextStyle(color: theme.textTheme.bodyMedium?.color),
         filled: true,
-        fillColor: theme.cardColor,
+        fillColor: theme.cardColor, // ✅ 搜索框底色 = 卡片色
+        prefixIcon: Icon(Icons.search, color: mono.withOpacity(0.70)),
+        // ✅ 视觉干净：不做明显边框，只保留极淡轮廓（可接受也不会“装饰”）
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(r),
-          borderSide: BorderSide(color: mono.withOpacity(0.12)),
+          borderSide: BorderSide(color: mono.withOpacity(0.10), width: 1),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(r),
-          borderSide: BorderSide(color: mono.withOpacity(0.12)),
+          borderSide: BorderSide(color: mono.withOpacity(0.10), width: 1),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(r),
-          borderSide: BorderSide(color: mono.withOpacity(0.35)),
+          borderSide: BorderSide(color: mono.withOpacity(0.22), width: 1),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       ),
       style: TextStyle(color: theme.textTheme.bodyLarge?.color),
-      onChanged: onChanged,
     );
   }
 }
