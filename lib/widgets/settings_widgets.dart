@@ -51,6 +51,9 @@ class SettingsGroup extends StatelessWidget {
     final tokens = theme.extension<AppTokens>()!;
     final double largeRadius = ThemeScope.of(context).cardRadius;
 
+    // ✅ 组内相接处固定 4px，不跟随滑条
+    const double jointRadius = 4.0;
+
     BorderRadius _radiusFor(int index) {
       final isFirst = index == 0;
       final isLast = index == items.length - 1;
@@ -59,23 +62,29 @@ class SettingsGroup extends StatelessWidget {
       if (isSingle) {
         return BorderRadius.circular(largeRadius);
       }
+
       if (isFirst) {
+        // 顶部外角跟随 largeRadius；底部相接角固定 4
         return BorderRadius.only(
           topLeft: Radius.circular(largeRadius),
           topRight: Radius.circular(largeRadius),
-          bottomLeft: Radius.circular(tokens.smallRadius),
-          bottomRight: Radius.circular(tokens.smallRadius),
+          bottomLeft: const Radius.circular(jointRadius),
+          bottomRight: const Radius.circular(jointRadius),
         );
       }
+
       if (isLast) {
+        // 底部外角跟随 largeRadius；顶部相接角固定 4
         return BorderRadius.only(
-          topLeft: Radius.circular(tokens.smallRadius),
-          topRight: Radius.circular(tokens.smallRadius),
+          topLeft: const Radius.circular(jointRadius),
+          topRight: const Radius.circular(jointRadius),
           bottomLeft: Radius.circular(largeRadius),
           bottomRight: Radius.circular(largeRadius),
         );
       }
-      return BorderRadius.circular(tokens.smallRadius);
+
+      // 中间项：上下都属于相接，全部固定 4
+      return BorderRadius.circular(jointRadius);
     }
 
     Widget _divider() {
