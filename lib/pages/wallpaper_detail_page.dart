@@ -27,23 +27,18 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
   WallpaperDetailItem? _detail;
   bool _loading = true;
 
-  late final HttpClient _http;
+  // ✅ 页面级共享（不随页面 dispose 关闭）
+  static final HttpClient _sharedHttp = HttpClient();
+
   late final SourceFactory _factory;
   late final WallpaperRepository _repo;
 
   @override
   void initState() {
     super.initState();
-    _http = HttpClient();
-    _factory = SourceFactory(http: _http);
+    _factory = SourceFactory(http: _sharedHttp);
     _repo = WallpaperRepository(_factory.fromStore(ThemeScope.of(context)));
     _load();
-  }
-
-  @override
-  void dispose() {
-    _http.dio.close(force: true);
-    super.dispose();
   }
 
   Future<void> _load() async {
@@ -189,7 +184,12 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
                 _metaLine(context, Icons.remove_red_eye_outlined, "浏览量", d.views?.toString() ?? "-"),
                 _metaLine(context, Icons.favorite_border, "收藏量", d.favorites?.toString() ?? "-"),
                 _metaLine(context, Icons.fullscreen, "分辨率", d.resolution ?? "${d.width}x${d.height}"),
-                _metaLine(context, Icons.insert_drive_file_outlined, "大小", d.fileSize != null ? _humanSize(d.fileSize!) : "-"),
+                _metaLine(
+                  context,
+                  Icons.insert_drive_file_outlined,
+                  "大小",
+                  d.fileSize != null ? _humanSize(d.fileSize!) : "-",
+                ),
                 _metaLine(context, Icons.category_outlined, "分类", _cnCategory(d.category)),
                 _metaLine(context, Icons.shield_outlined, "纯净度", _cnRating(d.rating)),
                 _metaLine(context, Icons.image_outlined, "格式", d.fileType ?? "-"),
