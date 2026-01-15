@@ -29,6 +29,13 @@ class ThemeScope extends InheritedWidget {
 }
 
 class ThemeStore extends ChangeNotifier {
+  late final HttpClient _http = HttpClient();
+  late final SourceFactory _factory = SourceFactory(http: _http);
+
+SourceCapabilities get currentCapabilities {
+  final src = _factory.fromStore(this);
+  return src.capabilities;
+}
   // ===== Theme =====
   ThemeMode _mode = ThemeMode.system;
   ThemeMode _preferredMode = ThemeMode.system;
