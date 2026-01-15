@@ -1,13 +1,12 @@
+// lib/pages/wallpaper_detail_page.dart
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-import '../theme/theme_store.dart';
-
-// ✅ domain/data
 import '../domain/entities/wallpaper_detail_item.dart';
 import '../data/http/http_client.dart';
 import '../data/source_factory.dart';
 import '../data/repository/wallpaper_repository.dart';
+import '../theme/theme_store.dart';
 
 class WallpaperDetailPage extends StatefulWidget {
   final String id;
@@ -27,61 +26,36 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
   WallpaperDetailItem? _detail;
   bool _loading = true;
 
-  // ✅ 页面间共享 HttpClient（你不做全局 DI 的情况下，这是最省事且一致的做法）
-  static final HttpClient _sharedHttp = HttpClient();
-
-  SourceFactory? _factory;
-  WallpaperRepository? _repo;
-
-  String? _lastSourceConfigId;
-  bool _bootstrapped = false;
+  late final HttpClient _http;
+  late final SourceFactory _factory;
+  late final WallpaperRepository _repo;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    final store = ThemeScope.of(context);
-    final currentId = store.currentSourceConfig.id;
-
-    // 第一次：创建 factory/repo，并加载
-    if (!_bootstrapped) {
-      _bootstrapped = true;
-
-      _factory = SourceFactory(http: _sharedHttp);
-      final src = _factory!.fromStore(store);
-      _repo = WallpaperRepository(src);
-
-      _lastSourceConfigId = currentId;
-      _load();
-      return;
-    }
-
-    // 切源：自动刷新详情
-    if (_lastSourceConfigId != currentId) {
-      _lastSourceConfigId = currentId;
-
-      final src = _factory!.fromStore(store);
-      _repo!.setSource(src);
-
-      _reload();
-    }
+  void initState() {
+    super.initState();
+    _http = HttpClient();
+    _factory = SourceFactory(http: _http);
+    _repo = WallpaperRepository(_factory.fromStore(ThemeScope.of(context)));
+    _load();
   }
 
-  Future<void> _reload() async {
-    if (!mounted) return;
-    setState(() {
-      _loading = true;
-      _detail = null;
-    });
-    await _load();
+  @override
+  void dispose() {
+    _http.dio.close(force: true);
+    super.dispose();
   }
 
   Future<void> _load() async {
     try {
-      final data = await _repo!.detail(widget.id);
+      final store = ThemeScope.of(context);
+      final src = _factory.fromStore(store);
+      _repo.setSource(src);
+
+      final d = await _repo.detail(widget.id);
+
       if (!mounted) return;
       setState(() {
-        _detail = data;
+        _detail = d;
         _loading = false;
       });
     } catch (_) {
@@ -96,44 +70,6 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
   Color _monoPrimary(BuildContext context) {
     final b = Theme.of(context).brightness;
     return b == Brightness.dark ? Colors.white : Colors.black;
-  }
-
-  String _humanSize(int bytes) {
-    if (bytes <= 0) return "-";
-    const kb = 1024.0;
-    const mb = kb * 1024.0;
-    const gb = mb * 1024.0;
-    final b = bytes.toDouble();
-    if (b >= gb) return "${(b / gb).toStringAsFixed(2)} GB";
-    if (b >= mb) return "${(b / mb).toStringAsFixed(2)} MB";
-    if (b >= kb) return "${(b / kb).toStringAsFixed(2)} KB";
-    return "$bytes B";
-  }
-
-  String _cnRating(String? v) {
-    switch ((v ?? '').toLowerCase()) {
-      case 'sfw':
-        return '安全';
-      case 'sketchy':
-        return '擦边';
-      case 'nsfw':
-        return '限制';
-      default:
-        return '-';
-    }
-  }
-
-  String _cnCategory(String? v) {
-    switch ((v ?? '').toLowerCase()) {
-      case 'general':
-        return '通用';
-      case 'anime':
-        return '动漫';
-      case 'people':
-        return '人物';
-      default:
-        return '-';
-    }
   }
 
   @override
@@ -194,6 +130,8 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
             ),
           ),
           const SizedBox(height: 14),
+
+          // ✅ 元信息：完全由 fields 驱动
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
@@ -207,28 +145,14 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
               children: [
                 _actionsRow(context),
                 const SizedBox(height: 10),
-                _metaLine(context, Icons.person_outline, "上传者", d.author ?? "-"),
-                if (d.shortUrl != null && d.shortUrl.toString().isNotEmpty)
-                  _metaLine(context, Icons.link, "短链", d.shortUrl.toString()),
-                _metaLine(context, Icons.remove_red_eye_outlined, "浏览量", d.views?.toString() ?? "-"),
-                _metaLine(context, Icons.favorite_border, "收藏量", d.favorites?.toString() ?? "-"),
-                _metaLine(context, Icons.fullscreen, "分辨率", d.resolution ?? "${d.width}x${d.height}"),
-                _metaLine(
-                  context,
-                  Icons.insert_drive_file_outlined,
-                  "大小",
-                  d.fileSize != null ? _humanSize(d.fileSize!) : "-",
-                ),
-                _metaLine(context, Icons.category_outlined, "分类", _cnCategory(d.category)),
-                _metaLine(context, Icons.shield_outlined, "纯净度", _cnRating(d.rating)),
-                _metaLine(context, Icons.image_outlined, "格式", d.fileType ?? "-"),
-                if (d.sourceUrl != null && d.sourceUrl.toString().isNotEmpty)
-                  _metaLine(context, Icons.public, "来源", d.sourceUrl.toString()),
+                ...d.fields.map((f) => _metaLine(context, f.label, f.value)).toList(),
               ],
             ),
           ),
+
           const SizedBox(height: 14),
-          _tagsPanel(context),
+
+          _tagsPanel(context, d),
         ],
       ),
     );
@@ -251,19 +175,15 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
 
     return Row(
       children: [
-        action(Icons.content_cut_outlined, () {}),
-        const SizedBox(width: 6),
         action(Icons.share_outlined, () {}),
         const SizedBox(width: 6),
         action(Icons.file_download_outlined, () {}),
-        const SizedBox(width: 6),
-        action(Icons.bookmark_border, () {}),
         const Spacer(),
       ],
     );
   }
 
-  Widget _metaLine(BuildContext context, IconData icon, String label, String value) {
+  Widget _metaLine(BuildContext context, String label, String value) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
 
@@ -272,7 +192,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: mono.withOpacity(0.55)),
+          Icon(Icons.info_outline, size: 18, color: mono.withOpacity(0.55)),
           const SizedBox(width: 10),
           SizedBox(
             width: 66,
@@ -301,12 +221,10 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
     );
   }
 
-  Widget _tagsPanel(BuildContext context) {
+  Widget _tagsPanel(BuildContext context, WallpaperDetailItem d) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
     final store = ThemeScope.of(context);
-    final d = _detail!;
-    final tags = d.tags;
 
     Widget chip(String text) {
       return Container(
@@ -339,7 +257,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "相似搜索",
+            "标签",
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -347,13 +265,13 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
             ),
           ),
           const SizedBox(height: 12),
-          if (tags.isEmpty)
+          if (d.tags.isEmpty)
             Text("暂无标签", style: TextStyle(color: theme.textTheme.bodyMedium?.color))
           else
             Wrap(
               spacing: 10,
               runSpacing: 10,
-              children: tags.map(chip).toList(),
+              children: d.tags.map(chip).toList(),
             ),
         ],
       ),
