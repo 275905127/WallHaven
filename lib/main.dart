@@ -1,6 +1,6 @@
 // lib/main.dart
 import 'dart:convert';
-import 'domain/entities/filter_spec.dart';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -13,19 +13,16 @@ import 'theme/theme_store.dart';
 import 'widgets/foggy_app_bar.dart';
 import 'widgets/settings_widgets.dart';
 import 'pages/sub_pages.dart';
-
+import 'pages/filter_drawer.dart';
 import 'pages/wallpaper_detail_page.dart';
 
 // ✅ domain/data
+import 'domain/entities/filter_spec.dart';
 import 'domain/entities/search_query.dart';
 import 'domain/entities/wallpaper_item.dart';
-import 'domain/search/query_spec.dart';
-
 import 'data/http/http_client.dart';
 import 'data/repository/wallpaper_repository.dart';
 import 'data/source_factory.dart';
-import 'data/query_adapters/wallhaven_query_adapter.dart';
-import 'data/query_adapters/generic_query_adapter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -85,12 +82,12 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // ✅ 改：不再叫 wallhaven_filters_v1
-  static const String _kQueryPrefsKey = 'query_spec_v1';
+  static const String _kFiltersPrefsKey = 'filters_v2'; // ✅ 版本升级，避免读取旧 wallhaven_filters_v1
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _scrollController = ScrollController();
 
+  // ✅ UI 只持有 domain items
   final List<WallpaperItem> _items = [];
 
   int _page = 1;
@@ -104,8 +101,8 @@ class _HomePageState extends State<HomePage> {
   late final SourceFactory _factory;
   late final WallpaperRepository _repo;
 
-  // ✅ 改：Domain Query
-  QuerySpec _query = const QuerySpec();
+  // ✅ 现在是通用筛选
+  FilterSpec _filters = const FilterSpec();
 
   @override
   void initState() {
@@ -114,7 +111,7 @@ class _HomePageState extends State<HomePage> {
     _http = HttpClient();
     _factory = SourceFactory(http: _http);
 
-    // 临时占位：第一次 fetch 会 setSource
+    // 临时占位，第一次 fetch 时会 setSource
     _repo = WallpaperRepository(_factory.fromStore(ThemeScope.of(context)));
 
     _bootstrap();
@@ -130,91 +127,89 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _bootstrap() async {
-    await _loadPersistedQuery();
+    await _loadPersistedFilters();
     if (!mounted) return;
     await _initData();
   }
 
-  // =========================
-  // ✅ QuerySpec 持久化
-  // =========================
+  // ---------------------------
+  // ✅ FilterSpec 持久化（可选但你要“零占位可用”，我给你做了）
+  // ---------------------------
+  Map<String, dynamic> _filtersToJson(FilterSpec f) => {
+        'text': f.text,
+        'sort': f.sort,
+        'order': f.order,
+        'resolutions': f.resolutions.toList(),
+        'atleast': f.atleast,
+        'ratios': f.ratios.toList(),
+        'color': f.color,
+        'ratings': f.ratings.toList(),
+        'categories': f.categories.toList(),
+        'timeRange': f.timeRange,
+      };
 
-  Future<void> _loadPersistedQuery() async {
+  FilterSpec _filtersFromJson(Map<String, dynamic> m) {
+    Set<String> toSet(dynamic v) {
+      if (v is List) {
+        return v.map((e) => e?.toString() ?? '').where((s) => s.trim().isNotEmpty).toSet();
+      }
+      return <String>{};
+    }
+
+    String? toOptString(dynamic v) {
+      if (v is String) {
+        final t = v.trim();
+        return t.isEmpty ? null : t;
+      }
+      return null;
+    }
+
+    return FilterSpec(
+      text: (m['text'] is String) ? (m['text'] as String) : '',
+      sort: toOptString(m['sort']),
+      order: toOptString(m['order']),
+      resolutions: toSet(m['resolutions']),
+      atleast: toOptString(m['atleast']),
+      ratios: toSet(m['ratios']),
+      color: toOptString(m['color']),
+      ratings: toSet(m['ratings']),
+      categories: toSet(m['categories']),
+      timeRange: toOptString(m['timeRange']),
+    );
+  }
+
+  Future<void> _loadPersistedFilters() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_kQueryPrefsKey);
+      final raw = prefs.getString(_kFiltersPrefsKey);
       if (raw == null || raw.trim().isEmpty) return;
 
-      final dynamic decoded = jsonDecode(raw);
+      final decoded = jsonDecode(raw);
       if (decoded is! Map) return;
-      final m = decoded.cast<String, dynamic>();
 
-      QuerySpec next = const QuerySpec();
-
-      // text
-      final text = (m['text'] as String?) ?? '';
-      next = next.copyWith(text: text);
-
-      // sort/order
-      next = next.copyWith(
-        sort: _parseSortKey(m['sort'] as String?) ?? next.sort,
-        order: _parseSortOrder(m['order'] as String?) ?? next.order,
-      );
-
-      // categories/ratings
-      next = next.copyWith(
-        categories: _parseEnumSet<Category>(m['categories'], Category.values, Category.general),
-        ratings: _parseEnumSet<Rating>(m['ratings'], Rating.values, Rating.sfw),
-      );
-
-      // sets
-      next = next.copyWith(
-        resolutions: _parseStringSet(m['resolutions']),
-        ratios: _parseStringSet(m['ratios']),
-      );
-
-      // scalars
-      next = next.copyWith(
-        atleast: (m['atleast'] as String?) ?? '',
-        colorHex: (m['colorHex'] as String?) ?? '',
-        toplistRange: (m['toplistRange'] as String?) ?? next.toplistRange,
-      );
-
+      final next = _filtersFromJson(decoded.cast<String, dynamic>());
       if (!mounted) return;
-      setState(() => _query = next);
+      setState(() => _filters = next);
     } catch (_) {}
   }
 
-  Future<void> _persistQuery(QuerySpec q) async {
+  Future<void> _persistFilters(FilterSpec f) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final map = <String, dynamic>{
-        'text': q.text,
-        'sort': q.sort.name,
-        'order': q.order.name,
-        'categories': q.categories.map((e) => e.name).toList(),
-        'ratings': q.ratings.map((e) => e.name).toList(),
-        'resolutions': q.resolutions.toList()..sort(),
-        'ratios': q.ratios.toList()..sort(),
-        'atleast': q.atleast,
-        'colorHex': q.colorHex,
-        'toplistRange': q.toplistRange,
-      };
-      await prefs.setString(_kQueryPrefsKey, jsonEncode(map));
+      await prefs.setString(_kFiltersPrefsKey, jsonEncode(_filtersToJson(f)));
     } catch (_) {}
   }
 
-  Future<void> _clearPersistedQuery() async {
+  Future<void> _clearPersistedFilters() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_kQueryPrefsKey);
+      await prefs.remove(_kFiltersPrefsKey);
     } catch (_) {}
   }
 
-  // =========================
-  // Data loading
-  // =========================
-
+  // ---------------------------
+  // ✅ 数据加载
+  // ---------------------------
   Future<void> _initData() async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
@@ -242,16 +237,14 @@ class _HomePageState extends State<HomePage> {
     final store = ThemeScope.of(context);
 
     try {
-      // 切源：repo 只负责 search；源选择交给 factory
+      // ✅ 切源：只在这里做“source 切换”，UI 不参与实例化细节
       final src = _factory.fromStore(store);
       _repo.setSource(src);
 
-      // ✅ 关键：由 adapter 翻译参数，UI 不知道 wallhaven 参数长什么样
-      final Map<String, dynamic> params = (src.pluginId == 'wallhaven')
-          ? WallhavenQueryAdapter.toParams(_query)
-          : GenericQueryAdapter.toParams(_query);
-
-      final newItems = await _repo.search(SearchQuery(page: page, params: params));
+      // ✅ 关键：SearchQuery 现在只带 filters（source 自己翻译）
+      final newItems = await _repo.search(
+        SearchQuery(page: page, filters: _filters),
+      );
 
       if (!mounted) return false;
       setState(() => _items.addAll(newItems));
@@ -267,15 +260,15 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _onRefresh() async => _initData();
 
-  void _applyQuery(QuerySpec q) {
-    setState(() => _query = q);
-    _persistQuery(q);
+  void _applyFilters(FilterSpec f) {
+    setState(() => _filters = f);
+    _persistFilters(f);
     _initData();
   }
 
-  void _resetQuery() {
-    setState(() => _query = const QuerySpec());
-    _clearPersistedQuery();
+  void _resetFilters() {
+    setState(() => _filters = const FilterSpec());
+    _clearPersistedFilters();
     _initData();
   }
 
@@ -332,7 +325,7 @@ class _HomePageState extends State<HomePage> {
       builder: (context, _) {
         final theme = Theme.of(context);
 
-        // 切源自动刷新
+        // 切源自动刷新（只负责触发，不负责创建 source）
         final currentId = store.currentSourceConfig.id;
         if (_lastSourceConfigId == null) {
           _lastSourceConfigId = currentId;
@@ -381,9 +374,9 @@ class _HomePageState extends State<HomePage> {
               ),
               clipBehavior: Clip.antiAlias,
               child: FilterDrawer(
-                initial: _query,
-                onApply: _applyQuery,
-                onReset: _resetQuery,
+                initial: _filters,
+                onApply: _applyFilters,
+                onReset: _resetFilters,
                 onOpenSettings: _openSettingsFromDrawer,
               ),
             ),
@@ -456,45 +449,4 @@ class _HomePageState extends State<HomePage> {
       },
     );
   }
-}
-
-// ====== 持久化解析 helpers ======
-
-SortKey? _parseSortKey(String? s) {
-  if (s == null) return null;
-  for (final v in SortKey.values) {
-    if (v.name == s) return v;
-  }
-  return null;
-}
-
-SortOrder? _parseSortOrder(String? s) {
-  if (s == null) return null;
-  for (final v in SortOrder.values) {
-    if (v.name == s) return v;
-  }
-  return null;
-}
-
-Set<String> _parseStringSet(dynamic v) {
-  if (v is List) return v.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty).toSet();
-  if (v is String && v.trim().isNotEmpty) return v.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
-  return <String>{};
-}
-
-Set<T> _parseEnumSet<T>(dynamic v, List<T> values, T fallback) {
-  if (v is List) {
-    final set = <T>{};
-    for (final e in v) {
-      final name = e?.toString();
-      if (name == null) continue;
-      final match = values.firstWhere(
-        (x) => (x as dynamic).name == name,
-        orElse: () => fallback,
-      );
-      set.add(match);
-    }
-    return set.isEmpty ? {fallback} : set;
-  }
-  return {fallback};
 }
