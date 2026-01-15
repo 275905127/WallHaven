@@ -312,18 +312,11 @@ class _HomePageState extends State<HomePage> {
 
           extendBodyBehindAppBar: true,
           appBar: FoggyAppBar(
-            title: const Text("Wallhaven Pro"),
+            // ✅ 标题：Wallhaven Pro -> Wallhaven
+            title: const Text("Wallhaven"),
             isScrolled: _isScrolled,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const SettingsPage()),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
+            // ✅ 主页右上角设置入口移除（筛选页右下角再做）
+            actions: const [],
           ),
 
           body: _wallpapers.isEmpty && _isLoading
