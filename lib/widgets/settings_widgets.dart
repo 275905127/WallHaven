@@ -29,8 +29,10 @@ class SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.only(left: 16, bottom: 8),
       child: Text(
         title,
-        style: theme.textTheme.bodyLarge
-            ?.copyWith(fontSize: 13, fontWeight: FontWeight.w500),
+        style: theme.textTheme.bodyLarge?.copyWith(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }
@@ -59,12 +61,9 @@ class SettingsGroup extends StatelessWidget {
       final isLast = index == items.length - 1;
       final isSingle = items.length == 1;
 
-      if (isSingle) {
-        return BorderRadius.circular(largeRadius);
-      }
+      if (isSingle) return BorderRadius.circular(largeRadius);
 
       if (isFirst) {
-        // 顶部外角跟随 largeRadius；底部相接角固定 4
         return BorderRadius.only(
           topLeft: Radius.circular(largeRadius),
           topRight: Radius.circular(largeRadius),
@@ -74,7 +73,6 @@ class SettingsGroup extends StatelessWidget {
       }
 
       if (isLast) {
-        // 底部外角跟随 largeRadius；顶部相接角固定 4
         return BorderRadius.only(
           topLeft: const Radius.circular(jointRadius),
           topRight: const Radius.circular(jointRadius),
@@ -83,7 +81,6 @@ class SettingsGroup extends StatelessWidget {
         );
       }
 
-      // 中间项：上下都属于相接，全部固定 4
       return BorderRadius.circular(jointRadius);
     }
 
@@ -95,6 +92,10 @@ class SettingsGroup extends StatelessWidget {
       );
     }
 
+    // ✅ 关键修复点：
+    // 以前只有 Container 的 decoration 有圆角，但没有裁切；
+    // Material / Ink 高亮会把连接处“顶成直角”。
+    // 这里让 Material 自己带 shape + clip，圆角才会 1:1 生效。
     return Column(
       children: List.generate(items.length, (index) {
         final item = items[index];
@@ -103,58 +104,45 @@ class SettingsGroup extends StatelessWidget {
 
         return Column(
           children: [
-            Container(
-              decoration: BoxDecoration(
-                color: theme.cardColor,
+            Material(
+              color: theme.cardColor,
+              shape: RoundedRectangleBorder(borderRadius: br),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
                 borderRadius: br,
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: br,
-                  onTap: item.onTap,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(item.icon,
-                            size: 24, color: theme.iconTheme.color),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
+                onTap: item.onTap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  child: Row(
+                    children: [
+                      Icon(item.icon, size: 24, color: theme.iconTheme.color),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.title,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: theme.textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                            if (item.subtitle != null) ...[
+                              const SizedBox(height: 2),
                               Text(
-                                item.title,
+                                item.subtitle!,
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  color: theme
-                                      .textTheme.bodyLarge?.color,
+                                  fontSize: 13,
+                                  color: theme.textTheme.bodyMedium?.color,
                                 ),
                               ),
-                              if (item.subtitle != null) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  item.subtitle!,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: theme.textTheme.bodyMedium
-                                        ?.color,
-                                  ),
-                                ),
-                              ],
                             ],
-                          ),
+                          ],
                         ),
-                        item.trailing ??
-                            Icon(Icons.chevron_right,
-                                color: tokens.chevronColor),
-                      ],
-                    ),
+                      ),
+                      item.trailing ?? Icon(Icons.chevron_right, color: tokens.chevronColor),
+                    ],
                   ),
                 ),
               ),
