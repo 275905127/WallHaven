@@ -14,4 +14,8 @@ class HttpClient {
                 receiveTimeout: receiveTimeout,
               ),
             );
+
+  void close({bool force = true}) {
+    dio.close(force: force);
+  }
 }
