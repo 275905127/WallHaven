@@ -1,6 +1,9 @@
-// lib/domain/entities/source_capabilities.dart
-import 'filter_spec.dart';
+import 'dynamic_filter.dart';
 import 'option_item.dart';
+
+enum SortBy { toplist, newest, favorites, views, random, relevance }
+enum SortOrder { asc, desc }
+enum RatingLevel { safe, questionable, explicit }
 
 class SourceCapabilities {
   final bool supportsText;
@@ -31,33 +34,51 @@ class SourceCapabilities {
   final bool supportsTimeRange;
   final List<OptionItem> timeRangeOptions;
 
-  const SourceCapabilities({
-    this.supportsText = true,
+  /// ✅ 自定义筛选（第三方源：isNsfw/type/imageType 这种）
+  final List<DynamicFilter> dynamicFilters;
 
-    this.supportsSort = false,
+  const SourceCapabilities({
+    required this.supportsText,
+
+    required this.supportsSort,
     this.sortByOptions = const [],
 
-    this.supportsOrder = false,
+    required this.supportsOrder,
 
-    this.supportsResolutions = false,
+    required this.supportsResolutions,
     this.resolutionOptions = const [],
 
-    this.supportsAtleast = false,
+    required this.supportsAtleast,
     this.atleastOptions = const [],
 
-    this.supportsRatios = false,
+    required this.supportsRatios,
     this.ratioOptions = const [],
 
-    this.supportsColor = false,
+    required this.supportsColor,
     this.colorOptions = const [],
 
-    this.supportsRating = false,
+    required this.supportsRating,
     this.ratingOptions = const [],
 
-    this.supportsCategories = false,
+    required this.supportsCategories,
     this.categoryOptions = const [],
 
-    this.supportsTimeRange = false,
+    required this.supportsTimeRange,
     this.timeRangeOptions = const [],
+
+    this.dynamicFilters = const [],
   });
+
+  static const minimal = SourceCapabilities(
+    supportsText: true,
+    supportsSort: false,
+    supportsOrder: false,
+    supportsResolutions: false,
+    supportsAtleast: false,
+    supportsRatios: false,
+    supportsColor: false,
+    supportsRating: false,
+    supportsCategories: false,
+    supportsTimeRange: false,
+  );
 }
