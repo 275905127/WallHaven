@@ -380,7 +380,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
 }
 
 // ==========================================
-// 2. 图源管理二级页
+// 2. 图源管理二级页（插件化：操作 SourceConfig）
 // ==========================================
 class SourceManagementPage extends StatefulWidget {
   const SourceManagementPage({super.key});
@@ -407,7 +407,32 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     super.dispose();
   }
 
+  bool _isBuiltInConfig(SourceConfig c) {
+    // 约定：默认插件实例 id = default_<pluginId>
+    return c.id.startsWith('default_');
+  }
+
+  String _baseUrlOf(SourceConfig c) {
+    final v = c.settings['baseUrl'];
+    return (v is String) ? v : '';
+  }
+
+  String? _apiKeyOf(SourceConfig c) {
+    final v = c.settings['apiKey'];
+    if (v is String && v.trim().isNotEmpty) return v.trim();
+    return null;
+  }
+
+  String? _usernameOf(SourceConfig c) {
+    final v = c.settings['username'];
+    if (v is String && v.trim().isNotEmpty) return v.trim();
+    return null;
+  }
+
   void _showAddSourceDialog(BuildContext context) {
+    final store = ThemeScope.of(context);
+
+    // 目前 registry 只有 wallhaven 插件，所以这里先做 wallhaven 风格的“添加实例”
     final nameCtrl = TextEditingController();
     final urlCtrl = TextEditingController();
     final userCtrl = TextEditingController();
@@ -421,15 +446,28 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "名称 *", hintText: "例如: My Server"), autofocus: true),
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: "名称 *", hintText: "例如: My Server"),
+                autofocus: true,
+              ),
               const SizedBox(height: 16),
-              TextField(controller: urlCtrl, decoration: const InputDecoration(labelText: "API 地址 *", hintText: "https://...")),
+              TextField(
+                controller: urlCtrl,
+                decoration: const InputDecoration(labelText: "API 地址 *", hintText: "https://..."),
+              ),
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 16),
-              TextField(controller: userCtrl, decoration: const InputDecoration(labelText: "用户名 (可选)", hintText: "API 不需要则不填")),
+              TextField(
+                controller: userCtrl,
+                decoration: const InputDecoration(labelText: "用户名 (可选)", hintText: "API 不需要则不填"),
+              ),
               const SizedBox(height: 16),
-              TextField(controller: keyCtrl, decoration: const InputDecoration(labelText: "API Key (可选)", hintText: "用于认证")),
+              TextField(
+                controller: keyCtrl,
+                decoration: const InputDecoration(labelText: "API Key (可选)", hintText: "用于认证"),
+              ),
             ],
           ),
         ),
@@ -437,15 +475,18 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消")),
           TextButton(
             onPressed: () {
-              if (nameCtrl.text.trim().isNotEmpty && urlCtrl.text.trim().isNotEmpty) {
-                ThemeScope.of(context).addSource(
-                  nameCtrl.text,
-                  urlCtrl.text,
-                  username: userCtrl.text,
-                  apiKey: keyCtrl.text,
-                );
-                Navigator.pop(context);
-              }
+              final name = nameCtrl.text.trim();
+              final url = urlCtrl.text.trim();
+              if (name.isEmpty || url.isEmpty) return;
+
+              store.addWallhavenSource(
+                name: name,
+                url: url,
+                username: userCtrl.text,
+                apiKey: keyCtrl.text,
+              );
+
+              Navigator.pop(context);
             },
             child: const Text("添加"),
           ),
@@ -454,23 +495,35 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     );
   }
 
-  void _showEditSourceDialog(BuildContext context, ImageSource source) {
-    final nameCtrl = TextEditingController(text: source.name);
-    final urlCtrl = TextEditingController(text: source.baseUrl);
-    final userCtrl = TextEditingController(text: source.username ?? '');
-    final keyCtrl = TextEditingController(text: source.apiKey ?? '');
+  void _showEditConfigDialog(BuildContext context, SourceConfig cfg) {
+    final store = ThemeScope.of(context);
+
+    final builtIn = _isBuiltInConfig(cfg);
+
+    final nameCtrl = TextEditingController(text: cfg.name);
+    final urlCtrl = TextEditingController(text: _baseUrlOf(cfg));
+    final userCtrl = TextEditingController(text: _usernameOf(cfg) ?? '');
+    final keyCtrl = TextEditingController(text: _apiKeyOf(cfg) ?? '');
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(source.isBuiltIn ? "配置图源 (内置)" : "编辑图源"),
+        title: Text(builtIn ? "配置图源 (默认插件)" : "编辑图源"),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "名称", filled: true), enabled: !source.isBuiltIn),
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: "名称", filled: true),
+                enabled: !builtIn,
+              ),
               const SizedBox(height: 16),
-              TextField(controller: urlCtrl, decoration: const InputDecoration(labelText: "API 地址", filled: true), enabled: !source.isBuiltIn),
+              TextField(
+                controller: urlCtrl,
+                decoration: const InputDecoration(labelText: "API 地址", filled: true),
+                enabled: !builtIn,
+              ),
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 16),
@@ -484,14 +537,27 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消")),
           TextButton(
             onPressed: () {
-              ThemeScope.of(context).updateSource(
-                source.copyWith(
-                  name: source.isBuiltIn ? null : nameCtrl.text,
-                  baseUrl: source.isBuiltIn ? null : urlCtrl.text,
-                  username: userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim(),
-                  apiKey: keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim(),
-                ),
+              final nextSettings = Map<String, dynamic>.from(cfg.settings);
+
+              // 默认插件实例：不允许改 name/baseUrl，但允许配 username/apiKey
+              if (!builtIn) {
+                final n = nameCtrl.text.trim();
+                final u = urlCtrl.text.trim();
+                if (n.isNotEmpty) {
+                  // name 在 SourceConfig 顶层
+                }
+                if (u.isNotEmpty) nextSettings['baseUrl'] = u;
+              }
+
+              nextSettings['username'] = userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
+              nextSettings['apiKey'] = keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim();
+
+              final updated = cfg.copyWith(
+                name: builtIn ? cfg.name : nameCtrl.text.trim(),
+                settings: nextSettings,
               );
+
+              store.updateSourceConfig(updated);
               Navigator.pop(context);
             },
             child: const Text("保存"),
@@ -508,6 +574,8 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {
+        final currentId = store.currentSourceConfig.id;
+
         return Scaffold(
           extendBodyBehindAppBar: true,
           appBar: FoggyAppBar(
@@ -521,18 +589,46 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
             children: [
               const SectionHeader(title: "已添加的图源"),
               SettingsGroup(
-                items: store.sources.map((source) {
-                  String subtitle = source.baseUrl;
-                  if (source.apiKey != null && source.apiKey!.isNotEmpty) subtitle += "\n🔑 已配置 API Key";
+                items: store.sourceConfigs.map((cfg) {
+                  final builtIn = _isBuiltInConfig(cfg);
+                  final baseUrl = _baseUrlOf(cfg);
+                  final apiKey = _apiKeyOf(cfg);
+                  final isCurrent = cfg.id == currentId;
+
+                  var subtitle = baseUrl.isEmpty ? "(未配置 baseUrl)" : baseUrl;
+                  subtitle += "\n插件: ${cfg.pluginId}";
+                  if (apiKey != null) subtitle += "\n🔑 已配置 API Key";
+                  if (isCurrent) subtitle += "\n✅ 当前使用";
 
                   return SettingsItem(
-                    icon: source.isBuiltIn ? Icons.verified : Icons.link,
-                    title: source.name,
+                    icon: builtIn ? Icons.verified : Icons.link,
+                    title: cfg.name,
                     subtitle: subtitle,
-                    trailing: source.isBuiltIn
-                        ? const Text("内置", style: TextStyle(fontSize: 12, color: Colors.grey))
-                        : IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () => store.removeSource(source.id)),
-                    onTap: () => _showEditSourceDialog(context, source),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 当前源标记
+                        if (isCurrent) const Icon(Icons.check, size: 18),
+                        // 编辑
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          onPressed: () => _showEditConfigDialog(context, cfg),
+                        ),
+                        // 删除（默认插件实例不允许删）
+                        if (!builtIn)
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Colors.red),
+                            onPressed: () => store.removeSourceConfig(cfg.id),
+                          )
+                        else
+                          const Padding(
+                            padding: EdgeInsets.only(right: 6),
+                            child: Text("默认", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          ),
+                      ],
+                    ),
+                    // ✅ 点击行：切换当前源（不再把“切换”和“编辑”绑死）
+                    onTap: () => store.setCurrentSourceConfig(cfg.id),
                   );
                 }).toList(),
               ),
