@@ -8,11 +8,10 @@ class WallpaperRepository {
 
   WallpaperRepository(this._source);
 
-  String get sourceId => _source.sourceId;
-  String get pluginId => _source.pluginId;
+  WallpaperSource get source => _source;
 
-  void setSource(WallpaperSource source) {
-    _source = source;
+  void setSource(WallpaperSource next) {
+    _source = next;
   }
 
   Future<List<WallpaperItem>> search(SearchQuery query) {
