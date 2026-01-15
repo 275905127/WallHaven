@@ -3,6 +3,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../sources/source_registry.dart';
+import '../sources/source_plugin.dart';
+import '../sources/wallhaven_source_plugin.dart';
 
 import '../models/image_source.dart';
 
