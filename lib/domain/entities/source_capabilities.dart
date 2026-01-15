@@ -1,7 +1,12 @@
+// lib/domain/entities/source_capabilities.dart
+import 'filter_spec.dart';
+import 'option_item.dart';
+
 class SourceCapabilities {
   final bool supportsText;
+
   final bool supportsSort;
-  final List<String> sortKeys;
+  final List<SortBy> sortByOptions;
 
   final bool supportsOrder;
 
@@ -17,19 +22,19 @@ class SourceCapabilities {
   final bool supportsColor;
   final List<String> colorOptions;
 
-  final bool supportsRatings;
-  final List<String> ratingOptions; // source-defined values
+  final bool supportsRating;
+  final List<RatingLevel> ratingOptions; // safe/questionable/explicit
 
   final bool supportsCategories;
-  final List<String> categoryOptions; // source-defined values
+  final List<OptionItem> categoryOptions; // id/label
 
   final bool supportsTimeRange;
-  final List<String> timeRangeOptions;
+  final List<OptionItem> timeRangeOptions; // id/label
 
   const SourceCapabilities({
     this.supportsText = true,
     this.supportsSort = false,
-    this.sortKeys = const [],
+    this.sortByOptions = const [],
     this.supportsOrder = false,
     this.supportsResolutions = false,
     this.resolutionOptions = const [],
@@ -39,7 +44,7 @@ class SourceCapabilities {
     this.ratioOptions = const [],
     this.supportsColor = false,
     this.colorOptions = const [],
-    this.supportsRatings = false,
+    this.supportsRating = false,
     this.ratingOptions = const [],
     this.supportsCategories = false,
     this.categoryOptions = const [],
