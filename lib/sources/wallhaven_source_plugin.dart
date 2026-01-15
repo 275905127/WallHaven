@@ -4,7 +4,9 @@ import '../api/wallhaven_api.dart';
 
 class WallhavenSourcePlugin implements SourcePlugin {
   static const String kId = 'wallhaven';
-  static const String kDefaultBaseUrl = WallhavenClient.kDefaultBaseUrl;
+
+  // 这里可以继续复用 WallhavenClient 默认值
+  static final String kDefaultBaseUrl = WallhavenClient.kDefaultBaseUrl;
 
   @override
   String get pluginId => kId;
@@ -14,7 +16,8 @@ class WallhavenSourcePlugin implements SourcePlugin {
 
   @override
   SourceConfig defaultConfig() {
-    return const SourceConfig(
+    // ❌ 不能 const（kDefaultBaseUrl 不是编译期常量）
+    return SourceConfig(
       id: 'default_wallhaven',
       pluginId: kId,
       name: 'Wallhaven',
@@ -57,7 +60,7 @@ class WallhavenSourcePlugin implements SourcePlugin {
   @override
   WallpaperSourceClient createClient({
     required Map<String, dynamic> settings,
-    Dio? dio,
+    required Dio dio, // ✅ 和 main.dart 的调用对齐
   }) {
     final fixed = sanitizeSettings(settings);
     final baseUrl = fixed['baseUrl'] as String;
