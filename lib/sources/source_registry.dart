@@ -12,7 +12,7 @@ class SourceRegistry {
   factory SourceRegistry.defaultRegistry() {
     return SourceRegistry._({
       WallhavenSourcePlugin.kId: WallhavenSourcePlugin(),
-      SimpleJsonPlugin.kId: SimpleJsonPlugin(), // ✅ generic / 自由 JSON 图源
+      SimpleJsonPlugin.kId: SimpleJsonPlugin(), // generic / 自由 JSON 图源
     });
   }
 
