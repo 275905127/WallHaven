@@ -76,6 +76,16 @@ class ThemeStore extends ChangeNotifier {
   /// 给业务层用：拿到当前插件的“已清洗 settings”
   Map<String, dynamic> get currentSettings => currentPlugin.sanitizeSettings(_currentConfig.settings);
 
+  // ✅ 给 UI 用：当前 source 的 capabilities（用于动态筛选 UI）
+  SourceCapabilities get currentWallpaperSourceCapabilities {
+  // 这里不做全局 DI，就用一个共享 HttpClient
+  // 只用于生成 source（不在这里发请求）
+    final http = HttpClient();
+    final factory = SourceFactory(http: http);
+    final src = factory.fromStore(this);
+    return src.capabilities;
+  }
+
   ThemeStore() {
     final def = _registry.defaultConfig();
     _sourceConfigs = [def];
