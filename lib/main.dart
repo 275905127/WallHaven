@@ -183,13 +183,12 @@ class _HomePageState extends State<HomePage> {
     _page = 1;
     _wallpapers.clear();
 
-    final ok = await _fetchWallpapers(page: 1);
+    // ✅ 删掉 ok / (void)ok; —— 这就是你 CI 里 record/重复声明那坨屎的来源
+    await _fetchWallpapers(page: 1);
 
     if (mounted) {
       setState(() => _isLoading = false);
     }
-
-    (void)ok;
   }
 
   Future<void> _loadMore() async {
@@ -197,32 +196,38 @@ class _HomePageState extends State<HomePage> {
     setState(() => _isLoading = true);
 
     final nextPage = _page + 1;
-    final ok = await _fetchWallpapers(page: nextPage);
+    final ok2 = await _fetchWallpapers(page: nextPage);
 
     // ✅ 只有成功才提交页码，避免失败跳页
-    if (ok) _page = nextPage;
+    if (ok2) _page = nextPage;
 
     if (mounted) {
       setState(() => _isLoading = false);
     }
   }
 
-  /// ✅ 最终版：业务层只拿 “统一 client”，不认识 WallhavenClient / WallhavenPlugin
+  /// ✅ 最终版：业务层只拿 “统一 client”
   Future<bool> _fetchWallpapers({required int page}) async {
     final store = ThemeScope.of(context);
     final f = _filters;
 
     try {
       final plugin = store.currentPlugin;
-      final settings = store.currentSettings;
+      if (plugin == null) {
+        throw StateError('No current plugin for sourceConfig=${store.currentSourceConfig.id}');
+      }
+
+      // ✅ 关键修复：你这里写的 store.currentSettings 在 ThemeStore 里很可能根本不存在
+      // 用你 ThemeStore 已经暴露的：currentPluginSettings（或直接 currentSourceConfig.settings）
+      final Map<String, dynamic> settings =
+          (store.currentPluginSettings); // 或者：Map<String, dynamic>.from(store.currentSourceConfig.settings)
 
       final WallpaperSourceClient client = plugin.createClient(
         settings: settings,
         dio: _dio,
       );
 
-      // ✅ 当前 drawer/filter 是 WallhavenFilters，所以这里仍然组 Wallhaven 的参数；
-      //    未来你做“插件自带筛选 UI”后，这段会被插件化替换。
+      // 现在 drawer/filter 仍是 WallhavenFilters，所以这里仍然组 Wallhaven 参数
       final params = <String, dynamic>{
         'sorting': f.sorting,
         'order': f.order,
@@ -270,6 +275,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _dio.close(force: true);
     super.dispose();
   }
 
@@ -359,11 +365,9 @@ class _HomePageState extends State<HomePage> {
               _syncOverlayForDrawer(context, open);
               if (mounted) setState(() {});
             },
-
             drawerEnableOpenDragGesture: true,
             drawerEdgeDragWidth: 110,
             drawerDragStartBehavior: DragStartBehavior.down,
-
             drawer: Drawer(
               width: _drawerWidth(context),
               shape: RoundedRectangleBorder(
@@ -377,7 +381,6 @@ class _HomePageState extends State<HomePage> {
                 onOpenSettings: _openSettingsFromDrawer,
               ),
             ),
-
             extendBodyBehindAppBar: true,
             appBar: FoggyAppBar(
               title: const Text("Wallhaven"),
@@ -385,7 +388,6 @@ class _HomePageState extends State<HomePage> {
               fogStrength: 0.82,
               actions: const [],
             ),
-
             body: _wallpapers.isEmpty && _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : RefreshIndicator(
