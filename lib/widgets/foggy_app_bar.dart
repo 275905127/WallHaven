@@ -26,9 +26,15 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
     final baseColor = theme.scaffoldBackgroundColor;
 
     return AppBar(
+      // ✅ 关键：禁止自动注入 Drawer 汉堡按钮（移除左上角筛选入口）
+      automaticallyImplyLeading: false,
+
       title: title,
       centerTitle: true,
+
+      // 仍允许你在需要的页面手动传 leading（比如设置页返回键）
       leading: leading,
+
       actions: actions,
       toolbarHeight: preferredSize.height,
       backgroundColor: Colors.transparent,
