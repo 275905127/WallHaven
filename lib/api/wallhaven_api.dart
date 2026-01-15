@@ -1,16 +1,40 @@
-// ⚠️ 警示：此文件的字段/参数必须以 Wallhaven 官方 API 为准，禁止私自改名/删参导致筛选失效。
+// lib/api/wallhaven_api.dart
+// ⚠️ 警示：此文件字段/参数必须以 Wallhaven 官方 API 为准，禁止私自改名/删参导致筛选失效。
 // ⚠️ 警示：任何颜色/主题相关逻辑不要写进 API 层；这里只做网络与数据映射。
 
 import 'package:dio/dio.dart';
 import '../models/wallpaper.dart';
 
-class WallhavenApi {
-  static final Dio _dio = Dio();
+/// ================================
+/// ✅ Wallhaven 插件客户端（新入口）
+/// ================================
+/// - 不依赖 ThemeStore / UI
+/// - 可注入 Dio（后续可统一拦截器/日志/代理/超时）
+/// - baseUrl/apiKey 可由插件配置提供
+class WallhavenClient {
+  static const String kDefaultBaseUrl = 'https://wallhaven.cc/api/v1';
 
-  /// 获取壁纸列表（支持筛选参数）
-  static Future<List<Wallpaper>> getWallpapers({
-    required String baseUrl,
-    String? apiKey,
+  final Dio _dio;
+  final String baseUrl;
+  final String? apiKey;
+
+  WallhavenClient({
+    Dio? dio,
+    String? baseUrl,
+    this.apiKey,
+  })  : _dio = dio ?? Dio(),
+        baseUrl = _normalizeBaseUrl(baseUrl ?? kDefaultBaseUrl);
+
+  static String _normalizeBaseUrl(String url) {
+    var u = url.trim();
+    while (u.endsWith('/')) {
+      u = u.substring(0, u.length - 1);
+    }
+    return u;
+  }
+
+  /// 获取壁纸列表（/search）
+  Future<List<Wallpaper>> search({
     int page = 1,
 
     // ===== 搜索参数（按 Wallhaven /search）=====
@@ -40,13 +64,16 @@ class WallhavenApi {
           if (colors != null && colors.isNotEmpty) 'colors': colors,
           if (topRange != null && topRange.isNotEmpty) 'topRange': topRange,
           if (query != null && query.isNotEmpty) 'q': query,
-          if (apiKey != null && apiKey.isNotEmpty) 'apikey': apiKey,
+          if (apiKey != null && apiKey!.isNotEmpty) 'apikey': apiKey,
         },
       );
 
       if (response.statusCode == 200) {
         final List data = (response.data['data'] as List?) ?? const [];
-        return data.map((e) => Wallpaper.fromSearchJson(e)).toList();
+        return data
+            .whereType<Map>()
+            .map((e) => Wallpaper.fromSearchJson(e.cast<String, dynamic>()))
+            .toList();
       }
       return [];
     } catch (e) {
@@ -57,16 +84,12 @@ class WallhavenApi {
   }
 
   /// 获取单张壁纸详情（/w/{id}）
-  static Future<WallpaperDetail?> getWallpaperDetail({
-    required String baseUrl,
-    String? apiKey,
-    required String id,
-  }) async {
+  Future<WallpaperDetail?> detail({required String id}) async {
     try {
       final response = await _dio.get(
         '$baseUrl/w/$id',
         queryParameters: {
-          if (apiKey != null && apiKey.isNotEmpty) 'apikey': apiKey,
+          if (apiKey != null && apiKey!.isNotEmpty) 'apikey': apiKey,
         },
       );
 
@@ -82,5 +105,66 @@ class WallhavenApi {
       print("Wallhaven API Error (detail): $e");
       return null;
     }
+  }
+}
+
+/// =======================================
+/// ✅ 旧版兼容层（先别动其它文件）
+/// =======================================
+/// 你现在主页/详情页在用：
+/// WallhavenApi.getWallpapers(baseUrl: ..., apiKey: ...)
+/// WallhavenApi.getWallpaperDetail(...)
+///
+/// 这个兼容层让工程“先不炸”，
+/// 下一步我会把调用点全部迁移到插件系统里，然后再删掉它。
+class WallhavenApi {
+  static final Dio _dio = Dio();
+
+  static Future<List<Wallpaper>> getWallpapers({
+    required String baseUrl,
+    String? apiKey,
+    int page = 1,
+    String sorting = 'toplist',
+    String order = 'desc',
+    String? categories,
+    String? purity,
+    String? resolutions,
+    String? ratios,
+    String? query,
+    String? atleast,
+    String? colors,
+    String? topRange,
+  }) {
+    final client = WallhavenClient(
+      dio: _dio,
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+    );
+    return client.search(
+      page: page,
+      sorting: sorting,
+      order: order,
+      categories: categories,
+      purity: purity,
+      resolutions: resolutions,
+      ratios: ratios,
+      query: query,
+      atleast: atleast,
+      colors: colors,
+      topRange: topRange,
+    );
+  }
+
+  static Future<WallpaperDetail?> getWallpaperDetail({
+    required String baseUrl,
+    String? apiKey,
+    required String id,
+  }) {
+    final client = WallhavenClient(
+      dio: _dio,
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+    );
+    return client.detail(id: id);
   }
 }
