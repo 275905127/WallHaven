@@ -1,3 +1,4 @@
+// lib/domain/entities/search_query.dart
 import 'filter_spec.dart';
 
 class SearchQuery {
