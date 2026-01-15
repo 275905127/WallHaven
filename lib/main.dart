@@ -380,6 +380,7 @@ class _HomePageState extends State<HomePage> {
           }
         }
 
+        final caps = _repo.source.capabilities;
         final isDark = theme.brightness == Brightness.dark;
         final overlay = _drawerOpen
             ? SystemUiOverlayStyle(
@@ -415,11 +416,12 @@ class _HomePageState extends State<HomePage> {
               ),
               clipBehavior: Clip.antiAlias,
               child: FilterDrawer(
-                initial: _filters,
-                onApply: _applyFilters,
-                onReset: _resetFilters,
-                onOpenSettings: _openSettingsFromDrawer,
-              ),
+  initial: _filters,
+  capabilities: caps,
+  onApply: _applyFilters,
+  onReset: _resetFilters,
+  onOpenSettings: _openSettingsFromDrawer,
+),
             ),
             extendBodyBehindAppBar: true,
             appBar: FoggyAppBar(
