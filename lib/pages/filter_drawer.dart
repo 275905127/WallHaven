@@ -1,29 +1,21 @@
-// lib/pages/filter_drawer.dart
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../domain/entities/dynamic_filter.dart';
 import '../domain/entities/filter_spec.dart';
-import '../domain/entities/source_capabilities.dart';
 import '../domain/entities/option_item.dart';
-import '../theme/theme_store.dart';
+import '../domain/entities/source_capabilities.dart';
 import '../theme/app_tokens.dart';
+import '../theme/theme_store.dart';
 
 class FilterDrawer extends StatefulWidget {
-  /// ✅ 通用：domain filters
   final FilterSpec initial;
-
-  /// ✅ 关键：由外部传入当前图源能力（UI 不依赖 ThemeStore / data）
   final SourceCapabilities capabilities;
 
-  /// ✅ 选中即生效
   final ValueChanged<FilterSpec> onApply;
-
-  /// ✅ 重置
   final VoidCallback onReset;
-
-  /// ✅ 设置入口
   final VoidCallback? onOpenSettings;
 
   const FilterDrawer({
@@ -55,20 +47,17 @@ class _FilterDrawerState extends State<FilterDrawer> {
   bool _ratiosExpanded = false;
   bool _colorExpanded = false;
 
+  // dynamic filters expand state（按 paramName 存）
+  final Map<String, bool> _dynExpanded = {};
+
   @override
   void initState() {
     super.initState();
     _f = widget.initial;
     _qCtrl = TextEditingController(text: _f.text);
-  }
 
-  @override
-  void didUpdateWidget(covariant FilterDrawer oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // 外部 initial 变更时同步（比如切源/重置后重新打开抽屉）
-    if (oldWidget.initial != widget.initial) {
-      _f = widget.initial;
-      _qCtrl.text = _f.text;
+    for (final d in widget.capabilities.dynamicFilters) {
+      _dynExpanded[d.paramName] = false;
     }
   }
 
@@ -97,6 +86,9 @@ class _FilterDrawerState extends State<FilterDrawer> {
       _atleastExpanded = false;
       _ratiosExpanded = false;
       _colorExpanded = false;
+      for (final k in _dynExpanded.keys) {
+        _dynExpanded[k] = false;
+      }
     }
 
     final next = _f.copyWith(text: _qCtrl.text);
@@ -112,9 +104,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     });
   }
 
-  // -------------------------
-  // UI helpers
-  // -------------------------
   BorderRadius _groupRadiusFor(BuildContext context, int index, int length) {
     final tokens = Theme.of(context).extension<AppTokens>()!;
     final largeRadius = ThemeScope.of(context).cardRadius;
@@ -237,9 +226,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     );
   }
 
-  // -------------------------
-  // pickers
-  // -------------------------
   Widget _singlePickListNullable<T>({
     required BuildContext context,
     required List<_PickItem<T>> items,
@@ -314,11 +300,8 @@ class _FilterDrawerState extends State<FilterDrawer> {
       return InkWell(
         onTap: () {
           final next = Set<String>.from(selected);
-          if (on) {
-            next.remove(text);
-          } else {
-            next.add(text);
-          }
+          if (on) next.remove(text);
+          else next.add(text);
           onChanged(next);
         },
         borderRadius: BorderRadius.circular(999),
@@ -404,9 +387,23 @@ class _FilterDrawerState extends State<FilterDrawer> {
     );
   }
 
-  // -------------------------
-  // labels / summaries
-  // -------------------------
+  // ✅ dynamic radio picker
+  Widget _dynamicRadioPicker({
+    required BuildContext context,
+    required DynamicFilter filter,
+    required String? currentValue,
+    required ValueChanged<String?> onPick,
+  }) {
+    final items = filter.options.map((o) => _PickItem<String>(o.value, o.label)).toList();
+    return _singlePickListNullable<String>(
+      context: context,
+      items: items,
+      value: (currentValue ?? '').isEmpty ? null : currentValue,
+      onPick: onPick,
+      emptyLabel: '不限',
+    );
+  }
+
   String _sortLabel(SortBy v) {
     switch (v) {
       case SortBy.relevance:
@@ -463,6 +460,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
+
     final caps = widget.capabilities;
 
     final isDark = theme.brightness == Brightness.dark;
@@ -476,7 +474,40 @@ class _FilterDrawerState extends State<FilterDrawer> {
 
     final rows = <_RowDef>[];
 
-    // Sort
+    // ✅ dynamic filters first（你这种随机源最需要）
+    for (final d in caps.dynamicFilters) {
+      final expanded = _dynExpanded[d.paramName] ?? false;
+      final current = _f.extras[d.paramName];
+      final label = (current == null || current.isEmpty)
+          ? '不限'
+          : (d.options.firstWhere((o) => o.value == current, orElse: () => DynamicFilterOption(label: current, value: current)).label);
+
+      rows.add(
+        _RowDef(
+          title: d.title,
+          valueLabel: label,
+          expanded: expanded,
+          onToggle: () => setState(() => _dynExpanded[d.paramName] = !expanded),
+          child: _dynamicRadioPicker(
+            context: context,
+            filter: d,
+            currentValue: current,
+            onPick: (v) {
+              setState(() {
+                if (v == null || v.trim().isEmpty) {
+                  _f = _f.removeExtra(d.paramName);
+                } else {
+                  _f = _f.putExtra(d.paramName, v);
+                }
+                _dynExpanded[d.paramName] = false;
+              });
+              _commitApply();
+            },
+          ),
+        ),
+      );
+    }
+
     if (caps.supportsSort && caps.sortByOptions.isNotEmpty) {
       final items = caps.sortByOptions.map((e) => _PickItem<SortBy>(e, _sortLabel(e))).toList();
       rows.add(
@@ -491,7 +522,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
             value: _f.sortBy,
             onPick: (v) {
               setState(() {
-                _f = _f.copyWith(sortBy: v);
+                _f = _f.copyWith(sortBy: v, clearSortBy: v == null);
                 _sortExpanded = false;
               });
               _commitApply();
@@ -501,24 +532,20 @@ class _FilterDrawerState extends State<FilterDrawer> {
       );
     }
 
-    // TimeRange
     if (caps.supportsTimeRange && caps.timeRangeOptions.isNotEmpty) {
       rows.add(
         _RowDef(
           title: '时间范围',
-          valueLabel: (_f.timeRange ?? '').trim().isEmpty
-              ? '不限'
-              : _summaryOptions({_f.timeRange!.trim()}, caps.timeRangeOptions),
+          valueLabel: (_f.timeRange ?? '').trim().isEmpty ? '不限' : _summaryOptions({_f.timeRange!}, caps.timeRangeOptions),
           expanded: _timeRangeExpanded,
           onToggle: () => setState(() => _timeRangeExpanded = !_timeRangeExpanded),
           child: _singlePickListNullable<String>(
             context: context,
             items: caps.timeRangeOptions.map((o) => _PickItem<String>(o.id, o.label)).toList(),
-            value: (_f.timeRange ?? '').trim().isEmpty ? null : _f.timeRange!.trim(),
+            value: (_f.timeRange ?? '').trim().isEmpty ? null : _f.timeRange,
             onPick: (v) {
               setState(() {
-                final vv = (v ?? '').trim();
-                _f = _f.copyWith(timeRange: vv.isEmpty ? null : vv);
+                _f = _f.copyWith(timeRange: v, clearTimeRange: v == null);
                 _timeRangeExpanded = false;
               });
               _commitApply();
@@ -528,7 +555,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
       );
     }
 
-    // Order
     if (caps.supportsOrder) {
       final items = [
         _PickItem<SortOrder>(SortOrder.desc, '降序'),
@@ -546,7 +572,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
             value: _f.order,
             onPick: (v) {
               setState(() {
-                _f = _f.copyWith(order: v);
+                _f = _f.copyWith(order: v, clearOrder: v == null);
                 _orderExpanded = false;
               });
               _commitApply();
@@ -556,7 +582,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
       );
     }
 
-    // Categories
     if (caps.supportsCategories && caps.categoryOptions.isNotEmpty) {
       rows.add(
         _RowDef(
@@ -577,7 +602,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
       );
     }
 
-    // Rating
     if (caps.supportsRating && caps.ratingOptions.isNotEmpty) {
       rows.add(
         _RowDef(
@@ -604,7 +628,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
       );
     }
 
-    // Resolutions
     if (caps.supportsResolutions && caps.resolutionOptions.isNotEmpty) {
       rows.add(
         _RowDef(
@@ -625,7 +648,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
       );
     }
 
-    // Atleast
     if (caps.supportsAtleast && caps.atleastOptions.isNotEmpty) {
       rows.add(
         _RowDef(
@@ -636,11 +658,10 @@ class _FilterDrawerState extends State<FilterDrawer> {
           child: _singlePickListNullable<String>(
             context: context,
             items: caps.atleastOptions.map((e) => _PickItem<String>(e, e.isEmpty ? '不限' : e)).toList(),
-            value: (_f.atleast ?? '').trim().isEmpty ? null : _f.atleast!.trim(),
+            value: (_f.atleast ?? '').trim().isEmpty ? null : _f.atleast,
             onPick: (v) {
               setState(() {
-                final vv = (v ?? '').trim();
-                _f = _f.copyWith(atleast: vv.isEmpty ? null : vv);
+                _f = _f.copyWith(atleast: v, clearAtleast: v == null);
                 _atleastExpanded = false;
               });
               _commitApply();
@@ -650,7 +671,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
       );
     }
 
-    // Ratios
     if (caps.supportsRatios && caps.ratioOptions.isNotEmpty) {
       rows.add(
         _RowDef(
@@ -671,27 +691,26 @@ class _FilterDrawerState extends State<FilterDrawer> {
       );
     }
 
-    // Color
     if (caps.supportsColor && caps.colorOptions.isNotEmpty) {
-      final current = (_f.color ?? '').trim().replaceAll('#', '').toUpperCase();
       rows.add(
         _RowDef(
           title: '颜色（十六进制）',
-          valueLabel: current.isEmpty ? '不限' : current,
+          valueLabel: (_f.color ?? '').trim().isEmpty ? '不限' : _f.color!.trim().toUpperCase(),
           expanded: _colorExpanded,
           onToggle: () => setState(() => _colorExpanded = !_colorExpanded),
           child: _singlePickListNullable<String>(
             context: context,
             items: caps.colorOptions.map((c) => _PickItem<String>(c, c.toUpperCase())).toList(),
-            value: current.isEmpty ? null : current,
+            value: (_f.color ?? '').trim().isEmpty ? null : _f.color!.trim().replaceAll('#', ''),
             onPick: (v) {
               setState(() {
                 final vv = (v ?? '').trim().replaceAll('#', '');
-                _f = _f.copyWith(color: vv.isEmpty ? null : vv);
+                _f = _f.copyWith(color: vv.isEmpty ? null : vv, clearColor: vv.isEmpty);
                 _colorExpanded = false;
               });
               _commitApply();
             },
+            emptyLabel: '不限',
           ),
         ),
       );
@@ -701,6 +720,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
     for (int i = 0; i < rows.length; i++) {
       final def = rows[i];
       final br = _groupRadiusFor(context, i, rows.length);
+
       groupRows.add(
         _groupCollapseRow(
           context: context,
@@ -745,10 +765,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
                             _qCtrl.text = '';
                             _commitApply(closeExpanded: true);
                           },
-                          child: Text(
-                            "重置",
-                            style: TextStyle(color: mono.withOpacity(0.7)),
-                          ),
+                          child: Text("重置", style: TextStyle(color: mono.withOpacity(0.7))),
                         ),
                       ],
                     ),
