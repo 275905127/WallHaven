@@ -1,11 +1,14 @@
 // ⚠️ 警示：此文件是入口与交互基线，禁止随意挪动 Widget 树导致主题/左侧右滑筛选失效。
 // ⚠️ 警示：筛选手势体验优先；不要强行加花色图标和高饱和颜色。
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'theme/app_theme.dart';
 import 'theme/theme_store.dart';
@@ -19,6 +22,8 @@ import 'api/wallhaven_api.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ⚠️ 全局只做兜底：Home 默认透明（FoggyAppBar 依赖）
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     systemNavigationBarColor: Colors.transparent,
@@ -74,6 +79,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  static const String _kFiltersPrefsKey = 'wallhaven_filters_v1';
+
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   final ScrollController _scrollController = ScrollController();
@@ -82,12 +89,15 @@ class _HomePageState extends State<HomePage> {
   bool _isLoading = false;
   bool _isScrolled = false;
 
+  // 抽屉是否打开（用于状态栏跟随筛选页背景）
+  bool _drawerOpen = false;
+
   WallhavenFilters _filters = const WallhavenFilters();
 
   @override
   void initState() {
     super.initState();
-    _initData();
+    _bootstrap();
     _scrollController.addListener(() {
       if (_scrollController.offset > 0 && !_isScrolled) setState(() => _isScrolled = true);
       else if (_scrollController.offset <= 0 && _isScrolled) setState(() => _isScrolled = false);
@@ -96,6 +106,70 @@ class _HomePageState extends State<HomePage> {
         _loadMore();
       }
     });
+  }
+
+  Future<void> _bootstrap() async {
+    // ✅ 先加载持久化筛选，再请求数据
+    await _loadPersistedFilters();
+    if (!mounted) return;
+    await _initData();
+  }
+
+  Future<void> _loadPersistedFilters() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kFiltersPrefsKey);
+      if (raw == null || raw.trim().isEmpty) return;
+
+      final m = jsonDecode(raw);
+      if (m is! Map) return;
+
+      final next = WallhavenFilters(
+        query: (m['query'] ?? '') as String,
+        sorting: (m['sorting'] ?? 'toplist') as String,
+        order: (m['order'] ?? 'desc') as String,
+        categories: (m['categories'] ?? '111') as String,
+        purity: (m['purity'] ?? '100') as String,
+        resolutions: (m['resolutions'] ?? '') as String,
+        ratios: (m['ratios'] ?? '') as String,
+        atleast: (m['atleast'] ?? '') as String,
+        colors: (m['colors'] ?? '') as String,
+        topRange: (m['topRange'] ?? '1M') as String,
+      );
+
+      if (!mounted) return;
+      setState(() => _filters = next);
+    } catch (_) {
+      // 不炸：读不到就用默认
+    }
+  }
+
+  Future<void> _persistFilters(WallhavenFilters f) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final map = <String, dynamic>{
+        'query': f.query,
+        'sorting': f.sorting,
+        'order': f.order,
+        'categories': f.categories,
+        'purity': f.purity,
+        'resolutions': f.resolutions,
+        'ratios': f.ratios,
+        'atleast': f.atleast,
+        'colors': f.colors,
+        'topRange': f.topRange,
+      };
+      await prefs.setString(_kFiltersPrefsKey, jsonEncode(map));
+    } catch (_) {
+      // 不炸：写失败就算了
+    }
+  }
+
+  Future<void> _clearPersistedFilters() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kFiltersPrefsKey);
+    } catch (_) {}
   }
 
   Future<void> _initData() async {
@@ -144,11 +218,13 @@ class _HomePageState extends State<HomePage> {
 
   void _applyFilters(WallhavenFilters f) {
     setState(() => _filters = f);
+    _persistFilters(f);
     _initData();
   }
 
   void _resetFilters() {
     setState(() => _filters = const WallhavenFilters());
+    _clearPersistedFilters();
     _initData();
   }
 
@@ -163,6 +239,31 @@ class _HomePageState extends State<HomePage> {
     return w * (2 / 3);
   }
 
+  // ✅ 抽屉打开时：状态栏跟随筛选页背景；关闭时：回到透明（FoggyAppBar）
+  void _syncOverlayForDrawer(BuildContext context, bool open) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    if (open) {
+      SystemChrome.setSystemUIOverlayStyle(
+        SystemUiOverlayStyle(
+          statusBarColor: theme.scaffoldBackgroundColor,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+          statusBarBrightness: isDark ? Brightness.dark : Brightness.light, // iOS
+          systemNavigationBarColor: theme.scaffoldBackgroundColor,
+          systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        ),
+      );
+    } else {
+      SystemChrome.setSystemUIOverlayStyle(
+        const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          systemNavigationBarColor: Colors.transparent,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
@@ -173,8 +274,20 @@ class _HomePageState extends State<HomePage> {
         final theme = Theme.of(context);
         final drawerRadius = store.cardRadius;
 
+        // 如果主题变化而抽屉正开着，状态栏也跟着同步一次
+        if (_drawerOpen) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _syncOverlayForDrawer(context, true);
+          });
+        }
+
         return Scaffold(
           key: _scaffoldKey,
+
+          onDrawerChanged: (open) {
+            _drawerOpen = open;
+            _syncOverlayForDrawer(context, open);
+          },
 
           // ✅ 左侧右滑（核心）
           drawerEnableOpenDragGesture: true,
