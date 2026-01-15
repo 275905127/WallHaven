@@ -1,3 +1,4 @@
+// lib/pages/filter_drawer.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../theme/theme_store.dart';
 import '../domain/entities/filter_spec.dart';
 import '../domain/entities/source_capabilities.dart';
+import '../domain/entities/option_item.dart';
 
 class FilterDrawer extends StatefulWidget {
   final FilterSpec initial;
@@ -35,7 +37,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
   bool _expandedAtleast = false;
   bool _expandedRatios = false;
   bool _expandedColor = false;
-  bool _expandedRatings = false;
+  bool _expandedRating = false;
   bool _expandedCategories = false;
   bool _expandedTimeRange = false;
 
@@ -68,13 +70,12 @@ class _FilterDrawerState extends State<FilterDrawer> {
       _expandedAtleast = false;
       _expandedRatios = false;
       _expandedColor = false;
-      _expandedRatings = false;
+      _expandedRating = false;
       _expandedCategories = false;
       _expandedTimeRange = false;
     }
 
-    final next = _f.copyWith(text: _qCtrl.text);
-    widget.onApply(next);
+    widget.onApply(_f.copyWith(text: _qCtrl.text));
   }
 
   void _debounceQuery(String v) {
@@ -86,8 +87,8 @@ class _FilterDrawerState extends State<FilterDrawer> {
     });
   }
 
-  Set<String> _toggleSet(Set<String> s, String v) {
-    final next = Set<String>.from(s);
+  Set<T> _toggleSet<T>(Set<T> s, T v) {
+    final next = Set<T>.from(s);
     if (next.contains(v)) {
       next.remove(v);
     } else {
@@ -96,11 +97,48 @@ class _FilterDrawerState extends State<FilterDrawer> {
     return next;
   }
 
-  String _summarySet(Set<String> s, {String empty = '不限'}) {
+  String _summaryStrings(Set<String> s, {String empty = '不限'}) {
     if (s.isEmpty) return empty;
     final list = s.toList()..sort();
     if (list.length <= 2) return list.join('，');
     return '${list.take(2).join('，')} 等 ${list.length} 项';
+  }
+
+  String _summaryEnum<T>(Set<T> s, String Function(T) labelOf, {String empty = '不限'}) {
+    if (s.isEmpty) return empty;
+    final list = s.toList();
+    if (list.length <= 2) return list.map(labelOf).join('，');
+    return '${list.take(2).map(labelOf).join('，')} 等 ${list.length} 项';
+  }
+
+  String _labelSortBy(SortBy v) {
+    switch (v) {
+      case SortBy.relevance:
+        return '相关';
+      case SortBy.newest:
+        return '最新';
+      case SortBy.views:
+        return '浏览';
+      case SortBy.favorites:
+        return '收藏';
+      case SortBy.random:
+        return '随机';
+      case SortBy.toplist:
+        return '榜单';
+    }
+  }
+
+  String _labelOrder(SortOrder v) => (v == SortOrder.desc) ? '降序' : '升序';
+
+  String _labelRating(RatingLevel v) {
+    switch (v) {
+      case RatingLevel.safe:
+        return '安全';
+      case RatingLevel.questionable:
+        return '擦边';
+      case RatingLevel.explicit:
+        return '限制';
+    }
   }
 
   @override
@@ -109,8 +147,8 @@ class _FilterDrawerState extends State<FilterDrawer> {
     final mono = _monoPrimary(context);
     final store = ThemeScope.of(context);
 
-    // ✅ 关键：从当前 source 拿 capabilities（UI 不再 hardcode wallhaven）
-    final caps = store.currentWallpaperSourceCapabilities;
+    // ✅ 从当前 source 拿 capabilities（source 驱动 UI）
+    final SourceCapabilities caps = store.currentWallpaperSourceCapabilities;
 
     final isDark = theme.brightness == Brightness.dark;
     final overlay = SystemUiOverlayStyle(
@@ -120,6 +158,23 @@ class _FilterDrawerState extends State<FilterDrawer> {
       systemNavigationBarColor: theme.scaffoldBackgroundColor,
       systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
     );
+
+    final sortValue = _f.sortBy;
+    final orderValue = _f.order;
+
+    final selectedRes = _f.resolutions;
+    final selectedRatios = _f.ratios;
+
+    final selectedCats = _f.categories;
+    final selectedRating = _f.rating;
+
+    String labelOption(List<OptionItem> options, String? id, {String fallback = '-'}) {
+      if (id == null || id.isEmpty) return fallback;
+      for (final o in options) {
+        if (o.id == id) return o.label;
+      }
+      return fallback;
+    }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: overlay,
@@ -173,44 +228,43 @@ class _FilterDrawerState extends State<FilterDrawer> {
                             _collapse(
                               context: context,
                               title: '排序方式',
-                              valueLabel: _f.sort ?? '-',
+                              valueLabel: sortValue == null ? '-' : _labelSortBy(sortValue),
                               expanded: _expandedSort,
                               onToggle: () => setState(() => _expandedSort = !_expandedSort),
-                              child: _singlePick(
+                              child: _singlePickEnum<SortBy>(
                                 context: context,
-                                options: caps.sortKeys,
-                                value: _f.sort ?? (caps.sortKeys.isNotEmpty ? caps.sortKeys.first : ''),
+                                options: caps.sortByOptions,
+                                value: sortValue ?? (caps.sortByOptions.isNotEmpty ? caps.sortByOptions.first : SortBy.toplist),
+                                labelOf: _labelSortBy,
                                 onPick: (v) {
                                   setState(() {
-                                    _f = _f.copyWith(sort: v);
+                                    _f = _f.copyWith(sortBy: v);
                                     _expandedSort = false;
-                                    if (v != 'toplist') _expandedTimeRange = false;
+                                    if (v != SortBy.toplist) _expandedTimeRange = false;
                                   });
                                   _commit();
                                 },
-                                labelOf: (v) => v,
                               ),
                             ),
 
-                          if (caps.supportsTimeRange && (_f.sort ?? '') == 'toplist')
+                          if (caps.supportsTimeRange && (_f.sortBy == SortBy.toplist))
                             _collapse(
                               context: context,
                               title: '时间范围',
-                              valueLabel: _f.timeRange ?? '-',
+                              valueLabel: labelOption(caps.timeRangeOptions, _f.timeRange, fallback: '-'),
                               expanded: _expandedTimeRange,
                               onToggle: () => setState(() => _expandedTimeRange = !_expandedTimeRange),
-                              child: _singlePick(
+                              child: _singlePickOption(
                                 context: context,
                                 options: caps.timeRangeOptions,
-                                value: _f.timeRange ?? (caps.timeRangeOptions.isNotEmpty ? caps.timeRangeOptions.first : ''),
-                                onPick: (v) {
+                                value: _f.timeRange ?? (caps.timeRangeOptions.isNotEmpty ? caps.timeRangeOptions.first.id : ''),
+                                onPick: (id) {
                                   setState(() {
-                                    _f = _f.copyWith(timeRange: v);
+                                    _f = _f.copyWith(timeRange: id.isEmpty ? null : id);
                                     _expandedTimeRange = false;
                                   });
                                   _commit();
                                 },
-                                labelOf: (v) => v,
                               ),
                             ),
 
@@ -218,13 +272,14 @@ class _FilterDrawerState extends State<FilterDrawer> {
                             _collapse(
                               context: context,
                               title: '排序方向',
-                              valueLabel: _f.order ?? '-',
+                              valueLabel: orderValue == null ? '-' : _labelOrder(orderValue),
                               expanded: _expandedOrder,
                               onToggle: () => setState(() => _expandedOrder = !_expandedOrder),
-                              child: _singlePick(
+                              child: _singlePickEnum<SortOrder>(
                                 context: context,
-                                options: const ['desc', 'asc'],
-                                value: _f.order ?? 'desc',
+                                options: const [SortOrder.desc, SortOrder.asc],
+                                value: orderValue ?? SortOrder.desc,
+                                labelOf: _labelOrder,
                                 onPick: (v) {
                                   setState(() {
                                     _f = _f.copyWith(order: v);
@@ -232,7 +287,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
                                   });
                                   _commit();
                                 },
-                                labelOf: (v) => v == 'desc' ? '降序' : '升序',
                               ),
                             ),
 
@@ -240,35 +294,34 @@ class _FilterDrawerState extends State<FilterDrawer> {
                             _collapse(
                               context: context,
                               title: '分类',
-                              valueLabel: _summarySet(_f.categories),
+                              valueLabel: _summaryStrings(selectedCats),
                               expanded: _expandedCategories,
                               onToggle: () => setState(() => _expandedCategories = !_expandedCategories),
-                              child: _multiChip(
+                              child: _multiChipOptions(
                                 context: context,
                                 options: caps.categoryOptions,
-                                selected: _f.categories,
-                                labelOf: (v) => v,
-                                onToggle: (v) {
-                                  setState(() => _f = _f.copyWith(categories: _toggleSet(_f.categories, v)));
+                                selectedIds: selectedCats,
+                                onToggle: (id) {
+                                  setState(() => _f = _f.copyWith(categories: _toggleSet(selectedCats, id)));
                                   _commit();
                                 },
                               ),
                             ),
 
-                          if (caps.supportsRatings)
+                          if (caps.supportsRating)
                             _collapse(
                               context: context,
                               title: '分级',
-                              valueLabel: _summarySet(_f.ratings),
-                              expanded: _expandedRatings,
-                              onToggle: () => setState(() => _expandedRatings = !_expandedRatings),
-                              child: _multiChip(
+                              valueLabel: _summaryEnum<RatingLevel>(selectedRating, _labelRating),
+                              expanded: _expandedRating,
+                              onToggle: () => setState(() => _expandedRating = !_expandedRating),
+                              child: _multiChipEnum<RatingLevel>(
                                 context: context,
                                 options: caps.ratingOptions,
-                                selected: _f.ratings,
-                                labelOf: (v) => v,
+                                selected: selectedRating,
+                                labelOf: _labelRating,
                                 onToggle: (v) {
-                                  setState(() => _f = _f.copyWith(ratings: _toggleSet(_f.ratings, v)));
+                                  setState(() => _f = _f.copyWith(rating: _toggleSet(selectedRating, v)));
                                   _commit();
                                 },
                               ),
@@ -278,16 +331,15 @@ class _FilterDrawerState extends State<FilterDrawer> {
                             _collapse(
                               context: context,
                               title: '分辨率（精确匹配）',
-                              valueLabel: _summarySet(_f.resolutions),
+                              valueLabel: _summaryStrings(selectedRes),
                               expanded: _expandedRes,
                               onToggle: () => setState(() => _expandedRes = !_expandedRes),
-                              child: _multiChip(
+                              child: _multiChipStrings(
                                 context: context,
                                 options: caps.resolutionOptions,
-                                selected: _f.resolutions,
-                                labelOf: (v) => v,
+                                selected: selectedRes,
                                 onToggle: (v) {
-                                  setState(() => _f = _f.copyWith(resolutions: _toggleSet(_f.resolutions, v)));
+                                  setState(() => _f = _f.copyWith(resolutions: _toggleSet(selectedRes, v)));
                                   _commit();
                                 },
                               ),
@@ -300,10 +352,11 @@ class _FilterDrawerState extends State<FilterDrawer> {
                               valueLabel: (_f.atleast ?? '').isEmpty ? '不限' : _f.atleast!,
                               expanded: _expandedAtleast,
                               onToggle: () => setState(() => _expandedAtleast = !_expandedAtleast),
-                              child: _singlePick(
+                              child: _singlePickString(
                                 context: context,
                                 options: caps.atleastOptions,
                                 value: _f.atleast ?? '',
+                                labelOf: (v) => v.isEmpty ? '不限' : v,
                                 onPick: (v) {
                                   setState(() {
                                     _f = _f.copyWith(atleast: v.isEmpty ? null : v);
@@ -311,7 +364,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
                                   });
                                   _commit();
                                 },
-                                labelOf: (v) => v.isEmpty ? '不限' : v,
                               ),
                             ),
 
@@ -319,16 +371,15 @@ class _FilterDrawerState extends State<FilterDrawer> {
                             _collapse(
                               context: context,
                               title: '比例',
-                              valueLabel: _summarySet(_f.ratios),
+                              valueLabel: _summaryStrings(selectedRatios),
                               expanded: _expandedRatios,
                               onToggle: () => setState(() => _expandedRatios = !_expandedRatios),
-                              child: _multiChip(
+                              child: _multiChipStrings(
                                 context: context,
                                 options: caps.ratioOptions,
-                                selected: _f.ratios,
-                                labelOf: (v) => v,
+                                selected: selectedRatios,
                                 onToggle: (v) {
-                                  setState(() => _f = _f.copyWith(ratios: _toggleSet(_f.ratios, v)));
+                                  setState(() => _f = _f.copyWith(ratios: _toggleSet(selectedRatios, v)));
                                   _commit();
                                 },
                               ),
@@ -341,10 +392,11 @@ class _FilterDrawerState extends State<FilterDrawer> {
                               valueLabel: (_f.color ?? '').isEmpty ? '不限' : (_f.color ?? '').toUpperCase(),
                               expanded: _expandedColor,
                               onToggle: () => setState(() => _expandedColor = !_expandedColor),
-                              child: _singlePick(
+                              child: _singlePickString(
                                 context: context,
                                 options: [''] + caps.colorOptions,
                                 value: _f.color ?? '',
+                                labelOf: (v) => v.isEmpty ? '不限' : v.toUpperCase(),
                                 onPick: (v) {
                                   setState(() {
                                     _f = _f.copyWith(color: v.isEmpty ? null : v.replaceAll('#', ''));
@@ -352,7 +404,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
                                   });
                                   _commit();
                                 },
-                                labelOf: (v) => v.isEmpty ? '不限' : v.toUpperCase(),
                               ),
                             ),
 
@@ -438,12 +489,12 @@ class _FilterDrawerState extends State<FilterDrawer> {
     );
   }
 
-  Widget _singlePick({
+  Widget _singlePickEnum<T>({
     required BuildContext context,
-    required List<String> options,
-    required String value,
-    required ValueChanged<String> onPick,
-    required String Function(String) labelOf,
+    required List<T> options,
+    required T value,
+    required String Function(T) labelOf,
+    required ValueChanged<T> onPick,
   }) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
@@ -457,9 +508,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Row(
               children: [
-                Expanded(
-                  child: Text(labelOf(o), style: TextStyle(color: theme.textTheme.bodyLarge?.color)),
-                ),
+                Expanded(child: Text(labelOf(o), style: TextStyle(color: theme.textTheme.bodyLarge?.color))),
                 if (selected) Icon(Icons.check, size: 18, color: mono),
               ],
             ),
@@ -469,11 +518,67 @@ class _FilterDrawerState extends State<FilterDrawer> {
     );
   }
 
-  Widget _multiChip({
+  Widget _singlePickString({
+    required BuildContext context,
+    required List<String> options,
+    required String value,
+    required String Function(String) labelOf,
+    required ValueChanged<String> onPick,
+  }) {
+    final theme = Theme.of(context);
+    final mono = _monoPrimary(context);
+
+    return Column(
+      children: options.map((o) {
+        final selected = o == value;
+        return InkWell(
+          onTap: () => onPick(o),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              children: [
+                Expanded(child: Text(labelOf(o), style: TextStyle(color: theme.textTheme.bodyLarge?.color))),
+                if (selected) Icon(Icons.check, size: 18, color: mono),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _singlePickOption({
+    required BuildContext context,
+    required List<OptionItem> options,
+    required String value,
+    required ValueChanged<String> onPick,
+  }) {
+    final theme = Theme.of(context);
+    final mono = _monoPrimary(context);
+
+    return Column(
+      children: options.map((o) {
+        final selected = o.id == value;
+        return InkWell(
+          onTap: () => onPick(o.id),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              children: [
+                Expanded(child: Text(o.label, style: TextStyle(color: theme.textTheme.bodyLarge?.color))),
+                if (selected) Icon(Icons.check, size: 18, color: mono),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _multiChipStrings({
     required BuildContext context,
     required List<String> options,
     required Set<String> selected,
-    required String Function(String) labelOf,
     required ValueChanged<String> onToggle,
   }) {
     final theme = Theme.of(context);
@@ -495,7 +600,84 @@ class _FilterDrawerState extends State<FilterDrawer> {
               border: Border.all(width: 1, color: on ? mono.withOpacity(0.40) : mono.withOpacity(0.12)),
             ),
             child: Text(
+              o,
+              style: TextStyle(
+                fontSize: 14,
+                color: on ? mono : theme.textTheme.bodyLarge?.color,
+                fontWeight: on ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _multiChipEnum<T>({
+    required BuildContext context,
+    required List<T> options,
+    required Set<T> selected,
+    required String Function(T) labelOf,
+    required ValueChanged<T> onToggle,
+  }) {
+    final theme = Theme.of(context);
+    final mono = _monoPrimary(context);
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: options.map((o) {
+        final on = selected.contains(o);
+        return InkWell(
+          onTap: () => onToggle(o),
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: on ? mono.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.08) : theme.cardColor,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(width: 1, color: on ? mono.withOpacity(0.40) : mono.withOpacity(0.12)),
+            ),
+            child: Text(
               labelOf(o),
+              style: TextStyle(
+                fontSize: 14,
+                color: on ? mono : theme.textTheme.bodyLarge?.color,
+                fontWeight: on ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _multiChipOptions({
+    required BuildContext context,
+    required List<OptionItem> options,
+    required Set<String> selectedIds,
+    required ValueChanged<String> onToggle,
+  }) {
+    final theme = Theme.of(context);
+    final mono = _monoPrimary(context);
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: options.map((o) {
+        final on = selectedIds.contains(o.id);
+        return InkWell(
+          onTap: () => onToggle(o.id),
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: on ? mono.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.08) : theme.cardColor,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(width: 1, color: on ? mono.withOpacity(0.40) : mono.withOpacity(0.12)),
+            ),
+            child: Text(
+              o.label,
               style: TextStyle(
                 fontSize: 14,
                 color: on ? mono : theme.textTheme.bodyLarge?.color,
