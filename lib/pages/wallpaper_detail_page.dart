@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:dio/dio.dart';
 
-import '../models/wallpaper.dart';
 import '../theme/theme_store.dart';
-import '../sources/source_plugin.dart';
+
+// ✅ domain/data
+import '../domain/entities/wallpaper_detail_item.dart';
+import '../data/http/http_client.dart';
+import '../data/source_factory.dart';
+import '../data/repository/wallpaper_repository.dart';
 
 class WallpaperDetailPage extends StatefulWidget {
   final String id;
@@ -21,31 +24,36 @@ class WallpaperDetailPage extends StatefulWidget {
 }
 
 class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
-  WallpaperDetail? _detail;
+  WallpaperDetailItem? _detail;
   bool _loading = true;
 
-  // ✅ 复用 Dio（避免重复创建）
-  final Dio _dio = Dio();
+  late final HttpClient _http;
+  late final SourceFactory _factory;
+  late final WallpaperRepository _repo;
 
   @override
   void initState() {
     super.initState();
+    _http = HttpClient();
+    _factory = SourceFactory(http: _http);
+    _repo = WallpaperRepository(_factory.fromStore(ThemeScope.of(context)));
     _load();
+  }
+
+  @override
+  void dispose() {
+    _http.dio.close(force: true);
+    super.dispose();
   }
 
   Future<void> _load() async {
     try {
       final store = ThemeScope.of(context);
 
-      final SourcePlugin plugin = store.currentPlugin;
-      final settings = store.currentSettings;
+      final src = _factory.fromStore(store);
+      _repo.setSource(src);
 
-      final WallpaperSourceClient client = plugin.createClient(
-        settings: settings,
-        dio: _dio,
-      );
-
-      final data = await client.detail(id: widget.id);
+      final data = await _repo.detail(widget.id);
 
       if (!mounted) return;
       setState(() {
@@ -78,8 +86,8 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
     return "$bytes B";
   }
 
-  String _cnPurity(String? v) {
-    switch (v) {
+  String _cnRating(String? v) {
+    switch ((v ?? '').toLowerCase()) {
       case 'sfw':
         return '安全';
       case 'sketchy':
@@ -92,7 +100,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
   }
 
   String _cnCategory(String? v) {
-    switch (v) {
+    switch ((v ?? '').toLowerCase()) {
       case 'general':
         return '通用';
       case 'anime':
@@ -132,7 +140,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
     final store = ThemeScope.of(context);
     final d = _detail!;
 
-    final imageUrl = (d.url.isNotEmpty) ? d.url : (widget.heroThumb ?? '');
+    final imageUrl = d.image.toString().isNotEmpty ? d.image.toString() : (widget.heroThumb ?? '');
     final aspect = (d.width > 0 && d.height > 0) ? (d.width / d.height) : 16 / 9;
 
     return SingleChildScrollView(
@@ -175,16 +183,18 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
               children: [
                 _actionsRow(context),
                 const SizedBox(height: 10),
-                _metaLine(context, Icons.person_outline, "上传者", d.uploader ?? "-"),
-                if ((d.shortUrl ?? '').isNotEmpty) _metaLine(context, Icons.link, "短链", d.shortUrl!),
+                _metaLine(context, Icons.person_outline, "上传者", d.author ?? "-"),
+                if (d.shortUrl != null && d.shortUrl.toString().isNotEmpty)
+                  _metaLine(context, Icons.link, "短链", d.shortUrl.toString()),
                 _metaLine(context, Icons.remove_red_eye_outlined, "浏览量", d.views?.toString() ?? "-"),
                 _metaLine(context, Icons.favorite_border, "收藏量", d.favorites?.toString() ?? "-"),
                 _metaLine(context, Icons.fullscreen, "分辨率", d.resolution ?? "${d.width}x${d.height}"),
                 _metaLine(context, Icons.insert_drive_file_outlined, "大小", d.fileSize != null ? _humanSize(d.fileSize!) : "-"),
                 _metaLine(context, Icons.category_outlined, "分类", _cnCategory(d.category)),
-                _metaLine(context, Icons.shield_outlined, "纯净度", _cnPurity(d.purity)),
+                _metaLine(context, Icons.shield_outlined, "纯净度", _cnRating(d.rating)),
                 _metaLine(context, Icons.image_outlined, "格式", d.fileType ?? "-"),
-                if ((d.source ?? '').isNotEmpty) _metaLine(context, Icons.public, "来源", d.source!),
+                if (d.sourceUrl != null && d.sourceUrl.toString().isNotEmpty)
+                  _metaLine(context, Icons.public, "来源", d.sourceUrl.toString()),
               ],
             ),
           ),
