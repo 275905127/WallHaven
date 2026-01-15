@@ -182,6 +182,68 @@ class ThemeStore extends ChangeNotifier {
     savePreferences();
   }
 
+  /// ✅ 新增：从 JSON Map 添加“自由图源”
+  ///
+  /// 约定兼容两种格式：
+  /// 1) 你贴的自由图源 JSON（无 pluginId）： { name, baseUrl, listKey, filters, ... }
+  ///    -> 归入 pluginId = "generic"（你必须在 registry 里注册 generic 插件）
+  /// 2) 完整插件化配置： { pluginId, name, settings: {...} }
+  void addSourceFromJson(Map<String, dynamic> json) {
+    // 允许用户粘贴“自由图源 JSON”
+    final pluginIdRaw = json['pluginId'];
+    final String? pluginId = (pluginIdRaw is String && pluginIdRaw.trim().isNotEmpty) ? pluginIdRaw.trim() : null;
+
+    // 允许两种字段名：name / title
+    final nameRaw = json['name'] ?? json['title'];
+    final String name = (nameRaw is String && nameRaw.trim().isNotEmpty) ? nameRaw.trim() : '';
+
+    if (pluginId != null) {
+      // 走“完整插件化”
+      final p = _registry.plugin(pluginId);
+      if (p == null) {
+        throw StateError('Plugin not found: $pluginId (registry 未注册该插件)');
+      }
+
+      final s = json['settings'];
+      final Map<String, dynamic> settings =
+          (s is Map) ? s.cast<String, dynamic>() : <String, dynamic>{};
+
+      final finalName = name.isNotEmpty ? name : p.defaultName;
+
+      addSource(
+        pluginId: pluginId,
+        name: finalName,
+        settings: settings,
+      );
+      return;
+    }
+
+    // 没写 pluginId：按“自由图源”处理 -> generic 插件
+    const genericId = 'generic';
+    final p = _registry.plugin(genericId);
+    if (p == null) {
+      throw StateError('Generic plugin not found: $genericId（你必须在 SourceRegistry 注册 generic 插件）');
+    }
+
+    // 把自由图源 JSON 整体作为 settings 存进去（让 generic 插件自己解释）
+    final finalName = name.isNotEmpty ? name : p.defaultName;
+
+    addSource(
+      pluginId: genericId,
+      name: finalName,
+      settings: json,
+    );
+  }
+
+  /// ✅ 新增：从 JSON 字符串添加（UI 直接调用这个）
+  void addSourceFromJsonString(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) throw FormatException('Empty json');
+    final dynamic decoded = jsonDecode(text);
+    if (decoded is! Map) throw FormatException('JSON must be an object');
+    addSourceFromJson(decoded.cast<String, dynamic>());
+  }
+
   /// 你现有 UI 的 “添加图源” 还是 wallhaven 参数，这里给它直接用
   void addWallhavenSource({
     required String name,
@@ -278,9 +340,8 @@ class ThemeStore extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
 
       final modeIndex = prefs.getInt('theme_mode') ?? 0;
-      _preferredMode = (modeIndex >= 0 && modeIndex < ThemeMode.values.length)
-          ? ThemeMode.values[modeIndex]
-          : ThemeMode.system;
+      _preferredMode =
+          (modeIndex >= 0 && modeIndex < ThemeMode.values.length) ? ThemeMode.values[modeIndex] : ThemeMode.system;
 
       _enableThemeMode = prefs.getBool('enable_theme_mode') ?? true;
 
