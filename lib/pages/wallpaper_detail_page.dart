@@ -12,8 +12,6 @@ import '../theme/theme_store.dart';
 
 class WallpaperDetailPage extends StatefulWidget {
   final String id;
-
-  /// 列表页传进来的预览图（可选：用于更快看到图）
   final String? heroThumb;
 
   const WallpaperDetailPage({
@@ -92,56 +90,53 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
     return b == Brightness.dark ? Colors.white : Colors.black;
   }
 
-  String _humanSize(int bytes) {
-    if (bytes <= 0) return "-";
-    const kb = 1024.0;
-    const mb = kb * 1024.0;
-    const gb = mb * 1024.0;
-    final b = bytes.toDouble();
-    if (b >= gb) return "${(b / gb).toStringAsFixed(2)} GB";
-    if (b >= mb) return "${(b / mb).toStringAsFixed(2)} MB";
-    if (b >= kb) return "${(b / kb).toStringAsFixed(2)} KB";
-    return "$bytes B";
-  }
-
   Future<void> _copy(String text) async {
-    await Clipboard.setData(ClipboardData(text: text));
+    final t = text.trim();
+    if (t.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: t));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已复制')),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已复制')));
   }
 
   List<DetailField> _normalizedFields(WallpaperDetailItem d) {
-    // ✅ 把“常用字段”统一补齐到 fields（但不引入 wallhaven 语义）
-    // 规则：已有同 key 的不重复；空值不加；fileSize 做友好展示
+    // source.fields 优先，下面只补“缺的”
     final out = <DetailField>[];
     final seen = <String>{};
 
-    void addIf(String key, String label, String? value) {
-      final v = (value ?? '').trim();
-      if (v.isEmpty) return;
-      if (seen.contains(key)) return;
-      seen.add(key);
-      out.add(DetailField(key: key, label: label, value: v));
-    }
-
-    // 先放 source 自己给的 fields（优先级更高）
-    for (final f in d.fields) {
+    void mark(DetailField f) {
       final k = f.key.trim();
       if (k.isNotEmpty) seen.add(k);
       out.add(f);
     }
 
-    addIf('author', '作者', d.author);
-    addIf('resolution', '分辨率', d.resolution ?? ((d.width > 0 && d.height > 0) ? '${d.width}x${d.height}' : null));
-    addIf('ratio', '比例', d.ratio);
-    addIf('file_type', '格式', d.fileType);
-    addIf('views', '浏览量', d.views?.toString());
-    addIf('favorites', '收藏量', d.favorites?.toString());
-    addIf('file_size', '大小', d.fileSize == null ? null : _humanSize(d.fileSize!));
-    addIf('short_url', '短链', d.shortUrl?.toString());
-    addIf('source_url', '来源', d.sourceUrl?.toString());
+    for (final f in d.fields) {
+      if (f.displayValue.trim().isEmpty || f.displayValue == '-') continue;
+      mark(f);
+    }
+
+    void addIf(DetailField f) {
+      if (seen.contains(f.key)) return;
+      if (f.displayValue.trim().isEmpty || f.displayValue == '-') return;
+      mark(f);
+    }
+
+    addIf(DetailField.text(key: 'author', label: '作者', raw: d.author ?? ''));
+    addIf(DetailField.text(
+      key: 'resolution',
+      label: '分辨率',
+      raw: d.resolution ?? ((d.width > 0 && d.height > 0) ? '${d.width}x${d.height}' : ''),
+    ));
+    addIf(DetailField.text(key: 'ratio', label: '比例', raw: d.ratio ?? ''));
+    addIf(DetailField.text(key: 'file_type', label: '格式', raw: d.fileType ?? ''));
+    if (d.views != null) addIf(DetailField.number(key: 'views', label: '浏览量', value: d.views!));
+    if (d.favorites != null) addIf(DetailField.number(key: 'favorites', label: '收藏量', value: d.favorites!));
+    if (d.fileSize != null) addIf(DetailField.bytes(key: 'file_size', label: '大小', value: d.fileSize!));
+    if (d.shortUrl != null && d.shortUrl.toString().trim().isNotEmpty) {
+      addIf(DetailField.url(key: 'short_url', label: '短链', value: d.shortUrl.toString()));
+    }
+    if (d.sourceUrl != null && d.sourceUrl.toString().trim().isNotEmpty) {
+      addIf(DetailField.url(key: 'source_url', label: '来源', value: d.sourceUrl.toString()));
+    }
 
     return out;
   }
@@ -198,11 +193,8 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
 
     final fields = _normalizedFields(d);
 
-    // 仅当存在可复制内容才显示动作
     final canCopyImage = imageUrl.trim().isNotEmpty;
     final canCopyId = d.id.trim().isNotEmpty;
-    final canCopyShort = (d.shortUrl?.toString() ?? '').trim().isNotEmpty;
-    final canCopySource = (d.sourceUrl?.toString() ?? '').trim().isNotEmpty;
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -210,7 +202,6 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Image
           ClipRRect(
             borderRadius: BorderRadius.circular(store.cardRadius),
             child: AspectRatio(
@@ -231,10 +222,8 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 14),
 
-          // Header card: basic + actions
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
@@ -246,13 +235,16 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _HeaderLine(
-                  title: d.author?.trim().isNotEmpty == true ? d.author!.trim() : '未知作者',
-                  subtitle: d.sourceId.trim().isEmpty ? null : 'Source: ${d.sourceId}',
+                Text(
+                  (d.author?.trim().isNotEmpty == true) ? d.author!.trim() : '未知作者',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: theme.textTheme.bodyLarge?.color,
+                  ),
                 ),
                 const SizedBox(height: 10),
 
-                // actions (only show if meaningful)
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -269,30 +261,19 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
                         label: '复制图片链接',
                         onTap: () => _copy(imageUrl),
                       ),
-                    if (canCopyShort)
-                      _ActionChip(
-                        icon: Icons.link,
-                        label: '复制短链',
-                        onTap: () => _copy(d.shortUrl.toString()),
-                      ),
-                    if (canCopySource)
-                      _ActionChip(
-                        icon: Icons.public,
-                        label: '复制来源链接',
-                        onTap: () => _copy(d.sourceUrl.toString()),
-                      ),
                   ],
                 ),
 
                 if (fields.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  _DividerLine(color: mono.withOpacity(0.10)),
+                  Container(height: 1, color: mono.withOpacity(0.10)),
                   const SizedBox(height: 8),
                   ...fields.map((f) => _MetaLine(
-                        icon: _iconForFieldKey(f.key),
+                        icon: _iconForFieldType(f.type),
                         label: f.label,
-                        value: f.value,
-                        onCopy: () => _copy(f.value),
+                        value: f.displayValue,
+                        isUrl: f.type == DetailFieldType.url,
+                        onCopy: () => _copy(f.copyValue),
                       )),
                 ],
               ],
@@ -301,38 +282,25 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
 
           const SizedBox(height: 14),
 
-          // Tags
-          _ChipPanel(
-            title: '标签',
-            emptyText: '暂无',
-            chips: d.tags,
-          ),
-
+          _ChipPanel(title: '标签', emptyText: '暂无', chips: d.tags),
           const SizedBox(height: 14),
-
-          // Colors
-          _ChipPanel(
-            title: '颜色',
-            emptyText: '暂无',
-            chips: d.colors.map((e) => e.toUpperCase()).toList(),
-          ),
+          _ChipPanel(title: '颜色', emptyText: '暂无', chips: d.colors.map((e) => e.toUpperCase()).toList()),
         ],
       ),
     );
   }
 
-  IconData _iconForFieldKey(String key) {
-    final k = key.toLowerCase();
-    if (k.contains('author') || k.contains('uploader') || k.contains('user')) return Icons.person_outline;
-    if (k.contains('resolution') || k.contains('dimension')) return Icons.fullscreen;
-    if (k.contains('ratio')) return Icons.crop_16_9;
-    if (k.contains('file') && k.contains('type')) return Icons.insert_drive_file_outlined;
-    if (k.contains('size')) return Icons.storage_outlined;
-    if (k.contains('view')) return Icons.remove_red_eye_outlined;
-    if (k.contains('fav') || k.contains('like')) return Icons.favorite_border;
-    if (k.contains('short')) return Icons.link;
-    if (k.contains('source') || k.contains('url')) return Icons.public;
-    return Icons.info_outline;
+  IconData _iconForFieldType(DetailFieldType t) {
+    switch (t) {
+      case DetailFieldType.url:
+        return Icons.link;
+      case DetailFieldType.bytes:
+        return Icons.storage_outlined;
+      case DetailFieldType.number:
+        return Icons.numbers;
+      case DetailFieldType.text:
+        return Icons.info_outline;
+    }
   }
 }
 
@@ -373,116 +341,6 @@ class _ErrorView extends StatelessWidget {
   }
 }
 
-class _HeaderLine extends StatelessWidget {
-  final String title;
-  final String? subtitle;
-
-  const _HeaderLine({
-    required this.title,
-    this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: theme.textTheme.bodyLarge?.color,
-          ),
-        ),
-        if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(
-            subtitle!,
-            style: TextStyle(
-              fontSize: 12,
-              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.85),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _DividerLine extends StatelessWidget {
-  final Color color;
-  const _DividerLine({required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(height: 1, color: color);
-  }
-}
-
-class _MetaLine extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final VoidCallback onCopy;
-
-  const _MetaLine({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.onCopy,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final mono = Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: mono.withOpacity(0.55)),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 74,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.25,
-                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.85),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.25,
-                color: theme.textTheme.bodyLarge?.color,
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          InkWell(
-            onTap: onCopy,
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.all(6),
-              child: Icon(Icons.copy, size: 18, color: theme.iconTheme.color),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ActionChip extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -505,6 +363,69 @@ class _ActionChip extends StatelessWidget {
   }
 }
 
+class _MetaLine extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isUrl;
+  final VoidCallback onCopy;
+
+  const _MetaLine({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.isUrl,
+    required this.onCopy,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final mono = theme.brightness == Brightness.dark ? Colors.white : Colors.black;
+
+    final valueStyle = TextStyle(
+      fontSize: 14,
+      height: 1.25,
+      color: isUrl ? mono.withOpacity(0.85) : theme.textTheme.bodyLarge?.color,
+      decoration: isUrl ? TextDecoration.underline : TextDecoration.none,
+      decorationColor: mono.withOpacity(0.25),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: mono.withOpacity(0.55)),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 74,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.25,
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.85),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: SelectableText(value, style: valueStyle)),
+          const SizedBox(width: 6),
+          InkWell(
+            onTap: onCopy,
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Icon(Icons.copy, size: 18, color: theme.iconTheme.color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ChipPanel extends StatelessWidget {
   final String title;
   final String emptyText;
@@ -520,15 +441,19 @@ class _ChipPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final store = ThemeScope.of(context);
-    final mono = Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
+    final mono = theme.brightness == Brightness.dark ? Colors.white : Colors.black;
+
+    Future<void> copy(BuildContext ctx, String text) async {
+      final t = text.trim();
+      if (t.isEmpty) return;
+      await Clipboard.setData(ClipboardData(text: t));
+      if (!ctx.mounted) return;
+      ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('已复制')));
+    }
 
     Widget chip(String text) {
       return InkWell(
-        onTap: () async {
-          await Clipboard.setData(ClipboardData(text: text));
-          if (!context.mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已复制')));
-        },
+        onTap: () => copy(context, text),
         borderRadius: BorderRadius.circular(999),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
