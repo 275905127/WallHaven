@@ -264,6 +264,21 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  // ✅ 从筛选抽屉打开设置：先关抽屉，再 push，避免叠层/手势乱
+  void _openSettingsFromDrawer() {
+    // 先关抽屉（如果正开着）
+    Navigator.of(context).maybePop();
+
+    // 下一帧再 push，确保抽屉动画/overlay 已经回收
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const SettingsPage()),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
@@ -307,6 +322,8 @@ class _HomePageState extends State<HomePage> {
               initial: _filters,
               onApply: _applyFilters,
               onReset: _resetFilters,
+              // ✅ 设置入口移到筛选页右下角
+              onOpenSettings: _openSettingsFromDrawer,
             ),
           ),
 
@@ -315,7 +332,7 @@ class _HomePageState extends State<HomePage> {
             // ✅ 标题：Wallhaven Pro -> Wallhaven
             title: const Text("Wallhaven"),
             isScrolled: _isScrolled,
-            // ✅ 主页右上角设置入口移除（筛选页右下角再做）
+            // ✅ 主页右上角设置入口移除（筛选页右下角）
             actions: const [],
           ),
 
