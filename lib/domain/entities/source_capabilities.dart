@@ -1,8 +1,12 @@
-import 'dynamic_filter.dart';
+// lib/domain/entities/source_capabilities.dart
 import 'option_item.dart';
 
-enum SortBy { toplist, newest, favorites, views, random, relevance }
+enum SortBy { relevance, newest, views, favorites, random, toplist }
 enum SortOrder { asc, desc }
+
+/// 这个是“内容分级”的通用枚举：
+/// - safe / questionable / explicit
+/// 具体某个源怎么映射（比如 wallhaven purity bitset）是 source 的事
 enum RatingLevel { safe, questionable, explicit }
 
 class SourceCapabilities {
@@ -34,51 +38,33 @@ class SourceCapabilities {
   final bool supportsTimeRange;
   final List<OptionItem> timeRangeOptions;
 
-  /// ✅ 自定义筛选（第三方源：isNsfw/type/imageType 这种）
-  final List<DynamicFilter> dynamicFilters;
-
   const SourceCapabilities({
-    required this.supportsText,
+    this.supportsText = true,
 
-    required this.supportsSort,
+    this.supportsSort = false,
     this.sortByOptions = const [],
 
-    required this.supportsOrder,
+    this.supportsOrder = false,
 
-    required this.supportsResolutions,
+    this.supportsResolutions = false,
     this.resolutionOptions = const [],
 
-    required this.supportsAtleast,
+    this.supportsAtleast = false,
     this.atleastOptions = const [],
 
-    required this.supportsRatios,
+    this.supportsRatios = false,
     this.ratioOptions = const [],
 
-    required this.supportsColor,
+    this.supportsColor = false,
     this.colorOptions = const [],
 
-    required this.supportsRating,
+    this.supportsRating = false,
     this.ratingOptions = const [],
 
-    required this.supportsCategories,
+    this.supportsCategories = false,
     this.categoryOptions = const [],
 
-    required this.supportsTimeRange,
+    this.supportsTimeRange = false,
     this.timeRangeOptions = const [],
-
-    this.dynamicFilters = const [],
   });
-
-  static const minimal = SourceCapabilities(
-    supportsText: true,
-    supportsSort: false,
-    supportsOrder: false,
-    supportsResolutions: false,
-    supportsAtleast: false,
-    supportsRatios: false,
-    supportsColor: false,
-    supportsRating: false,
-    supportsCategories: false,
-    supportsTimeRange: false,
-  );
 }
