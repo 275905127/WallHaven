@@ -1,6 +1,5 @@
 // lib/pages/filter_drawer.dart
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +14,9 @@ class FilterDrawer extends StatefulWidget {
   /// ✅ 通用：domain filters
   final FilterSpec initial;
 
+  /// ✅ 关键：由外部传入当前图源能力（UI 不依赖 ThemeStore / data）
+  final SourceCapabilities capabilities;
+
   /// ✅ 选中即生效
   final ValueChanged<FilterSpec> onApply;
 
@@ -27,6 +29,7 @@ class FilterDrawer extends StatefulWidget {
   const FilterDrawer({
     super.key,
     required this.initial,
+    required this.capabilities,
     required this.onApply,
     required this.onReset,
     this.onOpenSettings,
@@ -42,7 +45,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
 
   Timer? _qDebounce;
 
-  // 展开状态
   bool _sortExpanded = false;
   bool _orderExpanded = false;
   bool _ratingExpanded = false;
@@ -61,6 +63,16 @@ class _FilterDrawerState extends State<FilterDrawer> {
   }
 
   @override
+  void didUpdateWidget(covariant FilterDrawer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 外部 initial 变更时同步（比如切源/重置后重新打开抽屉）
+    if (oldWidget.initial != widget.initial) {
+      _f = widget.initial;
+      _qCtrl.text = _f.text;
+    }
+  }
+
+  @override
   void dispose() {
     _qDebounce?.cancel();
     _qCtrl.dispose();
@@ -72,9 +84,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     return b == Brightness.dark ? Colors.white : Colors.black;
   }
 
-  // -------------------------
-  // ✅ commit apply (single exit)
-  // -------------------------
   void _commitApply({bool closeExpanded = false}) {
     if (!mounted) return;
 
@@ -144,11 +153,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
       height: tokens.dividerThickness,
       color: tokens.dividerColor,
     );
-  }
-
-  BorderRadius _subRadiusFor(BuildContext context, int index, int length) {
-    final tokens = Theme.of(context).extension<AppTokens>()!;
-    return BorderRadius.circular(tokens.smallRadius);
   }
 
   Widget _groupCollapseRow({
@@ -236,76 +240,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
   // -------------------------
   // pickers
   // -------------------------
-  Widget _singlePickList<T>({
-    required BuildContext context,
-    required List<_PickItem<T>> items,
-    required T? value,
-    required ValueChanged<T> onPick,
-    String emptyLabel = '不限',
-  }) {
-    final theme = Theme.of(context);
-    final mono = _monoPrimary(context);
-
-    final list = <_PickItem<T?>>[
-      _PickItem<T?>(null, emptyLabel),
-      ...items.map((e) => _PickItem<T?>(e.value, e.label)),
-    ];
-
-    return Column(
-      children: List.generate(list.length, (i) {
-        final it = list[i];
-        final selected = it.value == value;
-        final br = _subRadiusFor(context, i, list.length);
-        final isLast = i == list.length - 1;
-
-        return Column(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: br,
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    final v = it.value;
-                    if (v != null) onPick(v as T);
-                    else {
-                      // clear
-                      // caller handles null via copyWith
-                      onPick as dynamic;
-                    }
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            it.label,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: theme.textTheme.bodyLarge?.color,
-                              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                            ),
-                          ),
-                        ),
-                        if (selected) Icon(Icons.check, size: 18, color: mono),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            if (!isLast) _groupGap(context),
-          ],
-        );
-      }),
-    );
-  }
-
   Widget _singlePickListNullable<T>({
     required BuildContext context,
     required List<_PickItem<T>> items,
@@ -325,7 +259,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
       children: List.generate(list.length, (i) {
         final it = list[i];
         final selected = it.value == value;
-        final br = _subRadiusFor(context, i, list.length);
         final isLast = i == list.length - 1;
 
         return Column(
@@ -333,7 +266,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
             Container(
               decoration: BoxDecoration(
                 color: theme.cardColor,
-                borderRadius: br,
+                borderRadius: BorderRadius.circular(theme.extension<AppTokens>()!.smallRadius),
               ),
               clipBehavior: Clip.antiAlias,
               child: Material(
@@ -526,30 +459,12 @@ class _FilterDrawerState extends State<FilterDrawer> {
     return '${labels.take(2).join('，')} 等 ${labels.length} 项';
   }
 
-  // -------------------------
-  // build
-  // -------------------------
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
+    final caps = widget.capabilities;
 
-    final store = ThemeScope.of(context);
-
-    // ✅ 必须由 source 决定能力
-    // 你的 data/sourceFactory 已经能从 store 取到 source，
-    // 但 UI 层不应 import data。这里直接用 ThemeStore 提供的 currentPlugin capabilities。
-    //
-    // 现在你 ThemeStore 还没有暴露 “capabilities”，你必须加一个 getter：
-    //   SourceCapabilities get currentCapabilities => _factory.fromStore(this).capabilities;
-    //
-    // 临时：先走 currentPluginSettings + pluginId 判断是不够的。
-    //
-    // 这里我假定你已经在 ThemeStore 加了：
-    //   SourceCapabilities get currentCapabilities
-    final SourceCapabilities caps = store.currentCapabilities;
-
-    // ✅ 抽屉页 overlay
     final isDark = theme.brightness == Brightness.dark;
     final overlay = SystemUiOverlayStyle(
       statusBarColor: theme.scaffoldBackgroundColor,
@@ -559,7 +474,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
       systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
     );
 
-    // Row defs
     final rows = <_RowDef>[];
 
     // Sort
@@ -579,7 +493,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
               setState(() {
                 _f = _f.copyWith(sortBy: v);
                 _sortExpanded = false;
-                // sortBy 改了可能导致 timeRange 不适用（由 source 决定；这里不强行清）
               });
               _commitApply();
             },
@@ -593,18 +506,19 @@ class _FilterDrawerState extends State<FilterDrawer> {
       rows.add(
         _RowDef(
           title: '时间范围',
-          valueLabel: _f.timeRange == null || _f.timeRange!.trim().isEmpty
+          valueLabel: (_f.timeRange ?? '').trim().isEmpty
               ? '不限'
-              : _summaryOptions({_f.timeRange!}, caps.timeRangeOptions),
+              : _summaryOptions({_f.timeRange!.trim()}, caps.timeRangeOptions),
           expanded: _timeRangeExpanded,
           onToggle: () => setState(() => _timeRangeExpanded = !_timeRangeExpanded),
           child: _singlePickListNullable<String>(
             context: context,
             items: caps.timeRangeOptions.map((o) => _PickItem<String>(o.id, o.label)).toList(),
-            value: (_f.timeRange ?? '').trim().isEmpty ? null : _f.timeRange,
+            value: (_f.timeRange ?? '').trim().isEmpty ? null : _f.timeRange!.trim(),
             onPick: (v) {
               setState(() {
-                _f = _f.copyWith(timeRange: v);
+                final vv = (v ?? '').trim();
+                _f = _f.copyWith(timeRange: vv.isEmpty ? null : vv);
                 _timeRangeExpanded = false;
               });
               _commitApply();
@@ -642,7 +556,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
       );
     }
 
-    // Categories (source-defined)
+    // Categories
     if (caps.supportsCategories && caps.categoryOptions.isNotEmpty) {
       rows.add(
         _RowDef(
@@ -663,7 +577,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
       );
     }
 
-    // Rating (safe/questionable/explicit)
+    // Rating
     if (caps.supportsRating && caps.ratingOptions.isNotEmpty) {
       rows.add(
         _RowDef(
@@ -673,9 +587,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
           onToggle: () => setState(() => _ratingExpanded = !_ratingExpanded),
           child: _multiOptionPicker(
             context: context,
-            options: caps.ratingOptions
-                .map((r) => OptionItem(id: r.name, label: _ratingLabel(r)))
-                .toList(),
+            options: caps.ratingOptions.map((r) => OptionItem(id: r.name, label: _ratingLabel(r))).toList(),
             selectedIds: _f.rating.map((e) => e.name).toSet(),
             onChanged: (set) {
               final next = <RatingLevel>{};
@@ -723,13 +635,12 @@ class _FilterDrawerState extends State<FilterDrawer> {
           onToggle: () => setState(() => _atleastExpanded = !_atleastExpanded),
           child: _singlePickListNullable<String>(
             context: context,
-            items: caps.atleastOptions
-                .map((e) => _PickItem<String>(e, e.isEmpty ? '不限' : e))
-                .toList(),
-            value: (_f.atleast ?? '').trim().isEmpty ? null : _f.atleast,
+            items: caps.atleastOptions.map((e) => _PickItem<String>(e, e.isEmpty ? '不限' : e)).toList(),
+            value: (_f.atleast ?? '').trim().isEmpty ? null : _f.atleast!.trim(),
             onPick: (v) {
               setState(() {
-                _f = _f.copyWith(atleast: v);
+                final vv = (v ?? '').trim();
+                _f = _f.copyWith(atleast: vv.isEmpty ? null : vv);
                 _atleastExpanded = false;
               });
               _commitApply();
@@ -762,16 +673,17 @@ class _FilterDrawerState extends State<FilterDrawer> {
 
     // Color
     if (caps.supportsColor && caps.colorOptions.isNotEmpty) {
+      final current = (_f.color ?? '').trim().replaceAll('#', '').toUpperCase();
       rows.add(
         _RowDef(
           title: '颜色（十六进制）',
-          valueLabel: (_f.color ?? '').trim().isEmpty ? '不限' : _f.color!.trim().toUpperCase(),
+          valueLabel: current.isEmpty ? '不限' : current,
           expanded: _colorExpanded,
           onToggle: () => setState(() => _colorExpanded = !_colorExpanded),
           child: _singlePickListNullable<String>(
             context: context,
             items: caps.colorOptions.map((c) => _PickItem<String>(c, c.toUpperCase())).toList(),
-            value: (_f.color ?? '').trim().isEmpty ? null : _f.color!.trim().replaceAll('#', ''),
+            value: current.isEmpty ? null : current,
             onPick: (v) {
               setState(() {
                 final vv = (v ?? '').trim().replaceAll('#', '');
@@ -780,18 +692,15 @@ class _FilterDrawerState extends State<FilterDrawer> {
               });
               _commitApply();
             },
-            emptyLabel: '不限',
           ),
         ),
       );
     }
 
-    // group rows render
     final groupRows = <Widget>[];
     for (int i = 0; i < rows.length; i++) {
       final def = rows[i];
       final br = _groupRadiusFor(context, i, rows.length);
-
       groupRows.add(
         _groupCollapseRow(
           context: context,
@@ -844,7 +753,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
                       ],
                     ),
                     const SizedBox(height: 10),
-
                     Expanded(
                       child: ListView(
                         children: [
@@ -864,7 +772,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
                   ],
                 ),
               ),
-
               Positioned(
                 right: 16,
                 bottom: 16,
@@ -878,7 +785,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
   }
 }
 
-// ====== Keyword input ======
 class _KeywordInput extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
@@ -944,7 +850,6 @@ class _SettingsFab extends StatelessWidget {
   }
 }
 
-// tiny models
 class _PickItem<T> {
   final T value;
   final String label;
@@ -965,102 +870,4 @@ class _RowDef {
     required this.onToggle,
     required this.child,
   });
-}
-
-// ---------------------------
-// ✅ 可选：FilterSpec JSON 持久化工具（给 main.dart 用）
-// 你要持久化就 copy 这俩函数到你想放的地方。
-// ---------------------------
-String filterSpecToJsonString(FilterSpec f) {
-  final map = <String, dynamic>{
-    'text': f.text,
-    'sortBy': f.sortBy?.name,
-    'order': f.order?.name,
-    'resolutions': f.resolutions.toList(),
-    'atleast': f.atleast,
-    'ratios': f.ratios.toList(),
-    'color': f.color,
-    'rating': f.rating.map((e) => e.name).toList(),
-    'categories': f.categories.toList(),
-    'timeRange': f.timeRange,
-  };
-  return jsonEncode(map);
-}
-
-FilterSpec filterSpecFromJsonString(String raw) {
-  final decoded = jsonDecode(raw);
-  if (decoded is! Map) return const FilterSpec();
-  final m = decoded.cast<String, dynamic>();
-
-  SortBy? sortBy;
-  final sb = m['sortBy'];
-  if (sb is String) {
-    for (final e in SortBy.values) {
-      if (e.name == sb) sortBy = e;
-    }
-  }
-
-  SortOrder? order;
-  final od = m['order'];
-  if (od is String) {
-    for (final e in SortOrder.values) {
-      if (e.name == od) order = e;
-    }
-  }
-
-  final resolutions = <String>{};
-  final rr = m['resolutions'];
-  if (rr is List) {
-    for (final e in rr) {
-      final s = e?.toString().trim() ?? '';
-      if (s.isNotEmpty) resolutions.add(s);
-    }
-  }
-
-  final ratios = <String>{};
-  final ra = m['ratios'];
-  if (ra is List) {
-    for (final e in ra) {
-      final s = e?.toString().trim() ?? '';
-      if (s.isNotEmpty) ratios.add(s);
-    }
-  }
-
-  final rating = <RatingLevel>{};
-  final rt = m['rating'];
-  if (rt is List) {
-    for (final e in rt) {
-      final s = e?.toString().trim() ?? '';
-      for (final r in RatingLevel.values) {
-        if (r.name == s) rating.add(r);
-      }
-    }
-  }
-
-  final categories = <String>{};
-  final cc = m['categories'];
-  if (cc is List) {
-    for (final e in cc) {
-      final s = e?.toString().trim() ?? '';
-      if (s.isNotEmpty) categories.add(s);
-    }
-  }
-
-  final text = (m['text'] ?? '').toString();
-  final atleast = (m['atleast'] ?? '').toString().trim();
-  final color = (m['color'] ?? '').toString().trim();
-  final timeRange = (m['timeRange'] ?? '').toString().trim();
-
-  return FilterSpec(
-    text: text,
-    sortBy: sortBy,
-    order: order,
-    resolutions: resolutions,
-    atleast: atleast.isEmpty ? null : atleast,
-    ratios: ratios,
-    color: color.isEmpty ? null : color.replaceAll('#', ''),
-    rating: rating,
-    categories: categories,
-    timeRange: timeRange.isEmpty ? null : timeRange,
-  );
 }
