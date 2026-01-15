@@ -10,6 +10,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dio/dio.dart';
 
 import 'theme/app_theme.dart';
 import 'theme/theme_store.dart';
@@ -96,6 +97,9 @@ class _HomePageState extends State<HomePage> {
   // ✅ 用于检测“切源”并自动刷新
   String? _lastSourceConfigId;
 
+  // ✅ 复用 Dio，避免每次请求都 new 一个
+  final Dio _dio = Dio();
+
   WallhavenFilters _filters = const WallhavenFilters();
 
   @override
@@ -173,19 +177,35 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _initData() async {
+    if (_isLoading) return;
     setState(() => _isLoading = true);
+
     _page = 1;
     _wallpapers.clear();
-    await _fetchWallpapers();
-    if (mounted) setState(() => _isLoading = false);
+
+    final ok = await _fetchWallpapers(page: 1);
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+
+    // ok == false 时已经 snack 了，不额外处理
+    (void)ok;
   }
 
   Future<void> _loadMore() async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
-    _page++;
-    await _fetchWallpapers();
-    if (mounted) setState(() => _isLoading = false);
+
+    final nextPage = _page + 1;
+    final ok = await _fetchWallpapers(page: nextPage);
+
+    // ✅ 只有成功才提交页码，避免失败跳页
+    if (ok) _page = nextPage;
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
   }
 
   /// ✅ 从插件配置中，拿到 wallhaven 的连接参数
@@ -205,21 +225,22 @@ class _HomePageState extends State<HomePage> {
     return (baseUrl: fixedBaseUrl, apiKey: fixedApiKey);
   }
 
-  Future<void> _fetchWallpapers() async {
+  Future<bool> _fetchWallpapers({required int page}) async {
     final store = ThemeScope.of(context);
     final f = _filters;
 
     try {
       final conn = _wallhavenConn(store);
 
-      // ✅ 迁移点：使用 WallhavenClient
+      // ✅ 迁移点：使用 WallhavenClient（复用 Dio）
       final client = WallhavenClient(
+        dio: _dio,
         baseUrl: conn.baseUrl,
         apiKey: conn.apiKey,
       );
 
       final newItems = await client.search(
-        page: _page,
+        page: page,
         sorting: f.sorting,
         order: f.order,
         categories: f.categories,
@@ -232,13 +253,15 @@ class _HomePageState extends State<HomePage> {
         topRange: (f.sorting == 'toplist') ? f.topRange : null,
       );
 
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() => _wallpapers.addAll(newItems));
+      return true;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('图源请求失败：$e')),
       );
+      return false;
     }
   }
 
@@ -314,10 +337,14 @@ class _HomePageState extends State<HomePage> {
           _lastSourceConfigId = currentId;
         } else if (_lastSourceConfigId != currentId) {
           _lastSourceConfigId = currentId;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _initData();
-          });
+
+          // ✅ 如果当前正在请求，别叠加刷新
+          if (!_isLoading) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              _initData();
+            });
+          }
         }
 
         final isDark = theme.brightness == Brightness.dark;
