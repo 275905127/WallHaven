@@ -78,7 +78,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
   late WallhavenFilters _f;
   late TextEditingController _qCtrl;
 
-  // 折叠状态：全部做成折叠
+  // 展开状态（全部折叠行）
   bool _sortingExpanded = false;
   bool _topRangeExpanded = false;
   bool _orderExpanded = false;
@@ -115,7 +115,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
     _PickItem('1y', '1 年'),
   ];
 
-  // 常用分辨率（官网同类常见项），参数格式：1920x1080
+  // 分辨率（精确匹配）常用项，参数格式：1920x1080（支持多选逗号分隔）
   static const List<String> _resolutionOptions = [
     '1280x720',
     '1366x768',
@@ -126,13 +126,13 @@ class _FilterDrawerState extends State<FilterDrawer> {
     '2560x1600',
     '3440x1440',
     '3840x2160',
-    // 竖屏常用（仍是官方格式）
+    // 竖屏
     '1080x1920',
     '1440x2560',
     '2160x3840',
   ];
 
-  // 最小分辨率 atleast（单选）
+  // atleast（至少）单选
   static const List<String> _atleastOptions = [
     '', // 不限
     '1280x720',
@@ -146,7 +146,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
     '2160x3840',
   ];
 
-  // 常用比例（参数格式：16x9）
+  // 比例 ratios（多选，逗号分隔），参数格式：16x9
   static const List<String> _ratioOptions = [
     '16x9',
     '16x10',
@@ -156,12 +156,12 @@ class _FilterDrawerState extends State<FilterDrawer> {
     '3x2',
     '5x4',
     '1x1',
-    // 竖屏常用
+    // 竖屏
     '9x16',
     '10x16',
   ];
 
-  // 颜色（单选，参数格式：RRGGBB，不带 #）
+  // colors：单选，RRGGBB（不带 #）
   static const List<String> _colorOptions = [
     '000000',
     '111111',
@@ -179,7 +179,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
     'DDDDDD',
     'EEEEEE',
     'FFFFFF',
-    // 常用色（仍只显示为灰阶文本 chip，不搞花色 UI）
+    // 常用色（仍保持克制，仅文本）
     '660000',
     '006600',
     '000066',
@@ -229,78 +229,137 @@ class _FilterDrawerState extends State<FilterDrawer> {
     );
   }
 
-  // =========================
-  // 折叠卡片：全局卡片样式 + 全局圆角
-  // =========================
-  Widget _collapseCard({
+  // ====== SettingsGroup 风格：2px 背景缝 + 连接处 smallRadius(固定4) + 外轮廓走全局 cardRadius ======
+
+  BorderRadius _groupRadiusFor(BuildContext context, int index, int length) {
+    final tokens = Theme.of(context).extension<AppTokens>()!;
+    final largeRadius = ThemeScope.of(context).cardRadius;
+    final small = tokens.smallRadius;
+
+    final isFirst = index == 0;
+    final isLast = index == length - 1;
+    final isSingle = length == 1;
+
+    if (isSingle) return BorderRadius.circular(largeRadius);
+
+    if (isFirst) {
+      return BorderRadius.only(
+        topLeft: Radius.circular(largeRadius),
+        topRight: Radius.circular(largeRadius),
+        bottomLeft: Radius.circular(small),
+        bottomRight: Radius.circular(small),
+      );
+    }
+
+    if (isLast) {
+      return BorderRadius.only(
+        topLeft: Radius.circular(small),
+        topRight: Radius.circular(small),
+        bottomLeft: Radius.circular(largeRadius),
+        bottomRight: Radius.circular(largeRadius),
+      );
+    }
+
+    return BorderRadius.circular(small);
+  }
+
+  Widget _groupGap(BuildContext context) {
+    final tokens = Theme.of(context).extension<AppTokens>()!;
+    return Container(
+      height: tokens.dividerThickness,
+      color: tokens.dividerColor,
+    );
+  }
+
+  // 折叠行（像 SettingsItem 一样的“行”），右侧三角；展开内容直接接在同一张卡里
+  Widget _groupCollapseRow({
     required BuildContext context,
+    required String title,
     required String valueLabel,
     required bool expanded,
     required VoidCallback onToggle,
     required Widget expandedChild,
+    required BorderRadius borderRadius,
+    required bool showBottomGap,
   }) {
     final theme = Theme.of(context);
-    final mono = _monoPrimary(context);
     final tokens = theme.extension<AppTokens>()!;
-    final r = ThemeScope.of(context).cardRadius;
+    final mono = _monoPrimary(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(r),
-        border: Border.all(color: mono.withOpacity(0.12)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          InkWell(
-            onTap: onToggle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      valueLabel,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: theme.textTheme.bodyLarge?.color,
-                        fontWeight: FontWeight.w600,
-                      ),
+    return Column(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: borderRadius,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onToggle,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          valueLabel,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: theme.textTheme.bodyMedium?.color,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        AnimatedRotation(
+                          turns: expanded ? 0.5 : 0.0,
+                          duration: tokens.expandDuration,
+                          curve: tokens.expandCurve,
+                          child: Icon(Icons.keyboard_arrow_down, color: tokens.chevronColor),
+                        ),
+                      ],
                     ),
                   ),
-                  AnimatedRotation(
-                    turns: expanded ? 0.5 : 0.0,
-                    duration: tokens.expandDuration,
-                    curve: tokens.expandCurve,
-                    child: Icon(
-                      Icons.keyboard_arrow_down,
-                      color: mono.withOpacity(0.75),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              AnimatedCrossFade(
+                firstChild: const SizedBox.shrink(),
+                secondChild: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(color: mono.withOpacity(0.10), width: 1),
+                    ),
+                  ),
+                  child: expandedChild,
+                ),
+                crossFadeState: expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                duration: tokens.expandDuration,
+                firstCurve: tokens.expandCurve,
+                secondCurve: tokens.expandCurve,
+              ),
+            ],
           ),
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: expandedChild,
-            crossFadeState: expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-            duration: tokens.expandDuration,
-            firstCurve: tokens.expandCurve,
-            secondCurve: tokens.expandCurve,
-          ),
-        ],
-      ),
+        ),
+        if (showBottomGap) _groupGap(context),
+      ],
     );
   }
 
-  // 单选折叠：展开后列表 + 当前对号
-  Widget _collapseSinglePick({
+  Widget _singlePickList({
     required BuildContext context,
-    required String valueLabel,
-    required bool expanded,
-    required VoidCallback onToggle,
     required List<_PickItem<String>> items,
     required String value,
     required ValueChanged<String> onPick,
@@ -308,73 +367,57 @@ class _FilterDrawerState extends State<FilterDrawer> {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
 
-    Widget optionRow(_PickItem<String> it, bool isLast) {
-      final selected = it.value == value;
-      return InkWell(
-        onTap: () => onPick(it.value),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: theme.cardColor,
-            border: Border(
-              bottom: isLast ? BorderSide.none : BorderSide(color: mono.withOpacity(0.10), width: 1),
+    return Column(
+      children: List.generate(items.length, (i) {
+        final it = items[i];
+        final selected = it.value == value;
+        final isLast = i == items.length - 1;
+
+        return InkWell(
+          onTap: () => onPick(it.value),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              border: Border(
+                bottom: isLast ? BorderSide.none : BorderSide(color: mono.withOpacity(0.10), width: 1),
+              ),
             ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  it.label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: theme.textTheme.bodyLarge?.color,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    it.label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: theme.textTheme.bodyLarge?.color,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    ),
                   ),
                 ),
-              ),
-              if (selected) Icon(Icons.check, size: 18, color: mono),
-            ],
+                if (selected) Icon(Icons.check, size: 18, color: mono),
+              ],
+            ),
           ),
-        ),
-      );
-    }
-
-    return _collapseCard(
-      context: context,
-      valueLabel: valueLabel,
-      expanded: expanded,
-      onToggle: onToggle,
-      expandedChild: Column(
-        children: List.generate(items.length, (i) {
-          final it = items[i];
-          final isLast = i == items.length - 1;
-          return optionRow(it, isLast);
-        }),
-      ),
+        );
+      }),
     );
   }
 
-  // 多选折叠：用 chip（参数是逗号分隔）
-  Widget _collapseMultiPickChips({
+  Widget _multiChipPicker({
     required BuildContext context,
-    required String valueLabel,
-    required bool expanded,
-    required VoidCallback onToggle,
     required List<String> options,
     required Set<String> selected,
     required ValueChanged<Set<String>> onChanged,
-    String emptyHint = '不限',
   }) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
-    final tokens = theme.extension<AppTokens>()!;
-    final innerR = tokens.smallRadius;
 
-    Widget chip(String text, bool isOn) {
+    Widget chip(String text, bool on) {
       return InkWell(
         onTap: () {
           final next = Set<String>.from(selected);
-          if (isOn) {
+          if (on) {
             next.remove(text);
           } else {
             next.add(text);
@@ -385,206 +428,85 @@ class _FilterDrawerState extends State<FilterDrawer> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: isOn ? mono.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.08) : theme.cardColor,
+            color: on ? mono.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.08) : theme.cardColor,
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
               width: 1,
-              color: isOn ? mono.withOpacity(0.40) : mono.withOpacity(0.12),
+              color: on ? mono.withOpacity(0.40) : mono.withOpacity(0.12),
             ),
           ),
           child: Text(
             text,
             style: TextStyle(
               fontSize: 14,
-              color: isOn ? mono : theme.textTheme.bodyLarge?.color,
-              fontWeight: isOn ? FontWeight.w600 : FontWeight.w400,
+              color: on ? mono : theme.textTheme.bodyLarge?.color,
+              fontWeight: on ? FontWeight.w600 : FontWeight.w400,
             ),
           ),
         ),
       );
     }
 
-    return _collapseCard(
-      context: context,
-      valueLabel: valueLabel.isEmpty ? emptyHint : valueLabel,
-      expanded: expanded,
-      onToggle: onToggle,
-      expandedChild: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          border: Border(top: BorderSide(color: mono.withOpacity(0.10), width: 1)),
-          borderRadius: BorderRadius.only(
-            bottomLeft: Radius.circular(innerR),
-            bottomRight: Radius.circular(innerR),
-          ),
-        ),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: options.map((o) => chip(o, selected.contains(o))).toList(),
-        ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: options.map((o) => chip(o, selected.contains(o))).toList(),
       ),
     );
   }
 
-  // 多选折叠：checkbox 列表（分类 / 分级）
-  Widget _collapseMultiCheck({
+  Widget _multiCheckList({
     required BuildContext context,
-    required String valueLabel,
-    required bool expanded,
-    required VoidCallback onToggle,
     required List<_CheckItem> items,
   }) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
-    final tokens = theme.extension<AppTokens>()!;
-    final innerR = tokens.smallRadius;
 
-    Widget row(_CheckItem it, bool isLast) {
-      final selected = it.value;
-      return InkWell(
-        onTap: () => it.onChanged(!selected),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: theme.cardColor,
-            border: Border(
-              bottom: isLast ? BorderSide.none : BorderSide(color: mono.withOpacity(0.10), width: 1),
-            ),
-          ),
-          child: Row(
-            children: [
-              Checkbox(
-                value: selected,
-                onChanged: (v) => it.onChanged(v ?? false),
-                checkColor: theme.brightness == Brightness.dark ? Colors.black : Colors.white,
-                fillColor: MaterialStateProperty.resolveWith((states) {
-                  if (states.contains(MaterialState.selected)) return mono;
-                  return mono.withOpacity(0.08);
-                }),
-                side: BorderSide(color: mono.withOpacity(0.18)),
+    return Column(
+      children: List.generate(items.length, (i) {
+        final it = items[i];
+        final isLast = i == items.length - 1;
+
+        return InkWell(
+          onTap: () => it.onChanged(!it.value),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              border: Border(
+                bottom: isLast ? BorderSide.none : BorderSide(color: mono.withOpacity(0.10), width: 1),
               ),
-              Expanded(
-                child: Text(
-                  it.label,
-                  style: TextStyle(fontSize: 14, color: theme.textTheme.bodyLarge?.color),
+            ),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: it.value,
+                  onChanged: (v) => it.onChanged(v ?? false),
+                  checkColor: theme.brightness == Brightness.dark ? Colors.black : Colors.white,
+                  fillColor: MaterialStateProperty.resolveWith((states) {
+                    if (states.contains(MaterialState.selected)) return mono;
+                    return mono.withOpacity(0.08);
+                  }),
+                  side: BorderSide(color: mono.withOpacity(0.18)),
                 ),
-              ),
-              if (selected) Icon(Icons.check, size: 18, color: mono),
-            ],
+                Expanded(
+                  child: Text(
+                    it.label,
+                    style: TextStyle(fontSize: 14, color: theme.textTheme.bodyLarge?.color),
+                  ),
+                ),
+                if (it.value) Icon(Icons.check, size: 18, color: mono),
+              ],
+            ),
           ),
-        ),
-      );
-    }
-
-    return _collapseCard(
-      context: context,
-      valueLabel: valueLabel,
-      expanded: expanded,
-      onToggle: onToggle,
-      expandedChild: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          border: Border(top: BorderSide(color: mono.withOpacity(0.10), width: 1)),
-          borderRadius: BorderRadius.only(
-            bottomLeft: Radius.circular(innerR),
-            bottomRight: Radius.circular(innerR),
-          ),
-        ),
-        child: Column(
-          children: List.generate(items.length, (i) {
-            final isLast = i == items.length - 1;
-            return row(items[i], isLast);
-          }),
-        ),
-      ),
+        );
+      }),
     );
   }
 
-  // 单行输入折叠（用于你还想保留输入能力时）
-  Widget _collapseInput({
-    required BuildContext context,
-    required String valueLabel,
-    required bool expanded,
-    required VoidCallback onToggle,
-    required String value,
-    required String hint,
-    required ValueChanged<String> onChanged,
-  }) {
-    final theme = Theme.of(context);
-    final mono = _monoPrimary(context);
-    final tokens = theme.extension<AppTokens>()!;
-    final innerR = tokens.smallRadius;
-
-    final ctrl = TextEditingController(text: value);
-
-    return _collapseCard(
-      context: context,
-      valueLabel: valueLabel,
-      expanded: expanded,
-      onToggle: onToggle,
-      expandedChild: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          border: Border(top: BorderSide(color: mono.withOpacity(0.10), width: 1)),
-          borderRadius: BorderRadius.only(
-            bottomLeft: Radius.circular(innerR),
-            bottomRight: Radius.circular(innerR),
-          ),
-        ),
-        child: TextField(
-          controller: ctrl,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(color: theme.textTheme.bodyMedium?.color),
-            filled: true,
-            fillColor: theme.cardColor,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: mono.withOpacity(0.12)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: mono.withOpacity(0.12)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: mono.withOpacity(0.35)),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          ),
-          style: TextStyle(color: theme.textTheme.bodyLarge?.color),
-          onChanged: onChanged,
-        ),
-      ),
-    );
-  }
-
-  // ====== bits / helpers ======
-
-  String _catBit(String old, int index, bool on) {
-    final chars = old.padRight(3, '1').split('');
-    if (index >= 0 && index < 3) chars[index] = on ? '1' : '0';
-    return chars.take(3).join();
-  }
-
-  String _purityBit(String old, int index, bool on) {
-    final chars = old.padRight(3, '0').split('');
-    if (index >= 0 && index < 3) chars[index] = on ? '1' : '0';
-    return chars.take(3).join();
-  }
-
-  String _labelFromPick(List<_PickItem<String>> items, String value, {String fallback = '-'}) {
-    for (final it in items) {
-      if (it.value == value) return it.label;
-    }
-    return fallback;
-  }
+  // ===== CSV helpers =====
 
   Set<String> _csvToSet(String csv) {
     final s = csv.trim();
@@ -598,13 +520,19 @@ class _FilterDrawerState extends State<FilterDrawer> {
     return list.join(',');
   }
 
+  String _labelFromPick(List<_PickItem<String>> items, String value, {String fallback = '-'}) {
+    for (final it in items) {
+      if (it.value == value) return it.label;
+    }
+    return fallback;
+  }
+
   String _summaryCsv(String csv, {String empty = '不限'}) {
     final set = _csvToSet(csv);
     if (set.isEmpty) return empty;
     final list = set.toList()..sort();
     if (list.length <= 2) return list.join('，');
     return '${list.take(2).join('，')} 等 ${list.length} 项';
-    // 不搞长串，保持克制
   }
 
   String _summaryCategories() {
@@ -641,14 +569,212 @@ class _FilterDrawerState extends State<FilterDrawer> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
-    final tokens = theme.extension<AppTokens>()!;
 
-    // 全局卡片圆角来自 ThemeStore（滑条）
-    // 这里不需要额外引用 cardRadius 变量，每个折叠卡片内部都会取 ThemeScope.cardRadius
-
-    // resolutions / ratios 多选
     final selectedRes = _csvToSet(_f.resolutions);
     final selectedRatios = _csvToSet(_f.ratios);
+    final colorsValue = _f.colors.trim().replaceAll('#', '');
+
+    // —— 折叠行“组”：按 SettingsGroup 规则堆叠
+    final groupRows = <Widget>[];
+
+    // 1) 排序方式
+    // 2) 榜单时间范围（仅 toplist）
+    // 3) 排序方向
+    // 4) 分类
+    // 5) 分级
+    // 6) 分辨率
+    // 7) 最小分辨率
+    // 8) 比例
+    // 9) 颜色
+    final rowDefs = <_RowDef>[
+      _RowDef(
+        title: '排序方式',
+        valueLabel: _labelFromPick(_sortingItems, _f.sorting, fallback: _f.sorting),
+        expanded: _sortingExpanded,
+        onToggle: () => setState(() => _sortingExpanded = !_sortingExpanded),
+        child: _singlePickList(
+          context: context,
+          items: _sortingItems,
+          value: _f.sorting,
+          onPick: (v) {
+            setState(() {
+              _f = _f.copyWith(sorting: v);
+              _sortingExpanded = false;
+              if (v != 'toplist') _topRangeExpanded = false;
+            });
+          },
+        ),
+      ),
+      if (_f.sorting == 'toplist')
+        _RowDef(
+          title: '榜单时间范围',
+          valueLabel: _labelFromPick(_topRangeItems, _f.topRange, fallback: _f.topRange),
+          expanded: _topRangeExpanded,
+          onToggle: () => setState(() => _topRangeExpanded = !_topRangeExpanded),
+          child: _singlePickList(
+            context: context,
+            items: _topRangeItems,
+            value: _f.topRange,
+            onPick: (v) {
+              setState(() {
+                _f = _f.copyWith(topRange: v);
+                _topRangeExpanded = false;
+              });
+            },
+          ),
+        ),
+      _RowDef(
+        title: '排序方向',
+        valueLabel: _labelFromPick(_orderItems, _f.order, fallback: _f.order),
+        expanded: _orderExpanded,
+        onToggle: () => setState(() => _orderExpanded = !_orderExpanded),
+        child: _singlePickList(
+          context: context,
+          items: _orderItems,
+          value: _f.order,
+          onPick: (v) {
+            setState(() {
+              _f = _f.copyWith(order: v);
+              _orderExpanded = false;
+            });
+          },
+        ),
+      ),
+      _RowDef(
+        title: '分类',
+        valueLabel: _summaryCategories(),
+        expanded: _categoriesExpanded,
+        onToggle: () => setState(() => _categoriesExpanded = !_categoriesExpanded),
+        child: _multiCheckList(
+          context: context,
+          items: [
+            _CheckItem(
+              label: '常规',
+              value: _f.categories.length > 0 ? _f.categories[0] == '1' : true,
+              onChanged: (v) => setState(() => _f = _f.copyWith(categories: _bit3(_f.categories, 0, v, defaultPad: '1'))),
+            ),
+            _CheckItem(
+              label: '动漫',
+              value: _f.categories.length > 1 ? _f.categories[1] == '1' : true,
+              onChanged: (v) => setState(() => _f = _f.copyWith(categories: _bit3(_f.categories, 1, v, defaultPad: '1'))),
+            ),
+            _CheckItem(
+              label: '人物',
+              value: _f.categories.length > 2 ? _f.categories[2] == '1' : true,
+              onChanged: (v) => setState(() => _f = _f.copyWith(categories: _bit3(_f.categories, 2, v, defaultPad: '1'))),
+            ),
+          ],
+        ),
+      ),
+      _RowDef(
+        title: '分级',
+        valueLabel: _summaryPurity(),
+        expanded: _purityExpanded,
+        onToggle: () => setState(() => _purityExpanded = !_purityExpanded),
+        child: _multiCheckList(
+          context: context,
+          items: [
+            _CheckItem(
+              label: 'SFW',
+              value: _f.purity.length > 0 ? _f.purity[0] == '1' : true,
+              onChanged: (v) => setState(() => _f = _f.copyWith(purity: _bit3(_f.purity, 0, v, defaultPad: '0'))),
+            ),
+            _CheckItem(
+              label: 'Sketchy',
+              value: _f.purity.length > 1 ? _f.purity[1] == '1' : false,
+              onChanged: (v) => setState(() => _f = _f.copyWith(purity: _bit3(_f.purity, 1, v, defaultPad: '0'))),
+            ),
+            _CheckItem(
+              label: 'NSFW',
+              value: _f.purity.length > 2 ? _f.purity[2] == '1' : false,
+              onChanged: (v) => setState(() => _f = _f.copyWith(purity: _bit3(_f.purity, 2, v, defaultPad: '0'))),
+            ),
+          ],
+        ),
+      ),
+      _RowDef(
+        title: '分辨率（精确匹配）',
+        valueLabel: _summaryCsv(_f.resolutions),
+        expanded: _resolutionsExpanded,
+        onToggle: () => setState(() => _resolutionsExpanded = !_resolutionsExpanded),
+        child: _multiChipPicker(
+          context: context,
+          options: _resolutionOptions,
+          selected: selectedRes,
+          onChanged: (set) => setState(() => _f = _f.copyWith(resolutions: _setToCsv(set))),
+        ),
+      ),
+      _RowDef(
+        title: '最小分辨率（至少）',
+        valueLabel: _summaryAtleast(),
+        expanded: _atleastExpanded,
+        onToggle: () => setState(() => _atleastExpanded = !_atleastExpanded),
+        child: _singlePickList(
+          context: context,
+          items: [
+            const _PickItem('', '不限'),
+            ..._atleastOptions.where((e) => e.isNotEmpty).map((e) => _PickItem(e, e)),
+          ],
+          value: _f.atleast.trim(),
+          onPick: (v) {
+            setState(() {
+              _f = _f.copyWith(atleast: v.trim());
+              _atleastExpanded = false;
+            });
+          },
+        ),
+      ),
+      _RowDef(
+        title: '比例',
+        valueLabel: _summaryCsv(_f.ratios),
+        expanded: _ratiosExpanded,
+        onToggle: () => setState(() => _ratiosExpanded = !_ratiosExpanded),
+        child: _multiChipPicker(
+          context: context,
+          options: _ratioOptions,
+          selected: selectedRatios,
+          onChanged: (set) => setState(() => _f = _f.copyWith(ratios: _setToCsv(set))),
+        ),
+      ),
+      _RowDef(
+        title: '颜色（十六进制）',
+        valueLabel: _summaryColor(),
+        expanded: _colorsExpanded,
+        onToggle: () => setState(() => _colorsExpanded = !_colorsExpanded),
+        child: _singlePickList(
+          context: context,
+          items: [
+            const _PickItem('', '不限'),
+            ..._colorOptions.map((c) => _PickItem(c, c.toUpperCase())),
+          ],
+          value: colorsValue,
+          onPick: (v) {
+            setState(() {
+              _f = _f.copyWith(colors: v.trim().replaceAll('#', ''));
+              _colorsExpanded = false;
+            });
+          },
+        ),
+      ),
+    ];
+
+    for (int i = 0; i < rowDefs.length; i++) {
+      final def = rowDefs[i];
+      final br = _groupRadiusFor(context, i, rowDefs.length);
+
+      groupRows.add(
+        _groupCollapseRow(
+          context: context,
+          title: def.title,
+          valueLabel: def.valueLabel,
+          expanded: def.expanded,
+          onToggle: def.onToggle,
+          expandedChild: def.child,
+          borderRadius: br,
+          showBottomGap: i != rowDefs.length - 1,
+        ),
+      );
+    }
 
     return SafeArea(
       child: Material(
@@ -685,236 +811,18 @@ class _FilterDrawerState extends State<FilterDrawer> {
               Expanded(
                 child: ListView(
                   children: [
-                    // 关键词（也做折叠：收起时不占空间）
+                    // ✅ 关键词：不折叠，独立输入框
                     _section(
                       context,
                       "关键词",
-                      _collapseInput(
-                        context: context,
-                        valueLabel: _qCtrl.text.trim().isEmpty ? '不限' : _qCtrl.text.trim(),
-                        expanded: true, // 关键词保持常开更顺手，你要也可改成状态变量
-                        onToggle: () {},
-                        value: _qCtrl.text,
-                        hint: "输入关键字（留空为不限）",
-                        onChanged: (v) => setState(() {
-                          _qCtrl.text = v;
-                          _qCtrl.selection = TextSelection.fromPosition(TextPosition(offset: _qCtrl.text.length));
-                          _f = _f.copyWith(query: v);
-                        }),
+                      _KeywordInput(
+                        controller: _qCtrl,
+                        onChanged: (v) => setState(() => _f = _f.copyWith(query: v)),
                       ),
                     ),
 
-                    // 排序方式：折叠单选
-                    _section(
-                      context,
-                      "排序方式",
-                      _collapseSinglePick(
-                        context: context,
-                        valueLabel: _labelFromPick(_sortingItems, _f.sorting, fallback: _f.sorting),
-                        expanded: _sortingExpanded,
-                        onToggle: () => setState(() => _sortingExpanded = !_sortingExpanded),
-                        items: _sortingItems,
-                        value: _f.sorting,
-                        onPick: (v) {
-                          setState(() {
-                            _f = _f.copyWith(sorting: v);
-                            _sortingExpanded = false;
-                            // 切换排序时，如果不在 toplist，就收起榜单时间范围
-                            if (v != 'toplist') _topRangeExpanded = false;
-                          });
-                        },
-                      ),
-                    ),
-
-                    // 榜单时间范围：折叠单选（仅 toplist 显示）
-                    if (_f.sorting == 'toplist')
-                      _section(
-                        context,
-                        "榜单时间范围",
-                        _collapseSinglePick(
-                          context: context,
-                          valueLabel: _labelFromPick(_topRangeItems, _f.topRange, fallback: _f.topRange),
-                          expanded: _topRangeExpanded,
-                          onToggle: () => setState(() => _topRangeExpanded = !_topRangeExpanded),
-                          items: _topRangeItems,
-                          value: _f.topRange,
-                          onPick: (v) {
-                            setState(() {
-                              _f = _f.copyWith(topRange: v);
-                              _topRangeExpanded = false;
-                            });
-                          },
-                        ),
-                      ),
-
-                    // 排序方向：折叠单选
-                    _section(
-                      context,
-                      "排序方向",
-                      _collapseSinglePick(
-                        context: context,
-                        valueLabel: _labelFromPick(_orderItems, _f.order, fallback: _f.order),
-                        expanded: _orderExpanded,
-                        onToggle: () => setState(() => _orderExpanded = !_orderExpanded),
-                        items: _orderItems,
-                        value: _f.order,
-                        onPick: (v) {
-                          setState(() {
-                            _f = _f.copyWith(order: v);
-                            _orderExpanded = false;
-                          });
-                        },
-                      ),
-                    ),
-
-                    // 分类：折叠多选（checkbox）
-                    _section(
-                      context,
-                      "分类",
-                      _collapseMultiCheck(
-                        context: context,
-                        valueLabel: _summaryCategories(),
-                        expanded: _categoriesExpanded,
-                        onToggle: () => setState(() => _categoriesExpanded = !_categoriesExpanded),
-                        items: [
-                          _CheckItem(
-                            label: '常规',
-                            value: _f.categories.length > 0 ? _f.categories[0] == '1' : true,
-                            onChanged: (v) => setState(() => _f = _f.copyWith(categories: _catBit(_f.categories, 0, v))),
-                          ),
-                          _CheckItem(
-                            label: '动漫',
-                            value: _f.categories.length > 1 ? _f.categories[1] == '1' : true,
-                            onChanged: (v) => setState(() => _f = _f.copyWith(categories: _catBit(_f.categories, 1, v))),
-                          ),
-                          _CheckItem(
-                            label: '人物',
-                            value: _f.categories.length > 2 ? _f.categories[2] == '1' : true,
-                            onChanged: (v) => setState(() => _f = _f.copyWith(categories: _catBit(_f.categories, 2, v))),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // 分级（purity）：折叠多选
-                    _section(
-                      context,
-                      "分级",
-                      _collapseMultiCheck(
-                        context: context,
-                        valueLabel: _summaryPurity(),
-                        expanded: _purityExpanded,
-                        onToggle: () => setState(() => _purityExpanded = !_purityExpanded),
-                        items: [
-                          _CheckItem(
-                            label: 'SFW',
-                            value: _f.purity.length > 0 ? _f.purity[0] == '1' : true,
-                            onChanged: (v) => setState(() => _f = _f.copyWith(purity: _purityBit(_f.purity, 0, v))),
-                          ),
-                          _CheckItem(
-                            label: 'Sketchy',
-                            value: _f.purity.length > 1 ? _f.purity[1] == '1' : false,
-                            onChanged: (v) => setState(() => _f = _f.copyWith(purity: _purityBit(_f.purity, 1, v))),
-                          ),
-                          _CheckItem(
-                            label: 'NSFW',
-                            value: _f.purity.length > 2 ? _f.purity[2] == '1' : false,
-                            onChanged: (v) => setState(() => _f = _f.copyWith(purity: _purityBit(_f.purity, 2, v))),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // 分辨率 resolutions：折叠多选 chips（逗号分隔）
-                    _section(
-                      context,
-                      "分辨率（精确匹配）",
-                      _collapseMultiPickChips(
-                        context: context,
-                        valueLabel: _summaryCsv(_f.resolutions),
-                        expanded: _resolutionsExpanded,
-                        onToggle: () => setState(() => _resolutionsExpanded = !_resolutionsExpanded),
-                        options: _resolutionOptions,
-                        selected: selectedRes,
-                        onChanged: (set) => setState(() => _f = _f.copyWith(resolutions: _setToCsv(set))),
-                      ),
-                    ),
-
-                    // 最小分辨率 atleast：折叠单选（含不限）
-                    _section(
-                      context,
-                      "最小分辨率（至少）",
-                      _collapseSinglePick(
-                        context: context,
-                        valueLabel: _summaryAtleast(),
-                        expanded: _atleastExpanded,
-                        onToggle: () => setState(() => _atleastExpanded = !_atleastExpanded),
-                        items: _atleastOptions.map((v) {
-                          if (v.isEmpty) return const _PickItem('', '不限');
-                          return _PickItem(v, v);
-                        }).toList(),
-                        value: _f.atleast.trim(),
-                        onPick: (v) {
-                          setState(() {
-                            _f = _f.copyWith(atleast: v.trim());
-                            _atleastExpanded = false;
-                          });
-                        },
-                      ),
-                    ),
-
-                    // 比例 ratios：折叠多选 chips（逗号分隔）
-                    _section(
-                      context,
-                      "比例",
-                      _collapseMultiPickChips(
-                        context: context,
-                        valueLabel: _summaryCsv(_f.ratios),
-                        expanded: _ratiosExpanded,
-                        onToggle: () => setState(() => _ratiosExpanded = !_ratiosExpanded),
-                        options: _ratioOptions,
-                        selected: selectedRatios,
-                        onChanged: (set) => setState(() => _f = _f.copyWith(ratios: _setToCsv(set))),
-                      ),
-                    ),
-
-                    // 颜色 colors：折叠单选（RRGGBB）
-                    _section(
-                      context,
-                      "颜色（十六进制）",
-                      _collapseSinglePick(
-                        context: context,
-                        valueLabel: _summaryColor(),
-                        expanded: _colorsExpanded,
-                        onToggle: () => setState(() => _colorsExpanded = !_colorsExpanded),
-                        items: [
-                          const _PickItem('', '不限'),
-                          ..._colorOptions.map((c) => _PickItem(c, c.toUpperCase())),
-                        ],
-                        value: _f.colors.trim().replaceAll('#', ''),
-                        onPick: (v) {
-                          setState(() {
-                            _f = _f.copyWith(colors: v.trim().replaceAll('#', ''));
-                            _colorsExpanded = false;
-                          });
-                        },
-                      ),
-                    ),
-
-                    // 如果你还想保留“手动输入颜色”，可以把下面这段打开（但仍是折叠、黑白灰 UI）
-                    // _section(
-                    //   context,
-                    //   "颜色（手动输入）",
-                    //   _collapseInput(
-                    //     context: context,
-                    //     valueLabel: _summaryColor(),
-                    //     expanded: false,
-                    //     onToggle: () => setState(() => _colorsExpanded = !_colorsExpanded),
-                    //     value: _f.colors,
-                    //     hint: "例如 660000（留空为不限，不要带 #）",
-                    //     onChanged: (v) => setState(() => _f = _f.copyWith(colors: v.trim().replaceAll('#', ''))),
-                    //   ),
-                    // ),
+                    // ✅ 其它全部：SettingsGroup 风格折叠行
+                    ...groupRows,
                   ],
                 ),
               ),
@@ -926,9 +834,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
                     backgroundColor: mono,
                     foregroundColor: theme.brightness == Brightness.dark ? Colors.black : Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     elevation: 0,
                   ),
                   onPressed: () {
@@ -946,6 +852,59 @@ class _FilterDrawerState extends State<FilterDrawer> {
   }
 }
 
+// ====== 小组件：关键词输入（不折叠）======
+
+class _KeywordInput extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  const _KeywordInput({
+    required this.controller,
+    required this.onChanged,
+  });
+
+  Color _monoPrimary(BuildContext context) {
+    final b = Theme.of(context).brightness;
+    return b == Brightness.dark ? Colors.white : Colors.black;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final mono = _monoPrimary(context);
+
+    // 外轮廓跟随全局圆角
+    final r = ThemeScope.of(context).cardRadius;
+
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        hintText: "输入关键字（留空为不限）",
+        hintStyle: TextStyle(color: theme.textTheme.bodyMedium?.color),
+        filled: true,
+        fillColor: theme.cardColor,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(r),
+          borderSide: BorderSide(color: mono.withOpacity(0.12)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(r),
+          borderSide: BorderSide(color: mono.withOpacity(0.12)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(r),
+          borderSide: BorderSide(color: mono.withOpacity(0.35)),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      ),
+      style: TextStyle(color: theme.textTheme.bodyLarge?.color),
+      onChanged: onChanged,
+    );
+  }
+}
+
+// ====== tiny models ======
+
 class _PickItem<T> {
   final T value;
   final String label;
@@ -961,4 +920,27 @@ class _CheckItem {
     required this.value,
     required this.onChanged,
   });
+}
+
+class _RowDef {
+  final String title;
+  final String valueLabel;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final Widget child;
+
+  _RowDef({
+    required this.title,
+    required this.valueLabel,
+    required this.expanded,
+    required this.onToggle,
+    required this.child,
+  });
+}
+
+// 3 位 bit helper：categories 默认 pad '1'，purity 默认 pad '0'
+String _bit3(String old, int index, bool on, {required String defaultPad}) {
+  final chars = old.padRight(3, defaultPad).split('');
+  if (index >= 0 && index < 3) chars[index] = on ? '1' : '0';
+  return chars.take(3).join();
 }
