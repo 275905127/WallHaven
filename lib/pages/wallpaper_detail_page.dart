@@ -6,7 +6,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../api/wallhaven_api.dart';
 import '../models/wallpaper.dart';
 import '../theme/theme_store.dart';
-import '../widgets/foggy_app_bar.dart';
 
 class WallpaperDetailPage extends StatefulWidget {
   final String id;
@@ -25,19 +24,12 @@ class WallpaperDetailPage extends StatefulWidget {
 }
 
 class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
-  final ScrollController _sc = ScrollController();
-  bool _isScrolled = false;
-
   WallpaperDetail? _detail;
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _sc.addListener(() {
-      if (_sc.offset > 0 && !_isScrolled) setState(() => _isScrolled = true);
-      else if (_sc.offset <= 0 && _isScrolled) setState(() => _isScrolled = false);
-    });
     _load();
   }
 
@@ -53,12 +45,6 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
       _detail = data;
       _loading = false;
     });
-  }
-
-  @override
-  void dispose() {
-    _sc.dispose();
-    super.dispose();
   }
 
   Color _monoPrimary(BuildContext context) {
@@ -107,166 +93,237 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final mono = _monoPrimary(context);
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: FoggyAppBar(
-        title: const Text("详情"),
-        isScrolled: _isScrolled,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : (_detail == null)
-              ? Center(
-                  child: Text(
-                    "加载失败",
-                    style: TextStyle(color: theme.textTheme.bodyLarge?.color),
-                  ),
-                )
-              : ListView(
-                  controller: _sc,
-                  padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 96 + 10, 16, 24),
-                  children: [
-                    _previewCard(context),
-                    const SizedBox(height: 14),
-                    _infoCard(context),
-                    const SizedBox(height: 14),
-                    _tagsCard(context),
-                  ],
-                ),
-    );
-  }
-
-  Widget _previewCard(BuildContext context) {
-    final store = ThemeScope.of(context);
-    final theme = Theme.of(context);
-    final d = _detail!;
-    final imageUrl = d.url.isNotEmpty ? d.url : (widget.heroThumb ?? '');
-
-    final aspect = (d.width > 0 && d.height > 0) ? (d.width / d.height) : 16 / 9;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(store.cardRadius),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: AspectRatio(
-        aspectRatio: aspect.clamp(0.5, 2.0),
-        child: CachedNetworkImage(
-          imageUrl: imageUrl,
-          fit: BoxFit.cover,
-          placeholder: (c, u) => Container(
-            color: theme.cardColor,
-            child: const Center(child: Icon(Icons.image, color: Colors.grey)),
-          ),
-          errorWidget: (c, u, e) => Container(
-            color: theme.cardColor,
-            child: const Center(child: Icon(Icons.error, color: Colors.grey)),
-          ),
-        ),
+      // ✅ 背景走全局 scaffoldBackgroundColor
+      body: SafeArea(
+        top: true,
+        bottom: true,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : (_detail == null)
+                ? Center(
+                    child: Text(
+                      "加载失败",
+                      style: TextStyle(color: theme.textTheme.bodyLarge?.color),
+                    ),
+                  )
+                : _body(context),
       ),
     );
   }
 
-  Widget _infoCard(BuildContext context) {
-    final store = ThemeScope.of(context);
+  Widget _body(BuildContext context) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
+    final store = ThemeScope.of(context);
     final d = _detail!;
 
-    Widget row(String k, String v) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 88,
-              child: Text(
-                k,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: theme.textTheme.bodyMedium?.color,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Text(
-                v,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: theme.textTheme.bodyLarge?.color,
-                  height: 1.35,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    final imageUrl = (d.url.isNotEmpty) ? d.url : (widget.heroThumb ?? '');
+    final aspect = (d.width > 0 && d.height > 0) ? (d.width / d.height) : 16 / 9;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(store.cardRadius),
-        border: Border.all(color: mono.withOpacity(0.10)),
-      ),
+    // 参考图：上方大图 + 下方信息面板（黑白灰、信息整齐）
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "信息",
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: theme.textTheme.bodyLarge?.color,
+          // ✅ 顶部不放 AppBar / 标题 / 返回
+          // ✅ 图片不加卡片边框（仅裁切圆角，不卡片底色/边框）
+          ClipRRect(
+            borderRadius: BorderRadius.circular(store.cardRadius),
+            child: AspectRatio(
+              aspectRatio: aspect.clamp(0.5, 2.4),
+              child: CachedNetworkImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.cover,
+                placeholder: (c, u) => Container(
+                  color: theme.cardColor,
+                  alignment: Alignment.center,
+                  child: Icon(Icons.image_outlined, color: mono.withOpacity(0.35)),
+                ),
+                errorWidget: (c, u, e) => Container(
+                  color: theme.cardColor,
+                  alignment: Alignment.center,
+                  child: Icon(Icons.error_outline, color: mono.withOpacity(0.35)),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 10),
-          row("分辨率", d.resolution ?? "${d.width}×${d.height}"),
-          row("比例", d.ratio ?? "-"),
-          row("分类", _cnCategory(d.category)),
-          row("纯净度", _cnPurity(d.purity)),
-          row("格式", d.fileType ?? "-"),
-          row("大小", d.fileSize != null ? _humanSize(d.fileSize!) : "-"),
-          row("浏览", d.views?.toString() ?? "-"),
-          row("收藏", d.favorites?.toString() ?? "-"),
-          row("作者", d.uploader ?? "-"),
-          if ((d.shortUrl ?? '').isNotEmpty) row("短链", d.shortUrl!),
-          if ((d.source ?? '').isNotEmpty) row("来源", d.source!),
+
+          const SizedBox(height: 14),
+
+          // 信息面板（仿你图里那块）
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(store.cardRadius),
+              border: Border.all(color: mono.withOpacity(0.10)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _actionsRow(context),
+                const SizedBox(height: 10),
+                _metaLine(context, Icons.person_outline, "上传者", d.uploader ?? "-"),
+                if ((d.shortUrl ?? '').isNotEmpty)
+                  _metaLine(context, Icons.link, "短链", d.shortUrl!),
+                _metaLine(
+                  context,
+                  Icons.remove_red_eye_outlined,
+                  "浏览量",
+                  d.views?.toString() ?? "-",
+                ),
+                _metaLine(
+                  context,
+                  Icons.favorite_border,
+                  "收藏量",
+                  d.favorites?.toString() ?? "-",
+                ),
+                _metaLine(
+                  context,
+                  Icons.fullscreen,
+                  "分辨率",
+                  d.resolution ?? "${d.width}x${d.height}",
+                ),
+                _metaLine(
+                  context,
+                  Icons.insert_drive_file_outlined,
+                  "大小",
+                  d.fileSize != null ? _humanSize(d.fileSize!) : "-",
+                ),
+                _metaLine(
+                  context,
+                  Icons.category_outlined,
+                  "分类",
+                  _cnCategory(d.category),
+                ),
+                _metaLine(
+                  context,
+                  Icons.shield_outlined,
+                  "纯净度",
+                  _cnPurity(d.purity),
+                ),
+                _metaLine(
+                  context,
+                  Icons.image_outlined,
+                  "格式",
+                  d.fileType ?? "-",
+                ),
+                if ((d.source ?? '').isNotEmpty)
+                  _metaLine(context, Icons.public, "来源", d.source!),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // 标签区（仿你图里的 tag 串）
+          _tagsPanel(context),
         ],
       ),
     );
   }
 
-  Widget _tagsCard(BuildContext context) {
-    final store = ThemeScope.of(context);
+  Widget _actionsRow(BuildContext context) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
-    final d = _detail!;
 
+    Widget action(IconData icon, VoidCallback onTap) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Icon(icon, size: 22, color: theme.iconTheme.color ?? mono),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        action(Icons.content_cut_outlined, () {
+          // 占位：裁剪 / 设为壁纸 / 你的后续逻辑
+        }),
+        const SizedBox(width: 6),
+        action(Icons.share_outlined, () {
+          // 占位：分享
+        }),
+        const SizedBox(width: 6),
+        action(Icons.file_download_outlined, () {
+          // 占位：下载
+        }),
+        const SizedBox(width: 6),
+        action(Icons.bookmark_border, () {
+          // 占位：收藏
+        }),
+        const Spacer(),
+        // 右侧收口：留白，不搞花哨
+      ],
+    );
+  }
+
+  Widget _metaLine(BuildContext context, IconData icon, String label, String value) {
+    final theme = Theme.of(context);
+    final mono = _monoPrimary(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: mono.withOpacity(0.55)),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 66,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.25,
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.85),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.25,
+                color: theme.textTheme.bodyLarge?.color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tagsPanel(BuildContext context) {
+    final theme = Theme.of(context);
+    final mono = _monoPrimary(context);
+    final store = ThemeScope.of(context);
+    final d = _detail!;
     final tags = d.tags;
-    final colors = d.colors;
 
     Widget chip(String text) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
-          color: mono.withOpacity(theme.brightness == Brightness.dark ? 0.12 : 0.06),
+          color: theme.scaffoldBackgroundColor, // 贴近“底色里长出来”的感觉
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: mono.withOpacity(0.12)),
+          border: Border.all(color: mono.withOpacity(0.16)),
         ),
         child: Text(
           text,
           style: TextStyle(
             fontSize: 13,
+            height: 1.0,
             color: theme.textTheme.bodyLarge?.color,
           ),
         ),
@@ -274,7 +331,8 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(store.cardRadius),
@@ -284,38 +342,25 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "标签",
+            "相似搜索",
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 15,
               fontWeight: FontWeight.w700,
               color: theme.textTheme.bodyLarge?.color,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           if (tags.isEmpty)
-            Text("暂无标签", style: TextStyle(color: theme.textTheme.bodyMedium?.color))
+            Text(
+              "暂无标签",
+              style: TextStyle(color: theme.textTheme.bodyMedium?.color),
+            )
           else
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: 10,
+              runSpacing: 10,
               children: tags.map(chip).toList(),
             ),
-          if (colors.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Text(
-              "颜色（展示）",
-              style: TextStyle(
-                fontSize: 13,
-                color: theme.textTheme.bodyMedium?.color,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: colors.map((c) => chip("#$c")).toList(),
-            ),
-          ],
         ],
       ),
     );
