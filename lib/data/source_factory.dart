@@ -12,7 +12,7 @@ class SourceFactory {
   WallpaperSource fromStore(ThemeStore store) {
     final cfg = store.currentSourceConfig;
     final pluginId = cfg.pluginId;
-    final settings = store.currentSettings; // 已清洗
+    final settings = store.currentSettings;
 
     if (pluginId == 'wallhaven') {
       return WallhavenSource(
@@ -28,6 +28,7 @@ class SourceFactory {
         http: http,
         baseUrl: (settings['baseUrl'] as String?) ?? '',
         searchPath: (settings['searchPath'] as String?) ?? '/search',
+        detailPath: (settings['detailPath'] as String?) ?? '/w/{id}',
         apiKey: (settings['apiKey'] as String?),
       );
     }
