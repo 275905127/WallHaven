@@ -82,7 +82,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  static const String _kFiltersPrefsKey = 'filters_v2'; // ✅ 版本升级，避免读取旧 wallhaven_filters_v1
+  static const String _kFiltersPrefsKey = 'filters_v2'; // ✅ 版本升级
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _scrollController = ScrollController();
@@ -101,7 +101,7 @@ class _HomePageState extends State<HomePage> {
   late final SourceFactory _factory;
   late final WallpaperRepository _repo;
 
-  // ✅ 现在是通用筛选
+  // ✅ 通用筛选
   FilterSpec _filters = const FilterSpec();
 
   @override
@@ -111,7 +111,9 @@ class _HomePageState extends State<HomePage> {
     _http = HttpClient();
     _factory = SourceFactory(http: _http);
 
-    // 临时占位，第一次 fetch 时会 setSource
+    // ✅ 注意：initState 里拿 context 可能踩 InheritedWidget 更新时序
+    // 但你这里依赖 ThemeScope.of(context) 来拿默认 source；通常是安全的（MyApp 先 build）
+    // 如果你遇到异常，把 _repo 初始化挪到 didChangeDependencies（我先不改结构）。
     _repo = WallpaperRepository(_factory.fromStore(ThemeScope.of(context)));
 
     _bootstrap();
@@ -132,78 +134,89 @@ class _HomePageState extends State<HomePage> {
     await _initData();
   }
 
-  // ---------------------------
-  // ✅ FilterSpec 持久化（可选但你要“零占位可用”，我给你做了）
-  // ---------------------------
+  // ===========================
+  // ✅ FilterSpec 持久化
+  // ===========================
+
   Map<String, dynamic> _filtersToJson(FilterSpec f) => {
-  'text': f.text,
-  'sortBy': f.sortBy?.name,
-  'order': f.order?.name,
-  'resolutions': f.resolutions.toList(),
-  'atleast': f.atleast,
-  'ratios': f.ratios.toList(),
-  'color': f.color,
-  'rating': f.rating.map((e) => e.name).toList(),
-  'categories': f.categories.toList(),
-  'timeRange': f.timeRange,
-};
+        'text': f.text,
+        'sortBy': f.sortBy?.name,
+        'order': f.order?.name,
+        'resolutions': f.resolutions.toList(),
+        'atleast': f.atleast,
+        'ratios': f.ratios.toList(),
+        'color': f.color,
+        'rating': f.rating.map((e) => e.name).toList(),
+        'categories': f.categories.toList(),
+        'timeRange': f.timeRange,
+      };
 
-FilterSpec _filtersFromJson(Map<String, dynamic> m) {
-  Set<String> toSet(dynamic v) {
-    if (v is List) return v.map((e) => e?.toString() ?? '').where((s) => s.trim().isNotEmpty).toSet();
-    return <String>{};
-  }
-
-  SortBy? sortByFrom(dynamic v) {
-    if (v is! String) return null;
-    for (final e in SortBy.values) {
-      if (e.name == v) return e;
-    }
-    return null;
-  }
-
-  SortOrder? orderFrom(dynamic v) {
-    if (v is! String) return null;
-    for (final e in SortOrder.values) {
-      if (e.name == v) return e;
-    }
-    return null;
-  }
-
-  Set<RatingLevel> ratingFrom(dynamic v) {
-    final out = <RatingLevel>{};
-    if (v is! List) return out;
-    for (final x in v) {
-      final s = x?.toString();
-      if (s == null) continue;
-      for (final e in RatingLevel.values) {
-        if (e.name == s) out.add(e);
+  FilterSpec _filtersFromJson(Map<String, dynamic> m) {
+    Set<String> toSet(dynamic v) {
+      if (v is List) {
+        return v.map((e) => e?.toString() ?? '').where((s) => s.trim().isNotEmpty).toSet();
       }
+      return <String>{};
     }
-    return out;
-  }
 
-  String? toOptString(dynamic v) {
-    if (v is String) {
-      final t = v.trim();
+    SortBy? sortByFrom(dynamic v) {
+      if (v is! String) return null;
+      for (final e in SortBy.values) {
+        if (e.name == v) return e;
+      }
+      return null;
+    }
+
+    SortOrder? orderFrom(dynamic v) {
+      if (v is! String) return null;
+      for (final e in SortOrder.values) {
+        if (e.name == v) return e;
+      }
+      return null;
+    }
+
+    Set<RatingLevel> ratingFrom(dynamic v) {
+      final out = <RatingLevel>{};
+      if (v is! List) return out;
+      for (final x in v) {
+        final s = x?.toString();
+        if (s == null) continue;
+        for (final e in RatingLevel.values) {
+          if (e.name == s) out.add(e);
+        }
+      }
+      return out;
+    }
+
+    String? toOptString(dynamic v) {
+      if (v is String) {
+        final t = v.trim();
+        return t.isEmpty ? null : t;
+      }
+      return null;
+    }
+
+    // ⚠️ color 规范化：去掉 #，空则 null
+    String? normalizeColor(dynamic v) {
+      final s = toOptString(v);
+      if (s == null) return null;
+      final t = s.replaceAll('#', '').trim();
       return t.isEmpty ? null : t;
     }
-    return null;
-  }
 
-  return FilterSpec(
-    text: (m['text'] is String) ? (m['text'] as String) : '',
-    sortBy: sortByFrom(m['sortBy']),
-    order: orderFrom(m['order']),
-    resolutions: toSet(m['resolutions']),
-    atleast: toOptString(m['atleast']),
-    ratios: toSet(m['ratios']),
-    color: toOptString(m['color']),
-    rating: ratingFrom(m['rating']),
-    categories: toSet(m['categories']),
-    timeRange: toOptString(m['timeRange']),
-  );
-}
+    return FilterSpec(
+      text: (m['text'] is String) ? (m['text'] as String) : '',
+      sortBy: sortByFrom(m['sortBy']),
+      order: orderFrom(m['order']),
+      resolutions: toSet(m['resolutions']),
+      atleast: toOptString(m['atleast']),
+      ratios: toSet(m['ratios']),
+      color: normalizeColor(m['color']),
+      rating: ratingFrom(m['rating']),
+      categories: toSet(m['categories']),
+      timeRange: toOptString(m['timeRange']),
+    );
+  }
 
   Future<void> _loadPersistedFilters() async {
     try {
@@ -234,9 +247,10 @@ FilterSpec _filtersFromJson(Map<String, dynamic> m) {
     } catch (_) {}
   }
 
-  // ---------------------------
+  // ===========================
   // ✅ 数据加载
-  // ---------------------------
+  // ===========================
+
   Future<void> _initData() async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
@@ -264,11 +278,11 @@ FilterSpec _filtersFromJson(Map<String, dynamic> m) {
     final store = ThemeScope.of(context);
 
     try {
-      // ✅ 切源：只在这里做“source 切换”，UI 不参与实例化细节
+      // ✅ 切源：只在这里做“source 切换”
       final src = _factory.fromStore(store);
       _repo.setSource(src);
 
-      // ✅ 关键：SearchQuery 现在只带 filters（source 自己翻译）
+      // ✅ SearchQuery 只带 filters，source 自己翻译成 queryParameters
       final newItems = await _repo.search(
         SearchQuery(page: page, filters: _filters),
       );
@@ -352,7 +366,7 @@ FilterSpec _filtersFromJson(Map<String, dynamic> m) {
       builder: (context, _) {
         final theme = Theme.of(context);
 
-        // 切源自动刷新（只负责触发，不负责创建 source）
+        // ✅ 切源自动刷新（只负责触发，不负责创建 source）
         final currentId = store.currentSourceConfig.id;
         if (_lastSourceConfigId == null) {
           _lastSourceConfigId = currentId;
