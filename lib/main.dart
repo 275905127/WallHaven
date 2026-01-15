@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/gestures.dart';
 
 import 'theme/app_theme.dart';
 import 'theme/theme_store.dart';
@@ -15,7 +16,6 @@ import 'pages/filter_drawer.dart';
 import 'pages/wallpaper_detail_page.dart';
 import 'models/wallpaper.dart';
 import 'api/wallhaven_api.dart';
-import 'package:flutter/gestures.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -171,6 +171,7 @@ class _HomePageState extends State<HomePage> {
       listenable: store,
       builder: (context, _) {
         final theme = Theme.of(context);
+        final drawerRadius = store.cardRadius;
 
         return Scaffold(
           key: _scaffoldKey,
@@ -179,8 +180,16 @@ class _HomePageState extends State<HomePage> {
           drawerEnableOpenDragGesture: true,
           drawerEdgeDragWidth: 110, // 关键：避免和系统返回硬刚
           drawerDragStartBehavior: DragStartBehavior.down,
+
+          // ✅ 抽屉圆角跟随全局 cardRadius（仅右侧外边圆角）
           drawer: Drawer(
             width: _drawerWidth(context),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.horizontal(
+                right: Radius.circular(drawerRadius),
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
             child: FilterDrawer(
               initial: _filters,
               onApply: _applyFilters,
