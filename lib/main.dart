@@ -19,12 +19,13 @@ import 'pages/sub_pages.dart';
 import 'pages/filter_drawer.dart';
 import 'pages/wallpaper_detail_page.dart';
 import 'models/wallpaper.dart';
+
+// ✅ 迁移点：使用 WallhavenClient
 import 'api/wallhaven_api.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ⚠️ 全局只做兜底：Home 默认透明（FoggyAppBar 依赖）
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     systemNavigationBarColor: Colors.transparent,
@@ -92,15 +93,16 @@ class _HomePageState extends State<HomePage> {
 
   bool _drawerOpen = false;
 
-  WallhavenFilters _filters = const WallhavenFilters();
-
-  // ✅ 关键：用于检测“图源切换”，切换后自动刷新列表
+  // ✅ 用于检测“切源”并自动刷新
   String? _lastSourceConfigId;
+
+  WallhavenFilters _filters = const WallhavenFilters();
 
   @override
   void initState() {
     super.initState();
     _bootstrap();
+
     _scrollController.addListener(() {
       if (_scrollController.offset > 0 && !_isScrolled) setState(() => _isScrolled = true);
       else if (_scrollController.offset <= 0 && _isScrolled) setState(() => _isScrolled = false);
@@ -186,16 +188,21 @@ class _HomePageState extends State<HomePage> {
     if (mounted) setState(() => _isLoading = false);
   }
 
-  /// ✅ 目前只支持 wallhaven 插件：如果未来你有别的插件，
-  /// 就在这里按 pluginId 分支并走对应 client/api
-  void _ensureSupported(ThemeStore store) {
-    final pluginId = store.currentSourceConfig.pluginId;
-    if (pluginId != WallhavenPlugin.kId) {
-      throw UnsupportedError('当前插件不支持拉取壁纸：$pluginId');
+  /// ✅ 从插件配置中，拿到 wallhaven 的连接参数
+  ({String baseUrl, String? apiKey}) _wallhavenConn(ThemeStore store) {
+    final p = store.currentPlugin;
+    if (p == null || p.pluginId != WallhavenPlugin.kId) {
+      throw UnsupportedError('Current plugin not supported: ${store.currentSourceConfig.pluginId}');
     }
-    if (store.currentBaseUrl.trim().isEmpty) {
-      throw StateError('当前图源 baseUrl 为空');
-    }
+
+    final s = store.currentPluginSettings;
+    final baseUrl = (s['baseUrl'] as String?)?.trim();
+    final apiKey = (s['apiKey'] as String?)?.trim();
+
+    final fixedBaseUrl = (baseUrl != null && baseUrl.isNotEmpty) ? baseUrl : WallhavenPlugin.kDefaultBaseUrl;
+    final fixedApiKey = (apiKey != null && apiKey.isNotEmpty) ? apiKey : null;
+
+    return (baseUrl: fixedBaseUrl, apiKey: fixedApiKey);
   }
 
   Future<void> _fetchWallpapers() async {
@@ -203,11 +210,15 @@ class _HomePageState extends State<HomePage> {
     final f = _filters;
 
     try {
-      _ensureSupported(store);
+      final conn = _wallhavenConn(store);
 
-      final newItems = await WallhavenApi.getWallpapers(
-        baseUrl: store.currentBaseUrl,
-        apiKey: store.currentApiKey,
+      // ✅ 迁移点：使用 WallhavenClient
+      final client = WallhavenClient(
+        baseUrl: conn.baseUrl,
+        apiKey: conn.apiKey,
+      );
+
+      final newItems = await client.search(
         page: _page,
         sorting: f.sorting,
         order: f.order,
@@ -297,12 +308,12 @@ class _HomePageState extends State<HomePage> {
       builder: (context, _) {
         final theme = Theme.of(context);
 
-        // ✅ 图源切换自动刷新（你现在缺的就是这个）
-        final currId = store.currentSourceConfig.id;
+        // ✅ 切源自动刷新：避免“切了源但列表还是旧的”
+        final currentId = store.currentSourceConfig.id;
         if (_lastSourceConfigId == null) {
-          _lastSourceConfigId = currId;
-        } else if (_lastSourceConfigId != currId) {
-          _lastSourceConfigId = currId;
+          _lastSourceConfigId = currentId;
+        } else if (_lastSourceConfigId != currentId) {
+          _lastSourceConfigId = currentId;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             _initData();
@@ -448,6 +459,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void _showSourceSelectionDialog(BuildContext context) {
     final store = ThemeScope.of(context);
     final theme = Theme.of(context);
+
     showDialog(
       context: context,
       builder: (context) => SimpleDialog(
