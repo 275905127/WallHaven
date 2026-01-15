@@ -1,39 +1,45 @@
+// lib/sources/simple_json_source_plugin.dart
 import 'package:dio/dio.dart';
 
-import '../api/wallhaven_api.dart' show WallhavenClient; // 仅复用 normalize 逻辑？不需要的话删
 import '../models/wallpaper.dart';
 import 'source_plugin.dart';
 
 /// =======================================
-/// ✅ 第二图源：SimpleJson（自定义 HTTP JSON）
+/// ✅ 第二图源：GenericJson（自定义 HTTP JSON）
 /// =======================================
-/// 目标：给你一个“自由接入”的通用源，但不猜 header，不引入主题/UI
+/// 目标：自由接入（不写死 Wallhaven）
 ///
-/// 约定接口：
-/// - 搜索： GET {baseUrl}{searchPath}?page=1&...&apikey=xxx(可选)
-///   返回： { "data": [ { "id": "...", "thumb": "...", "url": "...", "width": 1920, "height": 1080 } ] }
+/// 约定：
+/// - 列表：GET {baseUrl}{searchPath}?page=1&...&apikey=xxx(可选)
+///   返回：
+///   1) { "data": [ { "id": "...", "thumb": "...", "url": "...", "width": 1920, "height": 1080 } ] }
+///   或
+///   2) [ { ... } ]  // 允许直接数组
 ///
-/// - 详情： GET {baseUrl}{detailPath} 其中 {id} 替换
-///   返回： { "data": { ... WallpaperDetail 所需字段 ... } }
-///
-/// 说明：你如果是自建服务，就按这个 JSON 输出即可“一次接入，全站可用”。
+/// - 详情：GET {baseUrl}{detailPath} 其中 {id} 替换
+///   返回：
+///   1) { "data": { ... } }
+///   或
+///   2) { ... }  // 允许直接对象
 class SimpleJsonPlugin implements SourcePlugin {
-  static const String kId = 'simple_json';
+  /// ✅ 必须和 SourceRegistry / ThemeStore 对齐
+  /// 如果 ThemeStore 里写死了 'generic'，这里就必须是 'generic'
+  static const String kId = 'generic';
 
   @override
   String get pluginId => kId;
 
   @override
-  String get defaultName => 'SimpleJson';
+  String get defaultName => 'Generic JSON';
 
   @override
   SourceConfig defaultConfig() {
     return const SourceConfig(
-      id: 'default_simple_json',
+      id: 'default_generic',
       pluginId: kId,
-      name: 'SimpleJson',
+      name: 'Generic JSON',
       settings: {
-        'baseUrl': 'https://example.com/api', // 你自己改
+        'baseUrl': 'https://example.com/api',
         'searchPath': '/search',
         'detailPath': '/w/{id}',
         'apiKey': null,
@@ -134,17 +140,27 @@ class _SimpleJsonClient implements WallpaperSourceClient {
       if (resp.statusCode != 200) return const [];
       final data = resp.data;
 
+      // ✅ 允许：{data:[...]}
       if (data is Map && data['data'] is List) {
-        final List list = data['data'] as List;
+        final list = data['data'] as List;
         return list
             .whereType<Map>()
             .map((e) => _fromSimpleSearchJson(e.cast<String, dynamic>()))
             .toList();
       }
+
+      // ✅ 允许：直接返回 [...]
+      if (data is List) {
+        return data
+            .whereType<Map>()
+            .map((e) => _fromSimpleSearchJson(e.cast<String, dynamic>()))
+            .toList();
+      }
+
       return const [];
     } catch (e) {
       // ignore: avoid_print
-      print('SimpleJson search error: $e');
+      print('GenericJson search error: $e');
       return const [];
     }
   }
@@ -165,30 +181,30 @@ class _SimpleJsonClient implements WallpaperSourceClient {
       if (resp.statusCode != 200) return null;
       final data = resp.data;
 
-      if (data is Map && data['data'] is Map<String, dynamic>) {
-        return WallpaperDetail.fromDetailJson(data['data'] as Map<String, dynamic>);
+      // ✅ 允许：{data:{...}}
+      if (data is Map && data['data'] is Map) {
+        final m = (data['data'] as Map).cast<String, dynamic>();
+        return WallpaperDetail.fromDetailJson(m);
       }
 
-      // 允许直接返回 detail 对象（不包 data）
-      if (data is Map<String, dynamic>) {
-        return WallpaperDetail.fromDetailJson(data);
+      // ✅ 允许：直接返回 {...}
+      if (data is Map) {
+        final m = data.cast<String, dynamic>();
+        return WallpaperDetail.fromDetailJson(m);
       }
 
       return null;
     } catch (e) {
       // ignore: avoid_print
-      print('SimpleJson detail error: $e');
+      print('GenericJson detail error: $e');
       return null;
     }
   }
 
-  /// 你现在 Wallpaper.fromSearchJson 是 Wallhaven 结构。
-  /// SimpleJson 我给你一个“最小字段映射”，不够你就扩展。
   Wallpaper _fromSimpleSearchJson(Map<String, dynamic> j) {
-    // 兼容字段名：thumb / thumbs->small / preview
     final thumb = (j['thumb'] as String?) ??
         (j['preview'] as String?) ??
-        ((j['thumbs'] is Map) ? (j['thumbs']['small'] as String?) : null) ??
+        ((j['thumbs'] is Map) ? (j['thumbs'] as Map)['small'] as String? : null) ??
         '';
 
     final url = (j['url'] as String?) ?? '';
