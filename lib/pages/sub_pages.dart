@@ -5,7 +5,7 @@ import '../theme/app_tokens.dart';
 import '../widgets/foggy_app_bar.dart';
 import '../widgets/settings_widgets.dart';
 import '../models/image_source.dart';
-import '../sources/source_plugin.dart
+import '../sources/source_plugin.dart';
 
 // ==========================================
 // 1. 🎨 个性化二级页
