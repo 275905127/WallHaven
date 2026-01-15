@@ -123,13 +123,13 @@ class WallhavenPlugin implements SourcePlugin {
       id: c.id,
       name: c.name,
       baseUrl: baseUrl,
+      driver: WallhavenPlugin.kId, // ✅ 必填
       apiKey: apiKey,
       username: username,
       // ✅ 只有默认实例算 built-in（否则用户添加的都算自定义）
       isBuiltIn: c.id == 'default_${WallhavenPlugin.kId}',
     );
   }
-}
 
 class SourceRegistry {
   final Map<String, SourcePlugin> _plugins;
