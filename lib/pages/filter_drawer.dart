@@ -1,17 +1,27 @@
 // lib/pages/filter_drawer.dart
 import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../theme/theme_store.dart';
 import '../domain/entities/filter_spec.dart';
 import '../domain/entities/source_capabilities.dart';
 import '../domain/entities/option_item.dart';
+import '../theme/theme_store.dart';
+import '../theme/app_tokens.dart';
 
 class FilterDrawer extends StatefulWidget {
+  /// ✅ 通用：domain filters
   final FilterSpec initial;
+
+  /// ✅ 选中即生效
   final ValueChanged<FilterSpec> onApply;
+
+  /// ✅ 重置
   final VoidCallback onReset;
+
+  /// ✅ 设置入口
   final VoidCallback? onOpenSettings;
 
   const FilterDrawer({
@@ -29,17 +39,19 @@ class FilterDrawer extends StatefulWidget {
 class _FilterDrawerState extends State<FilterDrawer> {
   late FilterSpec _f;
   late TextEditingController _qCtrl;
+
   Timer? _qDebounce;
 
-  bool _expandedSort = false;
-  bool _expandedOrder = false;
-  bool _expandedRes = false;
-  bool _expandedAtleast = false;
-  bool _expandedRatios = false;
-  bool _expandedColor = false;
-  bool _expandedRating = false;
-  bool _expandedCategories = false;
-  bool _expandedTimeRange = false;
+  // 展开状态
+  bool _sortExpanded = false;
+  bool _orderExpanded = false;
+  bool _ratingExpanded = false;
+  bool _categoriesExpanded = false;
+  bool _timeRangeExpanded = false;
+  bool _resolutionsExpanded = false;
+  bool _atleastExpanded = false;
+  bool _ratiosExpanded = false;
+  bool _colorExpanded = false;
 
   @override
   void initState() {
@@ -60,58 +72,409 @@ class _FilterDrawerState extends State<FilterDrawer> {
     return b == Brightness.dark ? Colors.white : Colors.black;
   }
 
-  void _commit({bool closeExpanded = false}) {
+  // -------------------------
+  // ✅ commit apply (single exit)
+  // -------------------------
+  void _commitApply({bool closeExpanded = false}) {
     if (!mounted) return;
 
     if (closeExpanded) {
-      _expandedSort = false;
-      _expandedOrder = false;
-      _expandedRes = false;
-      _expandedAtleast = false;
-      _expandedRatios = false;
-      _expandedColor = false;
-      _expandedRating = false;
-      _expandedCategories = false;
-      _expandedTimeRange = false;
+      _sortExpanded = false;
+      _orderExpanded = false;
+      _ratingExpanded = false;
+      _categoriesExpanded = false;
+      _timeRangeExpanded = false;
+      _resolutionsExpanded = false;
+      _atleastExpanded = false;
+      _ratiosExpanded = false;
+      _colorExpanded = false;
     }
 
-    widget.onApply(_f.copyWith(text: _qCtrl.text));
+    final next = _f.copyWith(text: _qCtrl.text);
+    widget.onApply(next);
   }
 
-  void _debounceQuery(String v) {
+  void _debounceQueryApply(String v) {
     _qDebounce?.cancel();
     _qDebounce = Timer(const Duration(milliseconds: 350), () {
       if (!mounted) return;
       setState(() => _f = _f.copyWith(text: v));
-      _commit();
+      _commitApply();
     });
   }
 
-  Set<T> _toggleSet<T>(Set<T> s, T v) {
-    final next = Set<T>.from(s);
-    if (next.contains(v)) {
-      next.remove(v);
-    } else {
-      next.add(v);
+  // -------------------------
+  // UI helpers
+  // -------------------------
+  BorderRadius _groupRadiusFor(BuildContext context, int index, int length) {
+    final tokens = Theme.of(context).extension<AppTokens>()!;
+    final largeRadius = ThemeScope.of(context).cardRadius;
+    final small = tokens.smallRadius;
+
+    final isFirst = index == 0;
+    final isLast = index == length - 1;
+    final isSingle = length == 1;
+
+    if (isSingle) return BorderRadius.circular(largeRadius);
+
+    if (isFirst) {
+      return BorderRadius.only(
+        topLeft: Radius.circular(largeRadius),
+        topRight: Radius.circular(largeRadius),
+        bottomLeft: Radius.circular(small),
+        bottomRight: Radius.circular(small),
+      );
     }
-    return next;
+
+    if (isLast) {
+      return BorderRadius.only(
+        topLeft: Radius.circular(small),
+        topRight: Radius.circular(small),
+        bottomLeft: Radius.circular(largeRadius),
+        bottomRight: Radius.circular(largeRadius),
+      );
+    }
+
+    return BorderRadius.circular(small);
   }
 
-  String _summaryStrings(Set<String> s, {String empty = '不限'}) {
-    if (s.isEmpty) return empty;
-    final list = s.toList()..sort();
-    if (list.length <= 2) return list.join('，');
-    return '${list.take(2).join('，')} 等 ${list.length} 项';
+  Widget _groupGap(BuildContext context) {
+    final tokens = Theme.of(context).extension<AppTokens>()!;
+    return Container(
+      height: tokens.dividerThickness,
+      color: tokens.dividerColor,
+    );
   }
 
-  String _summaryEnum<T>(Set<T> s, String Function(T) labelOf, {String empty = '不限'}) {
-    if (s.isEmpty) return empty;
-    final list = s.toList();
-    if (list.length <= 2) return list.map(labelOf).join('，');
-    return '${list.take(2).map(labelOf).join('，')} 等 ${list.length} 项';
+  BorderRadius _subRadiusFor(BuildContext context, int index, int length) {
+    final tokens = Theme.of(context).extension<AppTokens>()!;
+    return BorderRadius.circular(tokens.smallRadius);
   }
 
-  String _labelSortBy(SortBy v) {
+  Widget _groupCollapseRow({
+    required BuildContext context,
+    required String title,
+    required String valueLabel,
+    required bool expanded,
+    required VoidCallback onToggle,
+    required Widget expandedChild,
+    required BorderRadius borderRadius,
+    required bool showBottomGap,
+  }) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<AppTokens>()!;
+
+    return Column(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: borderRadius,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onToggle,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: theme.textTheme.bodyLarge?.color,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          valueLabel,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: theme.textTheme.bodyMedium?.color,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        AnimatedRotation(
+                          turns: expanded ? 0.5 : 0.0,
+                          duration: tokens.expandDuration,
+                          curve: tokens.expandCurve,
+                          child: Icon(Icons.keyboard_arrow_down, color: tokens.chevronColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              AnimatedCrossFade(
+                firstChild: const SizedBox.shrink(),
+                secondChild: Column(
+                  children: [
+                    _groupGap(context),
+                    expandedChild,
+                  ],
+                ),
+                crossFadeState: expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                duration: tokens.expandDuration,
+                firstCurve: tokens.expandCurve,
+                secondCurve: tokens.expandCurve,
+              ),
+            ],
+          ),
+        ),
+        if (showBottomGap) _groupGap(context),
+      ],
+    );
+  }
+
+  // -------------------------
+  // pickers
+  // -------------------------
+  Widget _singlePickList<T>({
+    required BuildContext context,
+    required List<_PickItem<T>> items,
+    required T? value,
+    required ValueChanged<T> onPick,
+    String emptyLabel = '不限',
+  }) {
+    final theme = Theme.of(context);
+    final mono = _monoPrimary(context);
+
+    final list = <_PickItem<T?>>[
+      _PickItem<T?>(null, emptyLabel),
+      ...items.map((e) => _PickItem<T?>(e.value, e.label)),
+    ];
+
+    return Column(
+      children: List.generate(list.length, (i) {
+        final it = list[i];
+        final selected = it.value == value;
+        final br = _subRadiusFor(context, i, list.length);
+        final isLast = i == list.length - 1;
+
+        return Column(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                borderRadius: br,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    final v = it.value;
+                    if (v != null) onPick(v as T);
+                    else {
+                      // clear
+                      // caller handles null via copyWith
+                      onPick as dynamic;
+                    }
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            it.label,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: theme.textTheme.bodyLarge?.color,
+                              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                        if (selected) Icon(Icons.check, size: 18, color: mono),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (!isLast) _groupGap(context),
+          ],
+        );
+      }),
+    );
+  }
+
+  Widget _singlePickListNullable<T>({
+    required BuildContext context,
+    required List<_PickItem<T>> items,
+    required T? value,
+    required ValueChanged<T?> onPick,
+    String emptyLabel = '不限',
+  }) {
+    final theme = Theme.of(context);
+    final mono = _monoPrimary(context);
+
+    final list = <_PickItem<T?>>[
+      _PickItem<T?>(null, emptyLabel),
+      ...items.map((e) => _PickItem<T?>(e.value, e.label)),
+    ];
+
+    return Column(
+      children: List.generate(list.length, (i) {
+        final it = list[i];
+        final selected = it.value == value;
+        final br = _subRadiusFor(context, i, list.length);
+        final isLast = i == list.length - 1;
+
+        return Column(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                borderRadius: br,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => onPick(it.value),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            it.label,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: theme.textTheme.bodyLarge?.color,
+                              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                        if (selected) Icon(Icons.check, size: 18, color: mono),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (!isLast) _groupGap(context),
+          ],
+        );
+      }),
+    );
+  }
+
+  Widget _multiChipPicker({
+    required BuildContext context,
+    required List<String> options,
+    required Set<String> selected,
+    required ValueChanged<Set<String>> onChanged,
+  }) {
+    final theme = Theme.of(context);
+    final mono = _monoPrimary(context);
+
+    Widget chip(String text, bool on) {
+      return InkWell(
+        onTap: () {
+          final next = Set<String>.from(selected);
+          if (on) {
+            next.remove(text);
+          } else {
+            next.add(text);
+          }
+          onChanged(next);
+        },
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: on ? mono.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.08) : theme.cardColor,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              width: 1,
+              color: on ? mono.withOpacity(0.40) : mono.withOpacity(0.12),
+            ),
+          ),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 14,
+              color: on ? mono : theme.textTheme.bodyLarge?.color,
+              fontWeight: on ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: options.map((o) => chip(o, selected.contains(o))).toList(),
+      ),
+    );
+  }
+
+  Widget _multiOptionPicker({
+    required BuildContext context,
+    required List<OptionItem> options,
+    required Set<String> selectedIds,
+    required ValueChanged<Set<String>> onChanged,
+  }) {
+    final theme = Theme.of(context);
+    final mono = _monoPrimary(context);
+
+    Widget chip(OptionItem it, bool on) {
+      return InkWell(
+        onTap: () {
+          final next = Set<String>.from(selectedIds);
+          if (on) next.remove(it.id);
+          else next.add(it.id);
+          onChanged(next);
+        },
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: on ? mono.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.08) : theme.cardColor,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              width: 1,
+              color: on ? mono.withOpacity(0.40) : mono.withOpacity(0.12),
+            ),
+          ),
+          child: Text(
+            it.label,
+            style: TextStyle(
+              fontSize: 14,
+              color: on ? mono : theme.textTheme.bodyLarge?.color,
+              fontWeight: on ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: options.map((o) => chip(o, selectedIds.contains(o.id))).toList(),
+      ),
+    );
+  }
+
+  // -------------------------
+  // labels / summaries
+  // -------------------------
+  String _sortLabel(SortBy v) {
     switch (v) {
       case SortBy.relevance:
         return '相关';
@@ -128,9 +491,9 @@ class _FilterDrawerState extends State<FilterDrawer> {
     }
   }
 
-  String _labelOrder(SortOrder v) => (v == SortOrder.desc) ? '降序' : '升序';
+  String _orderLabel(SortOrder v) => v == SortOrder.asc ? '升序' : '降序';
 
-  String _labelRating(RatingLevel v) {
+  String _ratingLabel(RatingLevel v) {
     switch (v) {
       case RatingLevel.safe:
         return '安全';
@@ -141,15 +504,52 @@ class _FilterDrawerState extends State<FilterDrawer> {
     }
   }
 
+  String _summarySet(Set<String> set, {String empty = '不限'}) {
+    if (set.isEmpty) return empty;
+    final list = set.toList()..sort();
+    if (list.length <= 2) return list.join('，');
+    return '${list.take(2).join('，')} 等 ${list.length} 项';
+  }
+
+  String _summaryOptions(Set<String> selected, List<OptionItem> options, {String empty = '不限'}) {
+    if (selected.isEmpty) return empty;
+    final map = {for (final o in options) o.id: o.label};
+    final labels = selected.map((id) => map[id] ?? id).toList()..sort();
+    if (labels.length <= 2) return labels.join('，');
+    return '${labels.take(2).join('，')} 等 ${labels.length} 项';
+  }
+
+  String _summaryRating(Set<RatingLevel> r, {String empty = '不限'}) {
+    if (r.isEmpty) return empty;
+    final labels = r.map(_ratingLabel).toList()..sort();
+    if (labels.length <= 2) return labels.join('，');
+    return '${labels.take(2).join('，')} 等 ${labels.length} 项';
+  }
+
+  // -------------------------
+  // build
+  // -------------------------
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
+
     final store = ThemeScope.of(context);
 
-    // ✅ 从当前 source 拿 capabilities（source 驱动 UI）
-    final SourceCapabilities caps = store.currentWallpaperSourceCapabilities;
+    // ✅ 必须由 source 决定能力
+    // 你的 data/sourceFactory 已经能从 store 取到 source，
+    // 但 UI 层不应 import data。这里直接用 ThemeStore 提供的 currentPlugin capabilities。
+    //
+    // 现在你 ThemeStore 还没有暴露 “capabilities”，你必须加一个 getter：
+    //   SourceCapabilities get currentCapabilities => _factory.fromStore(this).capabilities;
+    //
+    // 临时：先走 currentPluginSettings + pluginId 判断是不够的。
+    //
+    // 这里我假定你已经在 ThemeStore 加了：
+    //   SourceCapabilities get currentCapabilities
+    final SourceCapabilities caps = store.currentCapabilities;
 
+    // ✅ 抽屉页 overlay
     final isDark = theme.brightness == Brightness.dark;
     final overlay = SystemUiOverlayStyle(
       statusBarColor: theme.scaffoldBackgroundColor,
@@ -159,21 +559,251 @@ class _FilterDrawerState extends State<FilterDrawer> {
       systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
     );
 
-    final sortValue = _f.sortBy;
-    final orderValue = _f.order;
+    // Row defs
+    final rows = <_RowDef>[];
 
-    final selectedRes = _f.resolutions;
-    final selectedRatios = _f.ratios;
+    // Sort
+    if (caps.supportsSort && caps.sortByOptions.isNotEmpty) {
+      final items = caps.sortByOptions.map((e) => _PickItem<SortBy>(e, _sortLabel(e))).toList();
+      rows.add(
+        _RowDef(
+          title: '排序方式',
+          valueLabel: _f.sortBy == null ? '不限' : _sortLabel(_f.sortBy!),
+          expanded: _sortExpanded,
+          onToggle: () => setState(() => _sortExpanded = !_sortExpanded),
+          child: _singlePickListNullable<SortBy>(
+            context: context,
+            items: items,
+            value: _f.sortBy,
+            onPick: (v) {
+              setState(() {
+                _f = _f.copyWith(sortBy: v);
+                _sortExpanded = false;
+                // sortBy 改了可能导致 timeRange 不适用（由 source 决定；这里不强行清）
+              });
+              _commitApply();
+            },
+          ),
+        ),
+      );
+    }
 
-    final selectedCats = _f.categories;
-    final selectedRating = _f.rating;
+    // TimeRange
+    if (caps.supportsTimeRange && caps.timeRangeOptions.isNotEmpty) {
+      rows.add(
+        _RowDef(
+          title: '时间范围',
+          valueLabel: _f.timeRange == null || _f.timeRange!.trim().isEmpty
+              ? '不限'
+              : _summaryOptions({_f.timeRange!}, caps.timeRangeOptions),
+          expanded: _timeRangeExpanded,
+          onToggle: () => setState(() => _timeRangeExpanded = !_timeRangeExpanded),
+          child: _singlePickListNullable<String>(
+            context: context,
+            items: caps.timeRangeOptions.map((o) => _PickItem<String>(o.id, o.label)).toList(),
+            value: (_f.timeRange ?? '').trim().isEmpty ? null : _f.timeRange,
+            onPick: (v) {
+              setState(() {
+                _f = _f.copyWith(timeRange: v);
+                _timeRangeExpanded = false;
+              });
+              _commitApply();
+            },
+          ),
+        ),
+      );
+    }
 
-    String labelOption(List<OptionItem> options, String? id, {String fallback = '-'}) {
-      if (id == null || id.isEmpty) return fallback;
-      for (final o in options) {
-        if (o.id == id) return o.label;
-      }
-      return fallback;
+    // Order
+    if (caps.supportsOrder) {
+      final items = [
+        _PickItem<SortOrder>(SortOrder.desc, '降序'),
+        _PickItem<SortOrder>(SortOrder.asc, '升序'),
+      ];
+      rows.add(
+        _RowDef(
+          title: '排序方向',
+          valueLabel: _f.order == null ? '不限' : _orderLabel(_f.order!),
+          expanded: _orderExpanded,
+          onToggle: () => setState(() => _orderExpanded = !_orderExpanded),
+          child: _singlePickListNullable<SortOrder>(
+            context: context,
+            items: items,
+            value: _f.order,
+            onPick: (v) {
+              setState(() {
+                _f = _f.copyWith(order: v);
+                _orderExpanded = false;
+              });
+              _commitApply();
+            },
+          ),
+        ),
+      );
+    }
+
+    // Categories (source-defined)
+    if (caps.supportsCategories && caps.categoryOptions.isNotEmpty) {
+      rows.add(
+        _RowDef(
+          title: '分类',
+          valueLabel: _summaryOptions(_f.categories, caps.categoryOptions),
+          expanded: _categoriesExpanded,
+          onToggle: () => setState(() => _categoriesExpanded = !_categoriesExpanded),
+          child: _multiOptionPicker(
+            context: context,
+            options: caps.categoryOptions,
+            selectedIds: _f.categories,
+            onChanged: (set) {
+              setState(() => _f = _f.copyWith(categories: set));
+              _commitApply();
+            },
+          ),
+        ),
+      );
+    }
+
+    // Rating (safe/questionable/explicit)
+    if (caps.supportsRating && caps.ratingOptions.isNotEmpty) {
+      rows.add(
+        _RowDef(
+          title: '内容等级',
+          valueLabel: _summaryRating(_f.rating),
+          expanded: _ratingExpanded,
+          onToggle: () => setState(() => _ratingExpanded = !_ratingExpanded),
+          child: _multiOptionPicker(
+            context: context,
+            options: caps.ratingOptions
+                .map((r) => OptionItem(id: r.name, label: _ratingLabel(r)))
+                .toList(),
+            selectedIds: _f.rating.map((e) => e.name).toSet(),
+            onChanged: (set) {
+              final next = <RatingLevel>{};
+              for (final id in set) {
+                for (final r in RatingLevel.values) {
+                  if (r.name == id) next.add(r);
+                }
+              }
+              setState(() => _f = _f.copyWith(rating: next));
+              _commitApply();
+            },
+          ),
+        ),
+      );
+    }
+
+    // Resolutions
+    if (caps.supportsResolutions && caps.resolutionOptions.isNotEmpty) {
+      rows.add(
+        _RowDef(
+          title: '分辨率（精确匹配）',
+          valueLabel: _summarySet(_f.resolutions),
+          expanded: _resolutionsExpanded,
+          onToggle: () => setState(() => _resolutionsExpanded = !_resolutionsExpanded),
+          child: _multiChipPicker(
+            context: context,
+            options: caps.resolutionOptions,
+            selected: _f.resolutions,
+            onChanged: (set) {
+              setState(() => _f = _f.copyWith(resolutions: set));
+              _commitApply();
+            },
+          ),
+        ),
+      );
+    }
+
+    // Atleast
+    if (caps.supportsAtleast && caps.atleastOptions.isNotEmpty) {
+      rows.add(
+        _RowDef(
+          title: '最小分辨率（至少）',
+          valueLabel: (_f.atleast ?? '').trim().isEmpty ? '不限' : _f.atleast!.trim(),
+          expanded: _atleastExpanded,
+          onToggle: () => setState(() => _atleastExpanded = !_atleastExpanded),
+          child: _singlePickListNullable<String>(
+            context: context,
+            items: caps.atleastOptions
+                .map((e) => _PickItem<String>(e, e.isEmpty ? '不限' : e))
+                .toList(),
+            value: (_f.atleast ?? '').trim().isEmpty ? null : _f.atleast,
+            onPick: (v) {
+              setState(() {
+                _f = _f.copyWith(atleast: v);
+                _atleastExpanded = false;
+              });
+              _commitApply();
+            },
+          ),
+        ),
+      );
+    }
+
+    // Ratios
+    if (caps.supportsRatios && caps.ratioOptions.isNotEmpty) {
+      rows.add(
+        _RowDef(
+          title: '比例',
+          valueLabel: _summarySet(_f.ratios),
+          expanded: _ratiosExpanded,
+          onToggle: () => setState(() => _ratiosExpanded = !_ratiosExpanded),
+          child: _multiChipPicker(
+            context: context,
+            options: caps.ratioOptions,
+            selected: _f.ratios,
+            onChanged: (set) {
+              setState(() => _f = _f.copyWith(ratios: set));
+              _commitApply();
+            },
+          ),
+        ),
+      );
+    }
+
+    // Color
+    if (caps.supportsColor && caps.colorOptions.isNotEmpty) {
+      rows.add(
+        _RowDef(
+          title: '颜色（十六进制）',
+          valueLabel: (_f.color ?? '').trim().isEmpty ? '不限' : _f.color!.trim().toUpperCase(),
+          expanded: _colorExpanded,
+          onToggle: () => setState(() => _colorExpanded = !_colorExpanded),
+          child: _singlePickListNullable<String>(
+            context: context,
+            items: caps.colorOptions.map((c) => _PickItem<String>(c, c.toUpperCase())).toList(),
+            value: (_f.color ?? '').trim().isEmpty ? null : _f.color!.trim().replaceAll('#', ''),
+            onPick: (v) {
+              setState(() {
+                final vv = (v ?? '').trim().replaceAll('#', '');
+                _f = _f.copyWith(color: vv.isEmpty ? null : vv);
+                _colorExpanded = false;
+              });
+              _commitApply();
+            },
+            emptyLabel: '不限',
+          ),
+        ),
+      );
+    }
+
+    // group rows render
+    final groupRows = <Widget>[];
+    for (int i = 0; i < rows.length; i++) {
+      final def = rows[i];
+      final br = _groupRadiusFor(context, i, rows.length);
+
+      groupRows.add(
+        _groupCollapseRow(
+          context: context,
+          title: def.title,
+          valueLabel: def.valueLabel,
+          expanded: def.expanded,
+          onToggle: def.onToggle,
+          expandedChild: def.child,
+          borderRadius: br,
+          showBottomGap: i != rows.length - 1,
+        ),
+      );
     }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -204,9 +834,12 @@ class _FilterDrawerState extends State<FilterDrawer> {
                             widget.onReset();
                             setState(() => _f = const FilterSpec());
                             _qCtrl.text = '';
-                            _commit(closeExpanded: true);
+                            _commitApply(closeExpanded: true);
                           },
-                          child: Text("重置", style: TextStyle(color: mono.withOpacity(0.7))),
+                          child: Text(
+                            "重置",
+                            style: TextStyle(color: mono.withOpacity(0.7)),
+                          ),
                         ),
                       ],
                     ),
@@ -220,193 +853,10 @@ class _FilterDrawerState extends State<FilterDrawer> {
                               padding: const EdgeInsets.only(bottom: 14),
                               child: _KeywordInput(
                                 controller: _qCtrl,
-                                onChanged: _debounceQuery,
+                                onChanged: _debounceQueryApply,
                               ),
                             ),
-
-                          if (caps.supportsSort)
-                            _collapse(
-                              context: context,
-                              title: '排序方式',
-                              valueLabel: sortValue == null ? '-' : _labelSortBy(sortValue),
-                              expanded: _expandedSort,
-                              onToggle: () => setState(() => _expandedSort = !_expandedSort),
-                              child: _singlePickEnum<SortBy>(
-                                context: context,
-                                options: caps.sortByOptions,
-                                value: sortValue ?? (caps.sortByOptions.isNotEmpty ? caps.sortByOptions.first : SortBy.toplist),
-                                labelOf: _labelSortBy,
-                                onPick: (v) {
-                                  setState(() {
-                                    _f = _f.copyWith(sortBy: v);
-                                    _expandedSort = false;
-                                    if (v != SortBy.toplist) _expandedTimeRange = false;
-                                  });
-                                  _commit();
-                                },
-                              ),
-                            ),
-
-                          if (caps.supportsTimeRange && (_f.sortBy == SortBy.toplist))
-                            _collapse(
-                              context: context,
-                              title: '时间范围',
-                              valueLabel: labelOption(caps.timeRangeOptions, _f.timeRange, fallback: '-'),
-                              expanded: _expandedTimeRange,
-                              onToggle: () => setState(() => _expandedTimeRange = !_expandedTimeRange),
-                              child: _singlePickOption(
-                                context: context,
-                                options: caps.timeRangeOptions,
-                                value: _f.timeRange ?? (caps.timeRangeOptions.isNotEmpty ? caps.timeRangeOptions.first.id : ''),
-                                onPick: (id) {
-                                  setState(() {
-                                    _f = _f.copyWith(timeRange: id.isEmpty ? null : id);
-                                    _expandedTimeRange = false;
-                                  });
-                                  _commit();
-                                },
-                              ),
-                            ),
-
-                          if (caps.supportsOrder)
-                            _collapse(
-                              context: context,
-                              title: '排序方向',
-                              valueLabel: orderValue == null ? '-' : _labelOrder(orderValue),
-                              expanded: _expandedOrder,
-                              onToggle: () => setState(() => _expandedOrder = !_expandedOrder),
-                              child: _singlePickEnum<SortOrder>(
-                                context: context,
-                                options: const [SortOrder.desc, SortOrder.asc],
-                                value: orderValue ?? SortOrder.desc,
-                                labelOf: _labelOrder,
-                                onPick: (v) {
-                                  setState(() {
-                                    _f = _f.copyWith(order: v);
-                                    _expandedOrder = false;
-                                  });
-                                  _commit();
-                                },
-                              ),
-                            ),
-
-                          if (caps.supportsCategories)
-                            _collapse(
-                              context: context,
-                              title: '分类',
-                              valueLabel: _summaryStrings(selectedCats),
-                              expanded: _expandedCategories,
-                              onToggle: () => setState(() => _expandedCategories = !_expandedCategories),
-                              child: _multiChipOptions(
-                                context: context,
-                                options: caps.categoryOptions,
-                                selectedIds: selectedCats,
-                                onToggle: (id) {
-                                  setState(() => _f = _f.copyWith(categories: _toggleSet(selectedCats, id)));
-                                  _commit();
-                                },
-                              ),
-                            ),
-
-                          if (caps.supportsRating)
-                            _collapse(
-                              context: context,
-                              title: '分级',
-                              valueLabel: _summaryEnum<RatingLevel>(selectedRating, _labelRating),
-                              expanded: _expandedRating,
-                              onToggle: () => setState(() => _expandedRating = !_expandedRating),
-                              child: _multiChipEnum<RatingLevel>(
-                                context: context,
-                                options: caps.ratingOptions,
-                                selected: selectedRating,
-                                labelOf: _labelRating,
-                                onToggle: (v) {
-                                  setState(() => _f = _f.copyWith(rating: _toggleSet(selectedRating, v)));
-                                  _commit();
-                                },
-                              ),
-                            ),
-
-                          if (caps.supportsResolutions)
-                            _collapse(
-                              context: context,
-                              title: '分辨率（精确匹配）',
-                              valueLabel: _summaryStrings(selectedRes),
-                              expanded: _expandedRes,
-                              onToggle: () => setState(() => _expandedRes = !_expandedRes),
-                              child: _multiChipStrings(
-                                context: context,
-                                options: caps.resolutionOptions,
-                                selected: selectedRes,
-                                onToggle: (v) {
-                                  setState(() => _f = _f.copyWith(resolutions: _toggleSet(selectedRes, v)));
-                                  _commit();
-                                },
-                              ),
-                            ),
-
-                          if (caps.supportsAtleast)
-                            _collapse(
-                              context: context,
-                              title: '最小分辨率（至少）',
-                              valueLabel: (_f.atleast ?? '').isEmpty ? '不限' : _f.atleast!,
-                              expanded: _expandedAtleast,
-                              onToggle: () => setState(() => _expandedAtleast = !_expandedAtleast),
-                              child: _singlePickString(
-                                context: context,
-                                options: caps.atleastOptions,
-                                value: _f.atleast ?? '',
-                                labelOf: (v) => v.isEmpty ? '不限' : v,
-                                onPick: (v) {
-                                  setState(() {
-                                    _f = _f.copyWith(atleast: v.isEmpty ? null : v);
-                                    _expandedAtleast = false;
-                                  });
-                                  _commit();
-                                },
-                              ),
-                            ),
-
-                          if (caps.supportsRatios)
-                            _collapse(
-                              context: context,
-                              title: '比例',
-                              valueLabel: _summaryStrings(selectedRatios),
-                              expanded: _expandedRatios,
-                              onToggle: () => setState(() => _expandedRatios = !_expandedRatios),
-                              child: _multiChipStrings(
-                                context: context,
-                                options: caps.ratioOptions,
-                                selected: selectedRatios,
-                                onToggle: (v) {
-                                  setState(() => _f = _f.copyWith(ratios: _toggleSet(selectedRatios, v)));
-                                  _commit();
-                                },
-                              ),
-                            ),
-
-                          if (caps.supportsColor)
-                            _collapse(
-                              context: context,
-                              title: '颜色（Hex）',
-                              valueLabel: (_f.color ?? '').isEmpty ? '不限' : (_f.color ?? '').toUpperCase(),
-                              expanded: _expandedColor,
-                              onToggle: () => setState(() => _expandedColor = !_expandedColor),
-                              child: _singlePickString(
-                                context: context,
-                                options: [''] + caps.colorOptions,
-                                value: _f.color ?? '',
-                                labelOf: (v) => v.isEmpty ? '不限' : v.toUpperCase(),
-                                onPick: (v) {
-                                  setState(() {
-                                    _f = _f.copyWith(color: v.isEmpty ? null : v.replaceAll('#', ''));
-                                    _expandedColor = false;
-                                  });
-                                  _commit();
-                                },
-                              ),
-                            ),
-
+                          ...groupRows,
                           const SizedBox(height: 80),
                         ],
                       ),
@@ -426,271 +876,9 @@ class _FilterDrawerState extends State<FilterDrawer> {
       ),
     );
   }
-
-  Widget _collapse({
-    required BuildContext context,
-    required String title,
-    required String valueLabel,
-    required bool expanded,
-    required VoidCallback onToggle,
-    required Widget child,
-  }) {
-    final theme = Theme.of(context);
-    final mono = _monoPrimary(context);
-    final r = ThemeScope.of(context).cardRadius;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(r),
-          border: Border.all(color: mono.withOpacity(0.08)),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          children: [
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onToggle,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(title, style: TextStyle(fontSize: 16, color: theme.textTheme.bodyLarge?.color)),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(valueLabel, style: TextStyle(fontSize: 14, color: theme.textTheme.bodyMedium?.color)),
-                      const SizedBox(width: 6),
-                      AnimatedRotation(
-                        turns: expanded ? 0.5 : 0.0,
-                        duration: const Duration(milliseconds: 160),
-                        child: Icon(Icons.keyboard_arrow_down, color: mono.withOpacity(0.6)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            AnimatedCrossFade(
-              firstChild: const SizedBox.shrink(),
-              secondChild: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                child: child,
-              ),
-              crossFadeState: expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-              duration: const Duration(milliseconds: 160),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _singlePickEnum<T>({
-    required BuildContext context,
-    required List<T> options,
-    required T value,
-    required String Function(T) labelOf,
-    required ValueChanged<T> onPick,
-  }) {
-    final theme = Theme.of(context);
-    final mono = _monoPrimary(context);
-
-    return Column(
-      children: options.map((o) {
-        final selected = o == value;
-        return InkWell(
-          onTap: () => onPick(o),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Row(
-              children: [
-                Expanded(child: Text(labelOf(o), style: TextStyle(color: theme.textTheme.bodyLarge?.color))),
-                if (selected) Icon(Icons.check, size: 18, color: mono),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _singlePickString({
-    required BuildContext context,
-    required List<String> options,
-    required String value,
-    required String Function(String) labelOf,
-    required ValueChanged<String> onPick,
-  }) {
-    final theme = Theme.of(context);
-    final mono = _monoPrimary(context);
-
-    return Column(
-      children: options.map((o) {
-        final selected = o == value;
-        return InkWell(
-          onTap: () => onPick(o),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Row(
-              children: [
-                Expanded(child: Text(labelOf(o), style: TextStyle(color: theme.textTheme.bodyLarge?.color))),
-                if (selected) Icon(Icons.check, size: 18, color: mono),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _singlePickOption({
-    required BuildContext context,
-    required List<OptionItem> options,
-    required String value,
-    required ValueChanged<String> onPick,
-  }) {
-    final theme = Theme.of(context);
-    final mono = _monoPrimary(context);
-
-    return Column(
-      children: options.map((o) {
-        final selected = o.id == value;
-        return InkWell(
-          onTap: () => onPick(o.id),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Row(
-              children: [
-                Expanded(child: Text(o.label, style: TextStyle(color: theme.textTheme.bodyLarge?.color))),
-                if (selected) Icon(Icons.check, size: 18, color: mono),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _multiChipStrings({
-    required BuildContext context,
-    required List<String> options,
-    required Set<String> selected,
-    required ValueChanged<String> onToggle,
-  }) {
-    final theme = Theme.of(context);
-    final mono = _monoPrimary(context);
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: options.map((o) {
-        final on = selected.contains(o);
-        return InkWell(
-          onTap: () => onToggle(o),
-          borderRadius: BorderRadius.circular(999),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: on ? mono.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.08) : theme.cardColor,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(width: 1, color: on ? mono.withOpacity(0.40) : mono.withOpacity(0.12)),
-            ),
-            child: Text(
-              o,
-              style: TextStyle(
-                fontSize: 14,
-                color: on ? mono : theme.textTheme.bodyLarge?.color,
-                fontWeight: on ? FontWeight.w600 : FontWeight.w400,
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _multiChipEnum<T>({
-    required BuildContext context,
-    required List<T> options,
-    required Set<T> selected,
-    required String Function(T) labelOf,
-    required ValueChanged<T> onToggle,
-  }) {
-    final theme = Theme.of(context);
-    final mono = _monoPrimary(context);
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: options.map((o) {
-        final on = selected.contains(o);
-        return InkWell(
-          onTap: () => onToggle(o),
-          borderRadius: BorderRadius.circular(999),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: on ? mono.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.08) : theme.cardColor,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(width: 1, color: on ? mono.withOpacity(0.40) : mono.withOpacity(0.12)),
-            ),
-            child: Text(
-              labelOf(o),
-              style: TextStyle(
-                fontSize: 14,
-                color: on ? mono : theme.textTheme.bodyLarge?.color,
-                fontWeight: on ? FontWeight.w600 : FontWeight.w400,
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _multiChipOptions({
-    required BuildContext context,
-    required List<OptionItem> options,
-    required Set<String> selectedIds,
-    required ValueChanged<String> onToggle,
-  }) {
-    final theme = Theme.of(context);
-    final mono = _monoPrimary(context);
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: options.map((o) {
-        final on = selectedIds.contains(o.id);
-        return InkWell(
-          onTap: () => onToggle(o.id),
-          borderRadius: BorderRadius.circular(999),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: on ? mono.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.08) : theme.cardColor,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(width: 1, color: on ? mono.withOpacity(0.40) : mono.withOpacity(0.12)),
-            ),
-            child: Text(
-              o.label,
-              style: TextStyle(
-                fontSize: 14,
-                color: on ? mono : theme.textTheme.bodyLarge?.color,
-                fontWeight: on ? FontWeight.w600 : FontWeight.w400,
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
 }
 
+// ====== Keyword input ======
 class _KeywordInput extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
@@ -735,6 +923,7 @@ class _SettingsFab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Material(
       color: Colors.transparent,
       child: InkResponse(
@@ -744,9 +933,134 @@ class _SettingsFab extends StatelessWidget {
         highlightColor: Colors.transparent,
         child: Padding(
           padding: const EdgeInsets.all(10),
-          child: Icon(Icons.settings_outlined, color: theme.iconTheme.color, size: 24),
+          child: Icon(
+            Icons.settings_outlined,
+            color: theme.iconTheme.color,
+            size: 24,
+          ),
         ),
       ),
     );
   }
+}
+
+// tiny models
+class _PickItem<T> {
+  final T value;
+  final String label;
+  const _PickItem(this.value, this.label);
+}
+
+class _RowDef {
+  final String title;
+  final String valueLabel;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final Widget child;
+
+  _RowDef({
+    required this.title,
+    required this.valueLabel,
+    required this.expanded,
+    required this.onToggle,
+    required this.child,
+  });
+}
+
+// ---------------------------
+// ✅ 可选：FilterSpec JSON 持久化工具（给 main.dart 用）
+// 你要持久化就 copy 这俩函数到你想放的地方。
+// ---------------------------
+String filterSpecToJsonString(FilterSpec f) {
+  final map = <String, dynamic>{
+    'text': f.text,
+    'sortBy': f.sortBy?.name,
+    'order': f.order?.name,
+    'resolutions': f.resolutions.toList(),
+    'atleast': f.atleast,
+    'ratios': f.ratios.toList(),
+    'color': f.color,
+    'rating': f.rating.map((e) => e.name).toList(),
+    'categories': f.categories.toList(),
+    'timeRange': f.timeRange,
+  };
+  return jsonEncode(map);
+}
+
+FilterSpec filterSpecFromJsonString(String raw) {
+  final decoded = jsonDecode(raw);
+  if (decoded is! Map) return const FilterSpec();
+  final m = decoded.cast<String, dynamic>();
+
+  SortBy? sortBy;
+  final sb = m['sortBy'];
+  if (sb is String) {
+    for (final e in SortBy.values) {
+      if (e.name == sb) sortBy = e;
+    }
+  }
+
+  SortOrder? order;
+  final od = m['order'];
+  if (od is String) {
+    for (final e in SortOrder.values) {
+      if (e.name == od) order = e;
+    }
+  }
+
+  final resolutions = <String>{};
+  final rr = m['resolutions'];
+  if (rr is List) {
+    for (final e in rr) {
+      final s = e?.toString().trim() ?? '';
+      if (s.isNotEmpty) resolutions.add(s);
+    }
+  }
+
+  final ratios = <String>{};
+  final ra = m['ratios'];
+  if (ra is List) {
+    for (final e in ra) {
+      final s = e?.toString().trim() ?? '';
+      if (s.isNotEmpty) ratios.add(s);
+    }
+  }
+
+  final rating = <RatingLevel>{};
+  final rt = m['rating'];
+  if (rt is List) {
+    for (final e in rt) {
+      final s = e?.toString().trim() ?? '';
+      for (final r in RatingLevel.values) {
+        if (r.name == s) rating.add(r);
+      }
+    }
+  }
+
+  final categories = <String>{};
+  final cc = m['categories'];
+  if (cc is List) {
+    for (final e in cc) {
+      final s = e?.toString().trim() ?? '';
+      if (s.isNotEmpty) categories.add(s);
+    }
+  }
+
+  final text = (m['text'] ?? '').toString();
+  final atleast = (m['atleast'] ?? '').toString().trim();
+  final color = (m['color'] ?? '').toString().trim();
+  final timeRange = (m['timeRange'] ?? '').toString().trim();
+
+  return FilterSpec(
+    text: text,
+    sortBy: sortBy,
+    order: order,
+    resolutions: resolutions,
+    atleast: atleast.isEmpty ? null : atleast,
+    ratios: ratios,
+    color: color.isEmpty ? null : color.replaceAll('#', ''),
+    rating: rating,
+    categories: categories,
+    timeRange: timeRange.isEmpty ? null : timeRange,
+  );
 }
