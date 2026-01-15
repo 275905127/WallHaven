@@ -35,11 +35,12 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
 
   Future<void> _load() async {
     final store = ThemeScope.of(context);
-    final data = await WallhavenApi.getWallpaperDetail(
-      baseUrl: store.currentSource.baseUrl,
-      apiKey: store.currentSource.apiKey,
-      id: widget.id,
-    );
+    final client = WallhavenClient(
+  baseUrl: store.currentPluginSettings['baseUrl'],
+  apiKey: store.currentPluginSettings['apiKey'],
+);
+
+    final data = await client.detail(id: widget.id);
     if (!mounted) return;
     setState(() {
       _detail = data;
