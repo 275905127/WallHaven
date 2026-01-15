@@ -2,10 +2,9 @@
 import 'package:dio/dio.dart';
 
 import '../../../domain/entities/detail_field.dart';
-import '../../../domain/entities/filter_spec.dart';
-import '../../../domain/entities/option_item.dart';
 import '../../../domain/entities/search_query.dart';
 import '../../../domain/entities/source_capabilities.dart';
+import '../../../domain/entities/option_item.dart';
 import '../../../domain/entities/wallpaper_detail_item.dart';
 import '../../../domain/entities/wallpaper_item.dart';
 import '../../http/http_client.dart';
@@ -20,12 +19,11 @@ class GenericJsonSource implements WallpaperSource {
 
   final HttpClient _http;
 
-  final String baseUrl;     // e.g. https://example.com/api
-  final String searchPath;  // e.g. /search
-  final String detailPath;  // e.g. /w/{id}
+  final String baseUrl;
+  final String searchPath;
+  final String detailPath;
   final String? apiKey;
 
-  /// ✅ settings 原样带进来：用于 mapping/capabilities/custom fields
   final Map<String, dynamic> settings;
 
   GenericJsonSource({
@@ -46,13 +44,12 @@ class GenericJsonSource implements WallpaperSource {
   }
 
   // ----------------------------
-  // ✅ capabilities：从 settings 读取，否则最小集
+  // capabilities
   // ----------------------------
   @override
   SourceCapabilities get capabilities => _capsFromSettings(settings);
 
   SourceCapabilities _capsFromSettings(Map<String, dynamic> s) {
-    // 默认：只支持关键词
     final caps = s['capabilities'];
     if (caps is! Map) {
       return const SourceCapabilities(
@@ -148,7 +145,7 @@ class GenericJsonSource implements WallpaperSource {
   }
 
   // ----------------------------
-  // ✅ Mapping helpers（可配置）
+  // mapping
   // ----------------------------
   Map<String, dynamic> get _mapping {
     final mp = settings['mapping'];
@@ -162,16 +159,14 @@ class GenericJsonSource implements WallpaperSource {
     return fallback;
   }
 
-  String _dataKey() => _mapKey('dataKey', 'data'); // root[dataKey] is list/object
-
+  String _dataKey() => _mapKey('dataKey', 'data');
   String _idKey() => _mapKey('id', 'id');
-  String _previewKey() => _mapKey('preview', 'thumb'); // or preview
+  String _previewKey() => _mapKey('preview', 'thumb');
   String _previewSmallKey() => _mapKey('previewSmall', 'small');
   String _originalKey() => _mapKey('original', 'url');
   String _widthKey() => _mapKey('width', 'width');
   String _heightKey() => _mapKey('height', 'height');
 
-  /// 支持简单 jsonPath： "thumbs.small"
   dynamic _readPath(Map<String, dynamic> j, String path) {
     final p = path.trim();
     if (p.isEmpty) return null;
@@ -179,11 +174,8 @@ class GenericJsonSource implements WallpaperSource {
 
     dynamic cur = j;
     for (final part in p.split('.')) {
-      if (cur is Map) {
-        cur = (cur as Map)[part];
-      } else {
-        return null;
-      }
+      if (cur is Map) cur = (cur as Map)[part];
+      else return null;
     }
     return cur;
   }
@@ -202,21 +194,14 @@ class GenericJsonSource implements WallpaperSource {
     return int.tryParse(s) ?? fallback;
   }
 
-  Uri _safeUri(String s) {
-    final u = Uri.tryParse(s);
-    return u ?? Uri.parse('about:blank');
-  }
+  Uri _safeUri(String s) => Uri.tryParse(s) ?? Uri.parse('about:blank');
 
   // ----------------------------
-  // ✅ FilterSpec -> queryParameters
-  // 规则：GenericJson 不默认映射 Wallhaven 语义
-  // 只做通用、可配置的 key 输出（否则就只传 page/q）
+  // FilterSpec -> queryParameters (通用输出)
   // ----------------------------
   Map<String, dynamic> _buildQueryParams(SearchQuery q) {
     final f = q.filters;
 
-    // 允许你配置 filterKeys 来定义输出 key 名
-    // e.g. { "q": "q", "sortBy":"sort", "order":"order", "resolutions":"res", ... }
     final fk = settings['filterKeys'];
     final Map<String, dynamic> filterKeys = (fk is Map) ? fk.cast<String, dynamic>() : const {};
 
@@ -230,40 +215,21 @@ class GenericJsonSource implements WallpaperSource {
       k('page', 'page'): q.page,
     };
 
-    if (f.text.trim().isNotEmpty) {
-      out[k('q', 'q')] = f.text.trim();
-    }
+    if (f.text.trim().isNotEmpty) out[k('q', 'q')] = f.text.trim();
 
-    // 以下都“按 capabilities 决定是否输出”
     final caps = capabilities;
 
-    if (caps.supportsSort && f.sortBy != null) {
-      out[k('sortBy', 'sortBy')] = f.sortBy!.name;
-    }
-    if (caps.supportsOrder && f.order != null) {
-      out[k('order', 'order')] = f.order!.name;
-    }
+    if (caps.supportsSort && f.sortBy != null) out[k('sortBy', 'sortBy')] = f.sortBy!.name;
+    if (caps.supportsOrder && f.order != null) out[k('order', 'order')] = f.order!.name;
     if (caps.supportsResolutions && f.resolutions.isNotEmpty) {
       out[k('resolutions', 'resolutions')] = (f.resolutions.toList()..sort()).join(',');
     }
-    if (caps.supportsAtleast && (f.atleast ?? '').trim().isNotEmpty) {
-      out[k('atleast', 'atleast')] = f.atleast!.trim();
-    }
-    if (caps.supportsRatios && f.ratios.isNotEmpty) {
-      out[k('ratios', 'ratios')] = (f.ratios.toList()..sort()).join(',');
-    }
-    if (caps.supportsColor && (f.color ?? '').trim().isNotEmpty) {
-      out[k('color', 'color')] = f.color!.trim().replaceAll('#', '');
-    }
-    if (caps.supportsRating && f.rating.isNotEmpty) {
-      out[k('rating', 'rating')] = f.rating.map((e) => e.name).join(',');
-    }
-    if (caps.supportsCategories && f.categories.isNotEmpty) {
-      out[k('categories', 'categories')] = (f.categories.toList()..sort()).join(',');
-    }
-    if (caps.supportsTimeRange && (f.timeRange ?? '').trim().isNotEmpty) {
-      out[k('timeRange', 'timeRange')] = f.timeRange!.trim();
-    }
+    if (caps.supportsAtleast && (f.atleast ?? '').trim().isNotEmpty) out[k('atleast', 'atleast')] = f.atleast!.trim();
+    if (caps.supportsRatios && f.ratios.isNotEmpty) out[k('ratios', 'ratios')] = (f.ratios.toList()..sort()).join(',');
+    if (caps.supportsColor && (f.color ?? '').trim().isNotEmpty) out[k('color', 'color')] = f.color!.trim().replaceAll('#', '');
+    if (caps.supportsRating && f.rating.isNotEmpty) out[k('rating', 'rating')] = f.rating.map((e) => e.name).join(',');
+    if (caps.supportsCategories && f.categories.isNotEmpty) out[k('categories', 'categories')] = (f.categories.toList()..sort()).join(',');
+    if (caps.supportsTimeRange && (f.timeRange ?? '').trim().isNotEmpty) out[k('timeRange', 'timeRange')] = f.timeRange!.trim();
 
     if (apiKey != null && apiKey!.isNotEmpty) {
       final apiKeyParam = (settings['apiKeyParam'] is String && (settings['apiKeyParam'] as String).trim().isNotEmpty)
@@ -275,9 +241,6 @@ class GenericJsonSource implements WallpaperSource {
     return out;
   }
 
-  // ----------------------------
-  // ✅ API decode helpers
-  // ----------------------------
   dynamic _unwrapRoot(dynamic root) {
     final key = _dataKey();
     if (root is Map && root[key] != null) return root[key];
@@ -297,7 +260,7 @@ class GenericJsonSource implements WallpaperSource {
   }
 
   // ----------------------------
-  // ✅ Search
+  // Search
   // ----------------------------
   @override
   Future<List<WallpaperItem>> search(SearchQuery query) async {
@@ -311,8 +274,7 @@ class GenericJsonSource implements WallpaperSource {
 
       if (resp.statusCode != 200) return const [];
 
-      final root = resp.data;
-      final payload = _unwrapRoot(root);
+      final payload = _unwrapRoot(resp.data);
       final list = _asListOfMap(payload);
 
       final items = <WallpaperItem>[];
@@ -327,8 +289,7 @@ class GenericJsonSource implements WallpaperSource {
         final h = _readInt(j, _heightKey(), fallback: 0);
 
         final bestPreview = (previewAlt.isNotEmpty) ? previewAlt : (previewSmall.isNotEmpty ? previewSmall : original);
-
-        if (id.trim().isEmpty || bestPreview.trim().isEmpty) continue;
+        if (id.trim().isEmpty || bestPreview.trim().isNotEmpty == false) continue;
 
         items.add(
           WallpaperItem(
@@ -351,7 +312,7 @@ class GenericJsonSource implements WallpaperSource {
   }
 
   // ----------------------------
-  // ✅ Detail
+  // Detail
   // ----------------------------
   @override
   Future<WallpaperDetailItem?> detail(String id) async {
@@ -359,6 +320,7 @@ class GenericJsonSource implements WallpaperSource {
 
     try {
       final path = detailPath.replaceAll('{id}', id);
+
       final resp = await _http.dio.get(
         _join(baseUrl, path),
         queryParameters: <String, dynamic>{
@@ -375,7 +337,6 @@ class GenericJsonSource implements WallpaperSource {
       final j = _asMap(payload);
       if (j == null) return null;
 
-      // 取图像链接：优先 original，再退到 preview
       final original = _readString(j, _originalKey(), fallback: _readString(j, 'path', fallback: ''));
       final preview = _readString(j, _previewKey(), fallback: _readString(j, 'thumb', fallback: ''));
       final imageUrl = original.isNotEmpty ? original : preview;
@@ -384,7 +345,7 @@ class GenericJsonSource implements WallpaperSource {
       final w = _readInt(j, _widthKey(), fallback: 0);
       final h = _readInt(j, _heightKey(), fallback: 0);
 
-      // tags/colors（尽量通用）
+      // tags/colors
       final tags = <String>[];
       final tagsRaw = j['tags'];
       if (tagsRaw is List) {
@@ -406,36 +367,102 @@ class GenericJsonSource implements WallpaperSource {
         }
       }
 
-      // ✅ fields：让 source 决定展示什么，UI 只渲染
       final fields = <DetailField>[];
 
-      void addField(String key, String label, dynamic value) {
-        final v = value?.toString().trim() ?? '';
-        if (v.isEmpty) return;
-        fields.add(DetailField(key: key, label: label, value: v));
+      void addField(String key, String label, dynamic value, {DetailFieldType? type}) {
+        if (value == null) return;
+
+        // type 明确指定：严格按 type
+        if (type != null) {
+          switch (type) {
+            case DetailFieldType.text:
+              final s = value.toString().trim();
+              if (s.isEmpty) return;
+              fields.add(DetailField.text(key: key, label: label, value: s));
+              return;
+            case DetailFieldType.url:
+              final s = value.toString().trim();
+              if (s.isEmpty) return;
+              fields.add(DetailField.url(key: key, label: label, value: s));
+              return;
+            case DetailFieldType.number:
+              if (value is num) {
+                fields.add(DetailField.number(key: key, label: label, value: value));
+                return;
+              }
+              final n = num.tryParse(value.toString().trim());
+              if (n == null) return;
+              fields.add(DetailField.number(key: key, label: label, value: n));
+              return;
+            case DetailFieldType.bytes:
+              if (value is int) {
+                fields.add(DetailField.bytes(key: key, label: label, value: value));
+                return;
+              }
+              final n = int.tryParse(value.toString().trim());
+              if (n == null) return;
+              fields.add(DetailField.bytes(key: key, label: label, value: n));
+              return;
+          }
+        }
+
+        // 没指定 type：保守推断
+        final s = value.toString().trim();
+        if (s.isEmpty) return;
+
+        final lowerKey = key.toLowerCase();
+        final looksUrl = s.startsWith('http://') || s.startsWith('https://');
+        if (looksUrl || lowerKey.contains('url') || lowerKey.contains('link')) {
+          fields.add(DetailField.url(key: key, label: label, value: s));
+          return;
+        }
+
+        final looksInt = int.tryParse(s) != null;
+        if (looksInt && (lowerKey.contains('size') || lowerKey.contains('bytes'))) {
+          fields.add(DetailField.bytes(key: key, label: label, value: int.parse(s)));
+          return;
+        }
+
+        final looksNum = num.tryParse(s) != null;
+        if (looksNum && (lowerKey.contains('count') || lowerKey.contains('views') || lowerKey.contains('fav'))) {
+          fields.add(DetailField.number(key: key, label: label, value: num.parse(s)));
+          return;
+        }
+
+        fields.add(DetailField.text(key: key, label: label, value: s));
       }
 
       // 一些通用字段（如果存在就展示）
-      addField('author', '作者', j['author'] ?? j['uploader'] ?? j['username']);
-      addField('short_url', '短链', j['short_url'] ?? j['shortUrl']);
-      addField('views', '浏览量', j['views']);
-      addField('favorites', '收藏量', j['favorites']);
-      addField('resolution', '分辨率', j['resolution'] ?? (w > 0 && h > 0 ? '${w}x$h' : null));
-      addField('file_type', '格式', j['file_type'] ?? j['fileType']);
-      addField('file_size', '大小', j['file_size'] ?? j['fileSize']);
-      addField('source', '来源', j['source'] ?? j['source_url'] ?? j['sourceUrl']);
+      addField('author', '作者', j['author'] ?? j['uploader'] ?? j['username'], type: DetailFieldType.text);
+      addField('short_url', '短链', j['short_url'] ?? j['shortUrl'], type: DetailFieldType.url);
+      addField('views', '浏览量', j['views'], type: DetailFieldType.number);
+      addField('favorites', '收藏量', j['favorites'], type: DetailFieldType.number);
+      addField('resolution', '分辨率', j['resolution'] ?? (w > 0 && h > 0 ? '${w}x$h' : null), type: DetailFieldType.text);
+      addField('file_type', '格式', j['file_type'] ?? j['fileType'], type: DetailFieldType.text);
+      addField('file_size', '大小', j['file_size'] ?? j['fileSize'], type: DetailFieldType.bytes);
+      addField('source', '来源', j['source'] ?? j['source_url'] ?? j['sourceUrl'], type: DetailFieldType.url);
 
-      // 允许你自定义额外字段：settings['detailFields'] = [{key,label,path}]
+      // ✅ 自定义额外字段：settings['detailFields'] = [{key,label,path,type}]
       final custom = settings['detailFields'];
       if (custom is List) {
         for (final e in custom) {
           if (e is! Map) continue;
           final mm = e.cast<String, dynamic>();
+
           final k = (mm['key'] ?? '').toString().trim();
           final label = (mm['label'] ?? '').toString().trim();
           final path2 = (mm['path'] ?? '').toString().trim();
+          final typeRaw = (mm['type'] ?? '').toString().trim().toLowerCase();
+
           if (k.isEmpty || label.isEmpty || path2.isEmpty) continue;
-          addField(k, label, _readPath(j, path2));
+
+          DetailFieldType? t;
+          if (typeRaw == 'text') t = DetailFieldType.text;
+          if (typeRaw == 'url') t = DetailFieldType.url;
+          if (typeRaw == 'number') t = DetailFieldType.number;
+          if (typeRaw == 'bytes') t = DetailFieldType.bytes;
+
+          addField(k, label, _readPath(j, path2), type: t);
         }
       }
 
