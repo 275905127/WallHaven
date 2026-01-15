@@ -287,6 +287,23 @@ class _HomePageState extends State<HomePage> {
       listenable: store,
       builder: (context, _) {
         final theme = Theme.of(context);
+
+        // ✅ 关键修复：抽屉打开时，强制用“筛选页背景色”驱动状态栏
+        // 避免被 AppBarTheme / FoggyAppBar 反复覆盖回透明
+        final isDark = theme.brightness == Brightness.dark;
+        final overlay = _drawerOpen
+            ? SystemUiOverlayStyle(
+                statusBarColor: theme.scaffoldBackgroundColor,
+                statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+                statusBarBrightness: isDark ? Brightness.dark : Brightness.light, // iOS
+                systemNavigationBarColor: theme.scaffoldBackgroundColor,
+                systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+              )
+            : const SystemUiOverlayStyle(
+                statusBarColor: Colors.transparent,
+                systemNavigationBarColor: Colors.transparent,
+              );
+
         final drawerRadius = store.cardRadius;
 
         // 如果主题变化而抽屉正开着，状态栏也跟着同步一次
@@ -296,100 +313,104 @@ class _HomePageState extends State<HomePage> {
           });
         }
 
-        return Scaffold(
-          key: _scaffoldKey,
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: overlay,
+          child: Scaffold(
+            key: _scaffoldKey,
 
-          onDrawerChanged: (open) {
-            _drawerOpen = open;
-            _syncOverlayForDrawer(context, open);
-          },
+            onDrawerChanged: (open) {
+              _drawerOpen = open;
+              _syncOverlayForDrawer(context, open);
+              if (mounted) setState(() {}); // ✅ 让 AnnotatedRegion 立即跟随切换
+            },
 
-          // ✅ 左侧右滑（核心）
-          drawerEnableOpenDragGesture: true,
-          drawerEdgeDragWidth: 110, // 关键：避免和系统返回硬刚
-          drawerDragStartBehavior: DragStartBehavior.down,
+            // ✅ 左侧右滑（核心）
+            drawerEnableOpenDragGesture: true,
+            drawerEdgeDragWidth: 110, // 关键：避免和系统返回硬刚
+            drawerDragStartBehavior: DragStartBehavior.down,
 
-          // ✅ 抽屉圆角跟随全局 cardRadius（仅右侧外边圆角）
-          drawer: Drawer(
-            width: _drawerWidth(context),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.horizontal(
-                right: Radius.circular(drawerRadius),
+            // ✅ 抽屉圆角跟随全局 cardRadius（仅右侧外边圆角）
+            drawer: Drawer(
+              width: _drawerWidth(context),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.horizontal(
+                  right: Radius.circular(drawerRadius),
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: FilterDrawer(
+                initial: _filters,
+                onApply: _applyFilters,
+                onReset: _resetFilters,
+                // ✅ 设置入口移到筛选页右下角
+                onOpenSettings: _openSettingsFromDrawer,
               ),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: FilterDrawer(
-              initial: _filters,
-              onApply: _applyFilters,
-              onReset: _resetFilters,
-              // ✅ 设置入口移到筛选页右下角
-              onOpenSettings: _openSettingsFromDrawer,
+
+            extendBodyBehindAppBar: true,
+            appBar: FoggyAppBar(
+              // ✅ 标题：Wallhaven Pro -> Wallhaven
+              title: const Text("Wallhaven"),
+              isScrolled: _isScrolled,
+              // ✅ 主页雾化更淡（分控）
+              fogStrength: 0.82,
+              // ✅ 主页右上角设置入口移除（筛选页右下角）
+              actions: const [],
             ),
-          ),
 
-          extendBodyBehindAppBar: true,
-          appBar: FoggyAppBar(
-            // ✅ 标题：Wallhaven Pro -> Wallhaven
-            title: const Text("Wallhaven"),
-            isScrolled: _isScrolled,
-            // ✅ 主页雾化更淡（分控）
-            fogStrength: 0.82,
-            // ✅ 主页右上角设置入口移除（筛选页右下角）
-            actions: const [],
-          ),
+            body: _wallpapers.isEmpty && _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: _onRefresh,
+                    edgeOffset: 100,
+                    child: MasonryGridView.count(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(12, 100, 12, 20),
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      itemCount: _wallpapers.length,
+                      itemBuilder: (context, index) {
+                        final paper = _wallpapers[index];
+                        final double aspectRatio = (paper.width / paper.height).clamp(0.5, 2.0);
 
-          body: _wallpapers.isEmpty && _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                  onRefresh: _onRefresh,
-                  edgeOffset: 100,
-                  child: MasonryGridView.count(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(12, 100, 12, 20),
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    itemCount: _wallpapers.length,
-                    itemBuilder: (context, index) {
-                      final paper = _wallpapers[index];
-                      final double aspectRatio = (paper.width / paper.height).clamp(0.5, 2.0);
-
-                      return GestureDetector(
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => WallpaperDetailPage(
-                              id: paper.id,
-                              heroThumb: paper.thumb,
-                            ),
-                          ),
-                        ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: theme.cardColor,
-                            borderRadius: BorderRadius.circular(store.imageRadius),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: AspectRatio(
-                            aspectRatio: aspectRatio,
-                            child: CachedNetworkImage(
-                              imageUrl: paper.thumb,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) => Container(
-                                color: theme.cardColor,
-                                child: const Center(child: Icon(Icons.image, color: Colors.grey)),
-                              ),
-                              errorWidget: (context, url, error) => Container(
-                                color: theme.cardColor,
-                                child: const Center(child: Icon(Icons.error, color: Colors.grey)),
+                        return GestureDetector(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => WallpaperDetailPage(
+                                id: paper.id,
+                                heroThumb: paper.thumb,
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: theme.cardColor,
+                              borderRadius: BorderRadius.circular(store.imageRadius),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: AspectRatio(
+                              aspectRatio: aspectRatio,
+                              child: CachedNetworkImage(
+                                imageUrl: paper.thumb,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Container(
+                                  color: theme.cardColor,
+                                  child: const Center(child: Icon(Icons.image, color: Colors.grey)),
+                                ),
+                                errorWidget: (context, url, error) => Container(
+                                  color: theme.cardColor,
+                                  child: const Center(child: Icon(Icons.error, color: Colors.grey)),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                ),
+          ),
         );
       },
     );
