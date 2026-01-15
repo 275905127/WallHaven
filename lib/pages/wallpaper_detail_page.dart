@@ -2,11 +2,11 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../theme/theme_store.dart';
 import '../domain/entities/wallpaper_detail_item.dart';
 import '../data/http/http_client.dart';
 import '../data/source_factory.dart';
 import '../data/repository/wallpaper_repository.dart';
-import '../theme/theme_store.dart';
 
 class WallpaperDetailPage extends StatefulWidget {
   final String id;
@@ -48,14 +48,13 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
   Future<void> _load() async {
     try {
       final store = ThemeScope.of(context);
-      final src = _factory.fromStore(store);
-      _repo.setSource(src);
+      _repo.setSource(_factory.fromStore(store));
 
-      final d = await _repo.detail(widget.id);
-
+      final data = await _repo.detail(widget.id);
       if (!mounted) return;
+
       setState(() {
-        _detail = d;
+        _detail = data;
         _loading = false;
       });
     } catch (_) {
@@ -70,6 +69,18 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
   Color _monoPrimary(BuildContext context) {
     final b = Theme.of(context).brightness;
     return b == Brightness.dark ? Colors.white : Colors.black;
+  }
+
+  String _humanSize(int bytes) {
+    if (bytes <= 0) return "-";
+    const kb = 1024.0;
+    const mb = kb * 1024.0;
+    const gb = mb * 1024.0;
+    final b = bytes.toDouble();
+    if (b >= gb) return "${(b / gb).toStringAsFixed(2)} GB";
+    if (b >= mb) return "${(b / mb).toStringAsFixed(2)} MB";
+    if (b >= kb) return "${(b / kb).toStringAsFixed(2)} KB";
+    return "$bytes B";
   }
 
   @override
@@ -89,16 +100,15 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
                       style: TextStyle(color: theme.textTheme.bodyLarge?.color),
                     ),
                   )
-                : _body(context),
+                : _body(context, _detail!),
       ),
     );
   }
 
-  Widget _body(BuildContext context) {
+  Widget _body(BuildContext context, WallpaperDetailItem d) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
     final store = ThemeScope.of(context);
-    final d = _detail!;
 
     final imageUrl = d.image.toString().isNotEmpty ? d.image.toString() : (widget.heroThumb ?? '');
     final aspect = (d.width > 0 && d.height > 0) ? (d.width / d.height) : 16 / 9;
@@ -131,7 +141,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
           ),
           const SizedBox(height: 14),
 
-          // ✅ 元信息：完全由 fields 驱动
+          // meta card
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
@@ -145,13 +155,25 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
               children: [
                 _actionsRow(context),
                 const SizedBox(height: 10),
-                ...d.fields.map((f) => _metaLine(context, f.label, f.value)).toList(),
+
+                // 通用：如果 domain 有就显示
+                if ((d.author ?? '').trim().isNotEmpty) _metaLine(context, Icons.person_outline, "作者", d.author!),
+                if (d.views != null) _metaLine(context, Icons.remove_red_eye_outlined, "浏览量", "${d.views}"),
+                if (d.favorites != null) _metaLine(context, Icons.favorite_border, "收藏量", "${d.favorites}"),
+                _metaLine(context, Icons.fullscreen, "分辨率", d.resolution ?? "${d.width}x${d.height}"),
+                if (d.fileSize != null) _metaLine(context, Icons.insert_drive_file_outlined, "大小", _humanSize(d.fileSize!)),
+                if ((d.fileType ?? '').trim().isNotEmpty) _metaLine(context, Icons.image_outlined, "格式", d.fileType!),
+                if (d.shortUrl != null && d.shortUrl.toString().trim().isNotEmpty) _metaLine(context, Icons.link, "短链", d.shortUrl.toString()),
+                if (d.sourceUrl != null && d.sourceUrl.toString().trim().isNotEmpty) _metaLine(context, Icons.public, "来源", d.sourceUrl.toString()),
+
+                // ✅ 关键：fields 由 source 决定 label/value，UI 不理解语义
+                for (final f in d.fields)
+                  _metaLine(context, Icons.info_outline, f.label, f.value),
               ],
             ),
           ),
 
           const SizedBox(height: 14),
-
           _tagsPanel(context, d),
         ],
       ),
@@ -175,15 +197,19 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
 
     return Row(
       children: [
+        action(Icons.content_cut_outlined, () {}),
+        const SizedBox(width: 6),
         action(Icons.share_outlined, () {}),
         const SizedBox(width: 6),
         action(Icons.file_download_outlined, () {}),
+        const SizedBox(width: 6),
+        action(Icons.bookmark_border, () {}),
         const Spacer(),
       ],
     );
   }
 
-  Widget _metaLine(BuildContext context, String label, String value) {
+  Widget _metaLine(BuildContext context, IconData icon, String label, String value) {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
 
@@ -192,7 +218,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline, size: 18, color: mono.withOpacity(0.55)),
+          Icon(icon, size: 18, color: mono.withOpacity(0.55)),
           const SizedBox(width: 10),
           SizedBox(
             width: 66,
@@ -225,6 +251,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
     final store = ThemeScope.of(context);
+    final tags = d.tags;
 
     Widget chip(String text) {
       return Container(
@@ -265,13 +292,13 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
             ),
           ),
           const SizedBox(height: 12),
-          if (d.tags.isEmpty)
+          if (tags.isEmpty)
             Text("暂无标签", style: TextStyle(color: theme.textTheme.bodyMedium?.color))
           else
             Wrap(
               spacing: 10,
               runSpacing: 10,
-              children: d.tags.map(chip).toList(),
+              children: tags.map(chip).toList(),
             ),
         ],
       ),
