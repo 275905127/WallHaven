@@ -27,29 +27,58 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
   WallpaperDetailItem? _detail;
   bool _loading = true;
 
-  // ✅ 页面级共享（不随页面 dispose 关闭）
+  // ✅ 页面间共享 HttpClient（你不做全局 DI 的情况下，这是最省事且一致的做法）
   static final HttpClient _sharedHttp = HttpClient();
 
-  late final SourceFactory _factory;
-  late final WallpaperRepository _repo;
+  SourceFactory? _factory;
+  WallpaperRepository? _repo;
+
+  String? _lastSourceConfigId;
+  bool _bootstrapped = false;
 
   @override
-  void initState() {
-    super.initState();
-    _factory = SourceFactory(http: _sharedHttp);
-    _repo = WallpaperRepository(_factory.fromStore(ThemeScope.of(context)));
-    _load();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final store = ThemeScope.of(context);
+    final currentId = store.currentSourceConfig.id;
+
+    // 第一次：创建 factory/repo，并加载
+    if (!_bootstrapped) {
+      _bootstrapped = true;
+
+      _factory = SourceFactory(http: _sharedHttp);
+      final src = _factory!.fromStore(store);
+      _repo = WallpaperRepository(src);
+
+      _lastSourceConfigId = currentId;
+      _load();
+      return;
+    }
+
+    // 切源：自动刷新详情
+    if (_lastSourceConfigId != currentId) {
+      _lastSourceConfigId = currentId;
+
+      final src = _factory!.fromStore(store);
+      _repo!.setSource(src);
+
+      _reload();
+    }
+  }
+
+  Future<void> _reload() async {
+    if (!mounted) return;
+    setState(() {
+      _loading = true;
+      _detail = null;
+    });
+    await _load();
   }
 
   Future<void> _load() async {
     try {
-      final store = ThemeScope.of(context);
-
-      final src = _factory.fromStore(store);
-      _repo.setSource(src);
-
-      final data = await _repo.detail(widget.id);
-
+      final data = await _repo!.detail(widget.id);
       if (!mounted) return;
       setState(() {
         _detail = data;
