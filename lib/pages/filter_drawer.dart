@@ -75,6 +75,17 @@ class _FilterDrawerState extends State<FilterDrawer> {
   late WallhavenFilters _f;
   late TextEditingController _qCtrl;
 
+  bool _sortingExpanded = false;
+
+  static const List<_SegItem<String>> _sortingItems = [
+    _SegItem('toplist', '榜单'),
+    _SegItem('date_added', '最新'),
+    _SegItem('favorites', '收藏'),
+    _SegItem('views', '浏览'),
+    _SegItem('random', '随机'),
+    _SegItem('relevance', '相关'),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -111,6 +122,121 @@ class _FilterDrawerState extends State<FilterDrawer> {
           Text(title, style: _titleStyle(context)),
           const SizedBox(height: 10),
           child,
+        ],
+      ),
+    );
+  }
+
+  String _sortingLabel(String value) {
+    for (final it in _sortingItems) {
+      if (it.value == value) return it.label;
+    }
+    return value;
+  }
+
+  Widget _collapseSelect(
+    BuildContext context, {
+    required String title,
+    required String valueLabel,
+    required bool expanded,
+    required VoidCallback onToggle,
+    required List<_SegItem<String>> items,
+    required String value,
+    required ValueChanged<String> onPick,
+  }) {
+    final theme = Theme.of(context);
+    final mono = _monoPrimary(context);
+
+    Widget optionRow(_SegItem<String> it, bool isLast) {
+      final selected = it.value == value;
+
+      return InkWell(
+        onTap: () => onPick(it.value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            border: Border(
+              top: const BorderSide(width: 0, color: Colors.transparent),
+              bottom: isLast ? BorderSide.none : BorderSide(color: mono.withOpacity(0.10), width: 1),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  it.label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: theme.textTheme.bodyLarge?.color,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+              ),
+              if (selected)
+                Icon(
+                  Icons.check,
+                  size: 18,
+                  color: mono,
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: mono.withOpacity(0.12)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      valueLabel,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: theme.textTheme.bodyLarge?.color,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: expanded ? 0.5 : 0.0,
+                    duration: const Duration(milliseconds: 160),
+                    curve: Curves.easeOut,
+                    child: Icon(
+                      Icons.keyboard_arrow_down,
+                      color: mono.withOpacity(0.75),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Column(
+              children: List.generate(items.length, (i) {
+                final it = items[i];
+                final isLast = i == items.length - 1;
+                return optionRow(it, isLast);
+              }),
+            ),
+            crossFadeState: expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 160),
+            firstCurve: Curves.easeOut,
+            secondCurve: Curves.easeOut,
+          ),
         ],
       ),
     );
@@ -237,21 +363,24 @@ class _FilterDrawerState extends State<FilterDrawer> {
                       ),
                     ),
 
+                    // ✅ 改成折叠选择：右侧三角箭头 + 当前项对号
                     _section(
                       context,
                       "排序方式",
-                      _segmented<String>(
+                      _collapseSelect(
                         context,
-                        items: const [
-                          _SegItem('toplist', '榜单'),
-                          _SegItem('date_added', '最新'),
-                          _SegItem('favorites', '收藏'),
-                          _SegItem('views', '浏览'),
-                          _SegItem('random', '随机'),
-                          _SegItem('relevance', '相关'),
-                        ],
+                        title: "排序方式",
+                        valueLabel: _sortingLabel(_f.sorting),
+                        expanded: _sortingExpanded,
+                        onToggle: () => setState(() => _sortingExpanded = !_sortingExpanded),
+                        items: _sortingItems,
                         value: _f.sorting,
-                        onChanged: (v) => setState(() => _f = _f.copyWith(sorting: v)),
+                        onPick: (v) {
+                          setState(() {
+                            _f = _f.copyWith(sorting: v);
+                            _sortingExpanded = false;
+                          });
+                        },
                       ),
                     ),
 
@@ -296,7 +425,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
                         children: [
                           _checkRow(
                             context,
-                            label: "通用",
+                            label: "常规",
                             value: _f.categories.length > 0 ? _f.categories[0] == '1' : true,
                             onChanged: (v) => setState(() => _f = _f.copyWith(categories: _catBit(_f.categories, 0, v))),
                           ),
@@ -318,24 +447,24 @@ class _FilterDrawerState extends State<FilterDrawer> {
 
                     _section(
                       context,
-                      "纯净度",
+                      "分级",
                       Column(
                         children: [
                           _checkRow(
                             context,
-                            label: "安全 (SFW)",
+                            label: "SFW",
                             value: _f.purity.length > 0 ? _f.purity[0] == '1' : true,
                             onChanged: (v) => setState(() => _f = _f.copyWith(purity: _purityBit(_f.purity, 0, v))),
                           ),
                           _checkRow(
                             context,
-                            label: "擦边 (Sketchy)",
+                            label: "Sketchy",
                             value: _f.purity.length > 1 ? _f.purity[1] == '1' : false,
                             onChanged: (v) => setState(() => _f = _f.copyWith(purity: _purityBit(_f.purity, 1, v))),
                           ),
                           _checkRow(
                             context,
-                            label: "限制 (NSFW)",
+                            label: "NSFW",
                             value: _f.purity.length > 2 ? _f.purity[2] == '1' : false,
                             onChanged: (v) => setState(() => _f = _f.copyWith(purity: _purityBit(_f.purity, 2, v))),
                           ),
