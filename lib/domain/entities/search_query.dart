@@ -1,9 +1,11 @@
+import 'filter_spec.dart';
+
 class SearchQuery {
   final int page;
-  final Map<String, dynamic> params;
+  final FilterSpec filters;
 
   const SearchQuery({
     required this.page,
-    this.params = const {},
+    required this.filters,
   });
 }
