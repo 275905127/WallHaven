@@ -25,9 +25,18 @@ class WallhavenSource implements WallpaperSource {
   WallhavenSource({
     required this.sourceId,
     required HttpClient http,
-    required this.baseUrl,
+    required String baseUrl,
     this.apiKey,
-  }) : _http = http;
+  })  : _http = http,
+        baseUrl = _normalizeBaseUrl(baseUrl);
+
+  static String _normalizeBaseUrl(String url) {
+    var u = url.trim();
+    while (u.endsWith('/')) {
+      u = u.substring(0, u.length - 1);
+    }
+    return u;
+  }
 
   @override
   SourceCapabilities get capabilities => const SourceCapabilities(
@@ -44,23 +53,76 @@ class WallhavenSource implements WallpaperSource {
         supportsOrder: true,
         supportsResolutions: true,
         resolutionOptions: [
-          '1280x720','1366x768','1600x900','1920x1080','1920x1200','2560x1440','2560x1600',
-          '3440x1440','3840x2160','1080x1920','1440x2560','2160x3840',
+          '1280x720',
+          '1366x768',
+          '1600x900',
+          '1920x1080',
+          '1920x1200',
+          '2560x1440',
+          '2560x1600',
+          '3440x1440',
+          '3840x2160',
+          '1080x1920',
+          '1440x2560',
+          '2160x3840',
         ],
         supportsAtleast: true,
         atleastOptions: [
-          '','1280x720','1600x900','1920x1080','2560x1440','3440x1440','3840x2160',
-          '1080x1920','1440x2560','2160x3840',
+          '',
+          '1280x720',
+          '1600x900',
+          '1920x1080',
+          '2560x1440',
+          '3440x1440',
+          '3840x2160',
+          '1080x1920',
+          '1440x2560',
+          '2160x3840',
         ],
         supportsRatios: true,
-        ratioOptions: ['16x9','16x10','21x9','32x9','4x3','3x2','5x4','1x1','9x16','10x16'],
+        ratioOptions: [
+          '16x9',
+          '16x10',
+          '21x9',
+          '32x9',
+          '4x3',
+          '3x2',
+          '5x4',
+          '1x1',
+          '9x16',
+          '10x16'
+        ],
         supportsColor: true,
         colorOptions: [
-          '000000','111111','222222','333333','444444','555555','666666','777777','888888','999999',
-          'AAAAAA','BBBBBB','CCCCCC','DDDDDD','EEEEEE','FFFFFF','660000','006600','000066','663300','003366','660066',
+          '000000',
+          '111111',
+          '222222',
+          '333333',
+          '444444',
+          '555555',
+          '666666',
+          '777777',
+          '888888',
+          '999999',
+          'AAAAAA',
+          'BBBBBB',
+          'CCCCCC',
+          'DDDDDD',
+          'EEEEEE',
+          'FFFFFF',
+          '660000',
+          '006600',
+          '000066',
+          '663300',
+          '003366',
+          '660066',
         ],
         supportsRating: true,
-        ratingOptions: [RatingLevel.safe, RatingLevel.questionable, RatingLevel.explicit],
+        ratingOptions: [
+          RatingLevel.safe,
+          RatingLevel.questionable,
+          RatingLevel.explicit
+        ],
         supportsCategories: true,
         categoryOptions: [
           OptionItem(id: 'general', label: '常规'),
@@ -100,48 +162,54 @@ class WallhavenSource implements WallpaperSource {
 
   String _mapOrder(SortOrder o) => o == SortOrder.asc ? 'asc' : 'desc';
 
-  // Wallhaven: categories/purity 都是 bitset
+  // Wallhaven: categories 是 bitset：general/anime/people
   String _mapCategories(Set<String> cats) {
-    // ids: general/anime/people
     final g = cats.contains('general') ? '1' : '0';
     final a = cats.contains('anime') ? '1' : '0';
     final p = cats.contains('people') ? '1' : '0';
-    // 若空：给默认 111（不限制）
     final s = '$g$a$p';
-    return (s == '000') ? '111' : s;
+    return (s == '000') ? '111' : s; // 空 -> 不限制
   }
 
+  // Wallhaven: purity(bitset)：sfw/sketchy/nsfw
   String _mapPurity(Set<RatingLevel> r) {
-    // safe/questionable/explicit -> sfw/sketchy/nsfw
     final sfw = r.contains(RatingLevel.safe) ? '1' : '0';
     final sk = r.contains(RatingLevel.questionable) ? '1' : '0';
     final ns = r.contains(RatingLevel.explicit) ? '1' : '0';
     final s = '$sfw$sk$ns';
-    // 若空：默认 100（只安全）
-    return (s == '000') ? '100' : s;
+    return (s == '000') ? '100' : s; // 空 -> 默认只安全（符合你原 UI 习惯）
   }
 
   @override
   Future<List<WallpaperItem>> search(SearchQuery query) async {
     final f = query.filters;
 
+    // ✅ topRange 只对 toplist 有意义
+    final sort = f.sortBy;
+    final isToplist = sort == null || sort == SortBy.toplist;
+
     final qp = <String, dynamic>{
       'page': query.page,
       if (f.text.trim().isNotEmpty) 'q': f.text.trim(),
-      if (f.sortBy != null) 'sorting': _mapSortBy(f.sortBy!),
+      if (sort != null) 'sorting': _mapSortBy(sort),
       if (f.order != null) 'order': _mapOrder(f.order!),
-      if (f.resolutions.isNotEmpty) 'resolutions': (f.resolutions.toList()..sort()).join(','),
+      if (f.resolutions.isNotEmpty)
+        'resolutions': (f.resolutions.toList()..sort()).join(','),
       if ((f.atleast ?? '').trim().isNotEmpty) 'atleast': f.atleast!.trim(),
       if (f.ratios.isNotEmpty) 'ratios': (f.ratios.toList()..sort()).join(','),
-      if ((f.color ?? '').trim().isNotEmpty) 'colors': f.color!.trim().replaceAll('#', ''),
-      // categories/rating/timeRange 是 wallhaven 专属映射，但输入仍是通用
+      if ((f.color ?? '').trim().isNotEmpty)
+        'colors': f.color!.trim().replaceAll('#', ''),
+      // ✅ 通用输入 -> wallhaven 专属映射
       'categories': _mapCategories(f.categories),
       'purity': _mapPurity(f.rating),
-      if ((f.timeRange ?? '').trim().isNotEmpty) 'topRange': f.timeRange!.trim(),
+      if (isToplist && (f.timeRange ?? '').trim().isNotEmpty)
+        'topRange': f.timeRange!.trim(),
       if (apiKey != null && apiKey!.isNotEmpty) 'apikey': apiKey,
     };
 
     final resp = await _http.dio.get('$baseUrl/search', queryParameters: qp);
+    if (resp.statusCode != 200) return const [];
+
     final root = resp.data;
     if (root is! Map) return const [];
 
@@ -152,18 +220,19 @@ class WallhavenSource implements WallpaperSource {
       if (e is! Map) continue;
       final j = e.cast<String, dynamic>();
 
-      final thumbs = (j['thumbs'] as Map?)?.cast<String, dynamic>() ?? const {};
       final id = (j['id'] as String?) ?? '';
       if (id.isEmpty) continue;
 
-      final previewUrl = (thumbs['large'] as String?) ?? (thumbs['small'] as String?) ?? '';
+      final thumbs = (j['thumbs'] as Map?)?.cast<String, dynamic>() ?? const {};
+      final previewUrl =
+          (thumbs['large'] as String?) ?? (thumbs['small'] as String?) ?? '';
+      if (previewUrl.isEmpty) continue;
+
       final smallUrl = (thumbs['small'] as String?) ?? '';
       final originalUrl = (j['path'] as String?) ?? '';
 
       final w = (j['dimension_x'] is int) ? j['dimension_x'] as int : 0;
       final h = (j['dimension_y'] is int) ? j['dimension_y'] as int : 0;
-
-      if (previewUrl.isEmpty) continue;
 
       items.add(
         WallpaperItem(
@@ -191,6 +260,8 @@ class WallhavenSource implements WallpaperSource {
           if (apiKey != null && apiKey!.isNotEmpty) 'apikey': apiKey,
         },
       );
+
+      if (resp.statusCode != 200) return null;
 
       final root = resp.data;
       if (root is! Map) return null;
@@ -251,7 +322,9 @@ class WallhavenSource implements WallpaperSource {
         width: w,
         height: h,
         author: (uploader?['username'] as String?),
-        authorAvatar: Uri.tryParse((avatar?['200px'] as String?) ?? (avatar?['128px'] as String?) ?? ''),
+        authorAvatar: Uri.tryParse(
+          (avatar?['200px'] as String?) ?? (avatar?['128px'] as String?) ?? '',
+        ),
         shortUrl: Uri.tryParse((j['short_url'] as String?) ?? ''),
         sourceUrl: Uri.tryParse((j['source'] as String?) ?? ''),
         views: (j['views'] as int?),
