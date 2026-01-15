@@ -129,7 +129,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     _PickItem('1y', '1 年'),
   ];
 
-  // 分辨率（精确匹配）常用项，参数格式：1920x1080（支持多选逗号分隔）
   static const List<String> _resolutionOptions = [
     '1280x720',
     '1366x768',
@@ -140,15 +139,13 @@ class _FilterDrawerState extends State<FilterDrawer> {
     '2560x1600',
     '3440x1440',
     '3840x2160',
-    // 竖屏
     '1080x1920',
     '1440x2560',
     '2160x3840',
   ];
 
-  // atleast（至少）单选
   static const List<String> _atleastOptions = [
-    '', // 不限
+    '',
     '1280x720',
     '1600x900',
     '1920x1080',
@@ -160,7 +157,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     '2160x3840',
   ];
 
-  // 比例 ratios（多选，逗号分隔），参数格式：16x9
   static const List<String> _ratioOptions = [
     '16x9',
     '16x10',
@@ -170,12 +166,10 @@ class _FilterDrawerState extends State<FilterDrawer> {
     '3x2',
     '5x4',
     '1x1',
-    // 竖屏
     '9x16',
     '10x16',
   ];
 
-  // colors：单选，RRGGBB（不带 #）
   static const List<String> _colorOptions = [
     '000000',
     '111111',
@@ -193,7 +187,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     'DDDDDD',
     'EEEEEE',
     'FFFFFF',
-    // 常用色（仍保持克制，仅文本）
     '660000',
     '006600',
     '000066',
@@ -245,14 +238,12 @@ class _FilterDrawerState extends State<FilterDrawer> {
 
   void _debounceQueryApply(String v) {
     _qDebounce?.cancel();
-    _qDebounce = Timer(const Duration(milliseconds: 280), () {
+    _qDebounce = Timer(const Duration(milliseconds: 350), () {
       if (!mounted) return;
       setState(() => _f = _f.copyWith(query: v));
       _commitApply();
     });
   }
-
-  // ====== SettingsGroup 风格：2px 背景缝 + 连接处 smallRadius(固定4) + 外轮廓走全局 cardRadius ======
 
   BorderRadius _groupRadiusFor(BuildContext context, int index, int length) {
     final tokens = Theme.of(context).extension<AppTokens>()!;
@@ -294,19 +285,13 @@ class _FilterDrawerState extends State<FilterDrawer> {
     );
   }
 
-  // 子组：用同样的 2px 背景缝堆叠，不允许用 BorderSide 细线
   BorderRadius _subRadiusFor(BuildContext context, int index, int length) {
     final tokens = Theme.of(context).extension<AppTokens>()!;
     final r = tokens.smallRadius;
-
-    final isSingle = length == 1;
-    if (isSingle) return BorderRadius.circular(r);
-
-    // 子组每一项都固定 smallRadius（视觉统一，靠 2px 背景缝分隔）
+    if (length == 1) return BorderRadius.circular(r);
     return BorderRadius.circular(r);
   }
 
-  // 折叠行（像 SettingsItem 一样的“行”），右侧三角；展开内容直接接在同一张卡里
   Widget _groupCollapseRow({
     required BuildContext context,
     required String title,
@@ -372,7 +357,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
                 firstChild: const SizedBox.shrink(),
                 secondChild: Column(
                   children: [
-                    // ✅ 规范：分割必须是 2px 背景缝（tokens），禁止 1px 线
                     _groupGap(context),
                     expandedChild,
                   ],
@@ -557,8 +541,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     );
   }
 
-  // ===== CSV helpers =====
-
   Set<String> _csvToSet(String csv) {
     final s = csv.trim();
     if (s.isEmpty) return <String>{};
@@ -619,13 +601,14 @@ class _FilterDrawerState extends State<FilterDrawer> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final mono = _monoPrimary(context);
 
-    // ✅ 状态栏与筛选页背景同步（颜色/图标明暗跟随当前 Theme）
+    // ✅ 抽屉页期望：状态栏与筛选页背景同步（如果没生效，是被 AppBar/systemOverlayStyle 覆盖了）
     final isDark = theme.brightness == Brightness.dark;
     final overlay = SystemUiOverlayStyle(
       statusBarColor: theme.scaffoldBackgroundColor,
       statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-      statusBarBrightness: isDark ? Brightness.dark : Brightness.light, // iOS
+      statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
       systemNavigationBarColor: theme.scaffoldBackgroundColor,
       systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
     );
@@ -634,7 +617,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     final selectedRatios = _csvToSet(_f.ratios);
     final colorsValue = _f.colors.trim().replaceAll('#', '');
 
-    // —— 折叠行“组”：按 SettingsGroup 规则堆叠
     final rowDefs = <_RowDef>[
       _RowDef(
         title: '排序方式',
@@ -840,7 +822,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     for (int i = 0; i < rowDefs.length; i++) {
       final def = rowDefs[i];
       final br = _groupRadiusFor(context, i, rowDefs.length);
-
       groupRows.add(
         _groupCollapseRow(
           context: context,
@@ -863,8 +844,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
           child: Stack(
             children: [
               Padding(
-                // ✅ 取消“关键词标题”后整体自然上移：顶部间距稍收紧
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
                 child: Column(
                   children: [
                     Row(
@@ -882,14 +862,13 @@ class _FilterDrawerState extends State<FilterDrawer> {
                         TextButton(
                           onPressed: () {
                             widget.onReset();
-                            // 重置后立刻生效
                             setState(() => _f = const WallhavenFilters());
                             _qCtrl.text = '';
                             _commitApply(closeExpanded: true);
                           },
                           child: Text(
                             "重置",
-                            style: TextStyle(color: _monoPrimary(context).withOpacity(0.7)),
+                            style: TextStyle(color: mono.withOpacity(0.7)),
                           ),
                         ),
                       ],
@@ -898,21 +877,16 @@ class _FilterDrawerState extends State<FilterDrawer> {
                     Expanded(
                       child: ListView(
                         children: [
-                          // ✅ 搜索框：改为图中那种样式
-                          // - 取消上方“关键词”提示
-                          // - 提示放进输入框
-                          // - 底色 = theme.cardColor（你说的）
-                          _SearchBar(
-                            controller: _qCtrl,
-                            onChanged: _debounceQueryApply,
+                          // ✅ 搜索框：卡片底色；无描边；提示在 hint；不再单独“关键词”标题 → 整体上移
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 14),
+                            child: _KeywordInput(
+                              controller: _qCtrl,
+                              onChanged: _debounceQueryApply,
+                            ),
                           ),
-
-                          const SizedBox(height: 12),
-
-                          // ✅ 其它全部：SettingsGroup 风格折叠行
                           ...groupRows,
-
-                          const SizedBox(height: 80), // 给右下角按钮留呼吸
+                          const SizedBox(height: 80),
                         ],
                       ),
                     ),
@@ -920,13 +894,11 @@ class _FilterDrawerState extends State<FilterDrawer> {
                 ),
               ),
 
-              // ✅ 右下角：设置入口（黑白灰）
+              // ✅ 设置按钮：仅图标，无底色/无描边
               Positioned(
                 right: 16,
                 bottom: 16,
-                child: _SettingsFab(
-                  onTap: widget.onOpenSettings,
-                ),
+                child: _SettingsFab(onTap: widget.onOpenSettings),
               ),
             ],
           ),
@@ -936,56 +908,42 @@ class _FilterDrawerState extends State<FilterDrawer> {
   }
 }
 
-// ======================
-// ✅ 抽屉页搜索框（新样式）
-// ======================
-class _SearchBar extends StatelessWidget {
+// ====== 小组件：关键词输入（不折叠）======
+
+class _KeywordInput extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
 
-  const _SearchBar({
+  const _KeywordInput({
     required this.controller,
     required this.onChanged,
   });
 
-  Color _monoPrimary(BuildContext context) {
-    final b = Theme.of(context).brightness;
-    return b == Brightness.dark ? Colors.white : Colors.black;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final mono = _monoPrimary(context);
     final r = ThemeScope.of(context).cardRadius;
 
-    return TextField(
-      controller: controller,
-      onChanged: onChanged,
-      textInputAction: TextInputAction.search,
-      decoration: InputDecoration(
-        hintText: "搜索",
-        hintStyle: TextStyle(color: theme.textTheme.bodyMedium?.color),
-        filled: true,
-        fillColor: theme.cardColor, // ✅ 搜索框底色 = 卡片色
-        prefixIcon: Icon(Icons.search, color: mono.withOpacity(0.70)),
-        // ✅ 视觉干净：不做明显边框，只保留极淡轮廓（可接受也不会“装饰”）
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(r),
-          borderSide: BorderSide(color: mono.withOpacity(0.10), width: 1),
+    // ✅ 用 Container 承担“卡片底色 + 圆角裁切”，TextField 内部彻底无 border
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(r),
+      child: Container(
+        color: theme.cardColor,
+        child: TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            hintText: "关键词（留空为不限）",
+            hintStyle: TextStyle(color: theme.textTheme.bodyMedium?.color),
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            prefixIcon: Icon(Icons.search, color: theme.iconTheme.color),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          ),
+          style: TextStyle(color: theme.textTheme.bodyLarge?.color),
+          onChanged: onChanged,
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(r),
-          borderSide: BorderSide(color: mono.withOpacity(0.10), width: 1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(r),
-          borderSide: BorderSide(color: mono.withOpacity(0.22), width: 1),
-        ),
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       ),
-      style: TextStyle(color: theme.textTheme.bodyLarge?.color),
     );
   }
 }
@@ -994,30 +952,24 @@ class _SettingsFab extends StatelessWidget {
   final VoidCallback? onTap;
   const _SettingsFab({required this.onTap});
 
-  Color _monoPrimary(BuildContext context) {
-    final b = Theme.of(context).brightness;
-    return b == Brightness.dark ? Colors.white : Colors.black;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final mono = _monoPrimary(context);
-    final r = ThemeScope.of(context).cardRadius;
 
     return Material(
-      color: theme.cardColor,
-      borderRadius: BorderRadius.circular(r),
-      child: InkWell(
-        onTap: onTap, // 外部传进来
-        borderRadius: BorderRadius.circular(r),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(r),
-            border: Border.all(color: mono.withOpacity(0.12), width: 1),
+      color: Colors.transparent,
+      child: InkResponse(
+        onTap: onTap,
+        radius: 28,
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Icon(
+            Icons.settings_outlined,
+            color: theme.iconTheme.color,
+            size: 24,
           ),
-          child: Icon(Icons.settings_outlined, color: theme.iconTheme.color, size: 22),
         ),
       ),
     );
