@@ -15,6 +15,7 @@ import 'pages/filter_drawer.dart';
 import 'pages/wallpaper_detail_page.dart';
 import 'models/wallpaper.dart';
 import 'api/wallhaven_api.dart';
+import 'package:flutter/gestures.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
