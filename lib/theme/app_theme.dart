@@ -37,10 +37,8 @@ class AppTheme {
             ? tokens.switchTrackOn
             : tokens.switchTrackOff;
       }),
-      trackOutlineColor:
-          MaterialStatePropertyAll(tokens.switchTrackOutline),
-      trackOutlineWidth:
-          MaterialStatePropertyAll(tokens.switchTrackOutlineWidth),
+      trackOutlineColor: MaterialStatePropertyAll(tokens.switchTrackOutline),
+      trackOutlineWidth: MaterialStatePropertyAll(tokens.switchTrackOutlineWidth),
       overlayColor: const MaterialStatePropertyAll(Colors.transparent),
     );
   }
@@ -60,6 +58,20 @@ class AppTheme {
     );
   }
 
+  // ✅ 全局卡片圆角：统一出口（不影响图片圆角）
+  static RoundedRectangleBorder _cardShape(double cardRadius) {
+    return RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(cardRadius),
+    );
+  }
+
+  // ✅ Drawer 圆角：跟随全局卡片圆角（抽屉页跟随 cardRadius）
+  static RoundedRectangleBorder _drawerShape(double cardRadius) {
+    return RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(cardRadius),
+    );
+  }
+
   static ThemeData light(
     Color accentColor, {
     Color? customBg,
@@ -67,13 +79,13 @@ class AppTheme {
     double cardRadius = 16,
   }) {
     final tokens = AppTokens.light();
+    final cardShape = _cardShape(cardRadius);
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
 
-      scaffoldBackgroundColor:
-          customBg ?? AppColors.lightBackground,
+      scaffoldBackgroundColor: customBg ?? AppColors.lightBackground,
       cardColor: customCard ?? AppColors.lightCard,
 
       // ❗ dividerColor 只兜底，真正设计全部走 tokens
@@ -87,20 +99,29 @@ class AppTheme {
 
       extensions: [tokens],
 
+      // ✅ 统一全局卡片圆角（SettingsGroup / 普通卡片 / 包含 Drawer 内的 Card）
+      cardTheme: CardTheme(shape: cardShape),
+
+      // ✅ 抽屉整体圆角跟随全局 cardRadius
+      drawerTheme: DrawerThemeData(shape: _drawerShape(cardRadius)),
+
+      // ✅ 你说的“长条选择弹窗/底部弹层”也一起收敛到全局圆角
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shape: cardShape,
+      ),
+
       dialogTheme: DialogTheme(
         backgroundColor: AppColors.lightAlert,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(cardRadius),
-        ),
+        shape: cardShape,
       ),
 
       popupMenuTheme: PopupMenuThemeData(
         color: AppColors.lightMenu,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(cardRadius),
-        ),
+        shape: cardShape,
       ),
 
       appBarTheme: const AppBarTheme(
@@ -131,13 +152,13 @@ class AppTheme {
     double cardRadius = 16,
   }) {
     final tokens = AppTokens.dark();
+    final cardShape = _cardShape(cardRadius);
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
 
-      scaffoldBackgroundColor:
-          customBg ?? AppColors.darkBackground,
+      scaffoldBackgroundColor: customBg ?? AppColors.darkBackground,
       cardColor: customCard ?? AppColors.darkCard,
 
       dividerColor: AppColors.darkDivider,
@@ -150,20 +171,29 @@ class AppTheme {
 
       extensions: [tokens],
 
+      // ✅ 统一全局卡片圆角（不碰图片圆角）
+      cardTheme: CardTheme(shape: cardShape),
+
+      // ✅ 抽屉整体圆角跟随全局 cardRadius
+      drawerTheme: DrawerThemeData(shape: _drawerShape(cardRadius)),
+
+      // ✅ 长条选择弹窗/底部弹层圆角统一
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shape: cardShape,
+      ),
+
       dialogTheme: DialogTheme(
         backgroundColor: AppColors.darkAlert,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(cardRadius),
-        ),
+        shape: cardShape,
       ),
 
       popupMenuTheme: PopupMenuThemeData(
         color: AppColors.darkMenu,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(cardRadius),
-        ),
+        shape: cardShape,
       ),
 
       appBarTheme: const AppBarTheme(
