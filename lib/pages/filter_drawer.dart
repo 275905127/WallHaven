@@ -3,6 +3,7 @@
 // ⚠️ 警示：UI 风格只允许黑白灰；禁止引入蓝/绿/红等高饱和“装饰色”。
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/theme_store.dart';
 import '../theme/app_tokens.dart';
 
@@ -276,30 +277,10 @@ class _FilterDrawerState extends State<FilterDrawer> {
     final tokens = Theme.of(context).extension<AppTokens>()!;
     final r = tokens.smallRadius;
 
-    final isFirst = index == 0;
-    final isLast = index == length - 1;
     final isSingle = length == 1;
-
     if (isSingle) return BorderRadius.circular(r);
 
-    if (isFirst) {
-      return BorderRadius.only(
-        topLeft: Radius.circular(r),
-        topRight: Radius.circular(r),
-        bottomLeft: Radius.circular(r),
-        bottomRight: Radius.circular(r),
-      );
-    }
-
-    if (isLast) {
-      return BorderRadius.only(
-        topLeft: Radius.circular(r),
-        topRight: Radius.circular(r),
-        bottomLeft: Radius.circular(r),
-        bottomRight: Radius.circular(r),
-      );
-    }
-
+    // 子组每一项都固定 smallRadius（视觉统一，靠 2px 背景缝分隔）
     return BorderRadius.circular(r);
   }
 
@@ -316,7 +297,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
   }) {
     final theme = Theme.of(context);
     final tokens = theme.extension<AppTokens>()!;
-    final mono = _monoPrimary(context);
 
     return Column(
       children: [
@@ -619,6 +599,16 @@ class _FilterDrawerState extends State<FilterDrawer> {
     final theme = Theme.of(context);
     final mono = _monoPrimary(context);
 
+    // ✅ 状态栏与筛选页背景同步（颜色/图标明暗跟随当前 Theme）
+    final isDark = theme.brightness == Brightness.dark;
+    final overlay = SystemUiOverlayStyle(
+      statusBarColor: theme.scaffoldBackgroundColor,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDark ? Brightness.dark : Brightness.light, // iOS
+      systemNavigationBarColor: theme.scaffoldBackgroundColor,
+      systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    );
+
     final selectedRes = _csvToSet(_f.resolutions);
     final selectedRatios = _csvToSet(_f.ratios);
     final colorsValue = _f.colors.trim().replaceAll('#', '');
@@ -816,75 +806,78 @@ class _FilterDrawerState extends State<FilterDrawer> {
       );
     }
 
-    return SafeArea(
-      child: Material(
-        color: theme.scaffoldBackgroundColor,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      "筛选",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: theme.textTheme.bodyLarge?.color,
-                      ),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      widget.onReset();
-                      Navigator.of(context).maybePop();
-                    },
-                    child: Text(
-                      "重置",
-                      style: TextStyle(color: mono.withOpacity(0.7)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: ListView(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlay,
+      child: SafeArea(
+        child: Material(
+          color: theme.scaffoldBackgroundColor,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+            child: Column(
+              children: [
+                Row(
                   children: [
-                    // ✅ 关键词：不折叠，独立输入框
-                    _section(
-                      context,
-                      "关键词",
-                      _KeywordInput(
-                        controller: _qCtrl,
-                        onChanged: (v) => setState(() => _f = _f.copyWith(query: v)),
+                    Expanded(
+                      child: Text(
+                        "筛选",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: theme.textTheme.bodyLarge?.color,
+                        ),
                       ),
                     ),
-
-                    // ✅ 其它全部：SettingsGroup 风格折叠行
-                    ...groupRows,
+                    TextButton(
+                      onPressed: () {
+                        widget.onReset();
+                        Navigator.of(context).maybePop();
+                      },
+                      child: Text(
+                        "重置",
+                        style: TextStyle(color: mono.withOpacity(0.7)),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: mono,
-                    foregroundColor: theme.brightness == Brightness.dark ? Colors.black : Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    elevation: 0,
+                const SizedBox(height: 10),
+                Expanded(
+                  child: ListView(
+                    children: [
+                      // ✅ 关键词：不折叠，独立输入框
+                      _section(
+                        context,
+                        "关键词",
+                        _KeywordInput(
+                          controller: _qCtrl,
+                          onChanged: (v) => setState(() => _f = _f.copyWith(query: v)),
+                        ),
+                      ),
+
+                      // ✅ 其它全部：SettingsGroup 风格折叠行
+                      ...groupRows,
+                    ],
                   ),
-                  onPressed: () {
-                    widget.onApply(_f.copyWith(query: _qCtrl.text));
-                    Navigator.of(context).maybePop();
-                  },
-                  child: const Text("应用筛选"),
                 ),
-              ),
-            ],
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: mono,
+                      foregroundColor: theme.brightness == Brightness.dark ? Colors.black : Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    onPressed: () {
+                      widget.onApply(_f.copyWith(query: _qCtrl.text));
+                      Navigator.of(context).maybePop();
+                    },
+                    child: const Text("应用筛选"),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
