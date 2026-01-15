@@ -23,7 +23,6 @@ import 'source_plugin.dart';
 ///   2) { ... }  // 允许直接对象
 class SimpleJsonPlugin implements SourcePlugin {
   /// ✅ 必须和 SourceRegistry / ThemeStore 对齐
-  /// 如果 ThemeStore 里写死了 'generic'，这里就必须是 'generic'
   static const String kId = 'generic';
 
   @override
@@ -80,14 +79,25 @@ class SimpleJsonPlugin implements SourcePlugin {
     return m;
   }
 
+  /// ✅ 修复点 1：签名必须和 SourcePlugin 完全一致（Dio? dio）
   @override
   WallpaperSourceClient createClient({
     required Map<String, dynamic> settings,
-    required Dio dio,
+    Dio? dio,
   }) {
     final s = sanitizeSettings(settings);
+
+    // ✅ 没注入就自己建一个，但这不是最佳实践（最好由上层注入共享 Dio）
+    final clientDio = dio ??
+        Dio(
+          BaseOptions(
+            connectTimeout: const Duration(seconds: 10),
+            receiveTimeout: const Duration(seconds: 20),
+          ),
+        );
+
     return _SimpleJsonClient(
-      dio: dio,
+      dio: clientDio,
       baseUrl: (s['baseUrl'] as String?) ?? '',
       searchPath: (s['searchPath'] as String?) ?? '/search',
       detailPath: (s['detailPath'] as String?) ?? '/w/{id}',
@@ -122,6 +132,7 @@ class _SimpleJsonClient implements WallpaperSourceClient {
   Future<List<Wallpaper>> search({
     required int page,
     required Map<String, dynamic> params,
+I6866던
   }) async {
     if (baseUrl.isEmpty) return const [];
 
@@ -201,24 +212,41 @@ class _SimpleJsonClient implements WallpaperSourceClient {
     }
   }
 
+  /// ✅ 修复点 2：Wallpaper 构造函数 required: small + ratio
   Wallpaper _fromSimpleSearchJson(Map<String, dynamic> j) {
+    final id = (j['id'] as String?) ?? '';
+    final url = (j['url'] as String?) ?? (j['path'] as String?) ?? '';
+
+    // thumb / small 多种字段兜底：thumb / preview / thumbs.small / thumbs.large
+    final thumbsMap = (j['thumbs'] is Map) ? (j['thumbs'] as Map) : null;
+
     final thumb = (j['thumb'] as String?) ??
         (j['preview'] as String?) ??
-        ((j['thumbs'] is Map) ? (j['thumbs'] as Map)['small'] as String? : null) ??
+        (thumbsMap?['large'] as String?) ??
+        (thumbsMap?['small'] as String?) ??
         '';
 
-    final url = (j['url'] as String?) ?? '';
-    final id = (j['id'] as String?) ?? '';
+    final small = (j['small'] as String?) ??
+        (thumbsMap?['small'] as String?) ??
+        (j['thumb_small'] as String?) ??
+        thumb;
 
-    final w = (j['width'] is int) ? j['width'] as int : int.tryParse('${j['width'] ?? ''}') ?? 1;
-    final h = (j['height'] is int) ? j['height'] as int : int.tryParse('${j['height'] ?? ''}') ?? 1;
+    final w = (j['width'] is int) ? j['width'] as int : int.tryParse('${j['width'] ?? ''}') ?? 0;
+    final h = (j['height'] is int) ? j['height'] as int : int.tryParse('${j['height'] ?? ''}') ?? 0;
+
+    // ratio：优先用接口给的，否则根据宽高算个可用值（避免 required 炸）
+    final ratio = (j['ratio'] as String?)?.trim().isNotEmpty == true
+        ? (j['ratio'] as String).trim()
+        : ((w > 0 && h > 0) ? (w / h).toStringAsFixed(4) : '0');
 
     return Wallpaper(
       id: id,
       url: url,
       thumb: thumb,
+      small: small,
       width: w,
       height: h,
+      ratio: ratio,
     );
   }
 }
