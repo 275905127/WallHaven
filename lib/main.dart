@@ -220,7 +220,7 @@ class _HomePageState extends State<HomePage> {
       // ✅ 关键修复：你这里写的 store.currentSettings 在 ThemeStore 里很可能根本不存在
       // 用你 ThemeStore 已经暴露的：currentPluginSettings（或直接 currentSourceConfig.settings）
       final Map<String, dynamic> settings =
-    Map<String, dynamic>.from(store.currentSourceConfig.settings); // 或者：Map<String, dynamic>.from(store.currentSourceConfig.settings)
+         Map<String, dynamic>.from(store.currentSourceConfig.settings); // 或者：Map<String, dynamic>.from(store.currentSourceConfig.settings)
 
       final WallpaperSourceClient client = plugin.createClient(
         settings: settings,
