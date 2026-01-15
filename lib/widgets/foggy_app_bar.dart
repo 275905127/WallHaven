@@ -1,5 +1,6 @@
 // lib/widgets/foggy_app_bar.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
   final Widget? title;
@@ -19,6 +20,14 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// ✅ 雾化动画曲线
   final Curve fogCurve;
 
+  /// ✅ 系统状态栏/导航栏是否由 FoggyAppBar 显式接管
+  /// 目的：不让 Theme.appBarTheme.systemOverlayStyle 抢回去导致抽屉页不同步
+  final bool manageSystemOverlay;
+
+  /// ✅ 当抽屉打开（或你希望“强制同步背景”）时打开
+  /// 打开后：状态栏/导航栏颜色 = scaffoldBackgroundColor（不透明），确保和筛选页背景一致
+  final bool forceOverlayMatchBackground;
+
   const FoggyAppBar({
     super.key,
     this.title,
@@ -28,6 +37,8 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.fogStrength = 1.0,
     this.fogDuration = const Duration(milliseconds: 200),
     this.fogCurve = Curves.easeInOut,
+    this.manageSystemOverlay = true,
+    this.forceOverlayMatchBackground = false,
   });
 
   @override
@@ -36,6 +47,35 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
   double _o(double v) {
     final s = fogStrength.clamp(0.0, 1.0);
     return (v * s).clamp(0.0, 1.0);
+  }
+
+  SystemUiOverlayStyle _overlayStyle(BuildContext context, Color baseColor) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // ✅ 抽屉打开 / 强制同步背景：用纯背景色（不透明），避免任何透明导致“看起来不一致”
+    if (forceOverlayMatchBackground) {
+      return SystemUiOverlayStyle(
+        statusBarColor: baseColor,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light, // iOS
+        systemNavigationBarColor: baseColor,
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      );
+    }
+
+    // ✅ 常规：未滚动 → 透明；滚动后 → 轻雾化（颜色来自页面背景）
+    final Color barColor = isScrolled
+        ? baseColor.withOpacity(_o(0.94))
+        : Colors.transparent;
+
+    return SystemUiOverlayStyle(
+      statusBarColor: barColor,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDark ? Brightness.dark : Brightness.light, // iOS
+      systemNavigationBarColor: barColor,
+      systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    );
   }
 
   @override
@@ -48,6 +88,9 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       // ✅ 禁止自动注入 Drawer 汉堡按钮（移除左上角筛选入口）
       automaticallyImplyLeading: false,
+
+      // ✅ 关键：显式接管 overlay，避免 Theme 抢回去
+      systemOverlayStyle: manageSystemOverlay ? _overlayStyle(context, baseColor) : null,
 
       title: title,
       centerTitle: true,
