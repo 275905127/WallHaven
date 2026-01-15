@@ -1,3 +1,4 @@
+// lib/main.dart
 // ⚠️ 警示：此文件是入口与交互基线，禁止随意挪动 Widget 树导致主题/左侧右滑筛选失效。
 // ⚠️ 警示：筛选手势体验优先；不要强行加花色图标和高饱和颜色。
 
@@ -89,7 +90,6 @@ class _HomePageState extends State<HomePage> {
   bool _isLoading = false;
   bool _isScrolled = false;
 
-  // 抽屉是否打开（用于状态栏跟随筛选页背景）
   bool _drawerOpen = false;
 
   WallhavenFilters _filters = const WallhavenFilters();
@@ -109,7 +109,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _bootstrap() async {
-    // ✅ 先加载持久化筛选，再请求数据
     await _loadPersistedFilters();
     if (!mounted) return;
     await _initData();
@@ -139,9 +138,7 @@ class _HomePageState extends State<HomePage> {
 
       if (!mounted) return;
       setState(() => _filters = next);
-    } catch (_) {
-      // 不炸：读不到就用默认
-    }
+    } catch (_) {}
   }
 
   Future<void> _persistFilters(WallhavenFilters f) async {
@@ -160,9 +157,7 @@ class _HomePageState extends State<HomePage> {
         'topRange': f.topRange,
       };
       await prefs.setString(_kFiltersPrefsKey, jsonEncode(map));
-    } catch (_) {
-      // 不炸：写失败就算了
-    }
+    } catch (_) {}
   }
 
   Future<void> _clearPersistedFilters() async {
@@ -188,33 +183,54 @@ class _HomePageState extends State<HomePage> {
     if (mounted) setState(() => _isLoading = false);
   }
 
+  /// ✅ 取当前插件配置（目前只支持 wallhaven）
+  ({String baseUrl, String? apiKey}) _wallhavenConn(ThemeStore store) {
+    final p = store.currentPlugin;
+    if (p == null || p.pluginId != WallhavenPlugin.kId) {
+      throw UnsupportedError('Current plugin not supported for wallpaper fetching: ${store.currentSourceConfig.pluginId}');
+    }
+
+    final s = store.currentPluginSettings;
+    final baseUrl = (s['baseUrl'] as String?)?.trim() ?? WallhavenPlugin.kDefaultBaseUrl;
+    final apiKey = (s['apiKey'] as String?)?.trim();
+    return (baseUrl: baseUrl, apiKey: (apiKey != null && apiKey.isNotEmpty) ? apiKey : null);
+  }
+
   Future<void> _fetchWallpapers() async {
     final store = ThemeScope.of(context);
     final f = _filters;
 
-    final newItems = await WallhavenApi.getWallpapers(
-      baseUrl: store.currentSource.baseUrl,
-      apiKey: store.currentSource.apiKey,
-      page: _page,
-      sorting: f.sorting,
-      order: f.order,
-      categories: f.categories,
-      purity: f.purity,
-      resolutions: f.resolutions.isEmpty ? null : f.resolutions,
-      ratios: f.ratios.isEmpty ? null : f.ratios,
-      query: f.query.isEmpty ? null : f.query,
-      atleast: f.atleast.isEmpty ? null : f.atleast,
-      colors: f.colors.isEmpty ? null : f.colors,
-      topRange: (f.sorting == 'toplist') ? f.topRange : null,
-    );
+    try {
+      final conn = _wallhavenConn(store);
 
-    if (!mounted) return;
-    setState(() => _wallpapers.addAll(newItems));
+      final newItems = await WallhavenApi.getWallpapers(
+        baseUrl: conn.baseUrl,
+        apiKey: conn.apiKey,
+        page: _page,
+        sorting: f.sorting,
+        order: f.order,
+        categories: f.categories,
+        purity: f.purity,
+        resolutions: f.resolutions.isEmpty ? null : f.resolutions,
+        ratios: f.ratios.isEmpty ? null : f.ratios,
+        query: f.query.isEmpty ? null : f.query,
+        atleast: f.atleast.isEmpty ? null : f.atleast,
+        colors: f.colors.isEmpty ? null : f.colors,
+        topRange: (f.sorting == 'toplist') ? f.topRange : null,
+      );
+
+      if (!mounted) return;
+      setState(() => _wallpapers.addAll(newItems));
+    } catch (e) {
+      if (!mounted) return;
+      // 失败别炸：给个最小提示
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('图源请求失败：$e')),
+      );
+    }
   }
 
-  Future<void> _onRefresh() async {
-    await _initData();
-  }
+  Future<void> _onRefresh() async => _initData();
 
   void _applyFilters(WallhavenFilters f) {
     setState(() => _filters = f);
@@ -239,7 +255,6 @@ class _HomePageState extends State<HomePage> {
     return w * (2 / 3);
   }
 
-  // ✅ 抽屉打开时：状态栏跟随筛选页背景；关闭时：回到透明（FoggyAppBar）
   void _syncOverlayForDrawer(BuildContext context, bool open) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -249,7 +264,7 @@ class _HomePageState extends State<HomePage> {
         SystemUiOverlayStyle(
           statusBarColor: theme.scaffoldBackgroundColor,
           statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-          statusBarBrightness: isDark ? Brightness.dark : Brightness.light, // iOS
+          statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
           systemNavigationBarColor: theme.scaffoldBackgroundColor,
           systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
         ),
@@ -264,18 +279,11 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // ✅ 从筛选抽屉打开设置：先关抽屉，再 push，避免叠层/手势乱
   void _openSettingsFromDrawer() {
-    // 先关抽屉（如果正开着）
     Navigator.of(context).maybePop();
-
-    // 下一帧再 push，确保抽屉动画/overlay 已经回收
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const SettingsPage()),
-      );
+      Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPage()));
     });
   }
 
@@ -288,14 +296,12 @@ class _HomePageState extends State<HomePage> {
       builder: (context, _) {
         final theme = Theme.of(context);
 
-        // ✅ 关键修复：抽屉打开时，强制用“筛选页背景色”驱动状态栏
-        // 避免被 AppBarTheme / FoggyAppBar 反复覆盖回透明
         final isDark = theme.brightness == Brightness.dark;
         final overlay = _drawerOpen
             ? SystemUiOverlayStyle(
                 statusBarColor: theme.scaffoldBackgroundColor,
                 statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-                statusBarBrightness: isDark ? Brightness.dark : Brightness.light, // iOS
+                statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
                 systemNavigationBarColor: theme.scaffoldBackgroundColor,
                 systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
               )
@@ -306,55 +312,39 @@ class _HomePageState extends State<HomePage> {
 
         final drawerRadius = store.cardRadius;
 
-        // 如果主题变化而抽屉正开着，状态栏也跟着同步一次
-        if (_drawerOpen) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _syncOverlayForDrawer(context, true);
-          });
-        }
-
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: overlay,
           child: Scaffold(
             key: _scaffoldKey,
-
             onDrawerChanged: (open) {
               _drawerOpen = open;
               _syncOverlayForDrawer(context, open);
-              if (mounted) setState(() {}); // ✅ 让 AnnotatedRegion 立即跟随切换
+              if (mounted) setState(() {});
             },
 
-            // ✅ 左侧右滑（核心）
             drawerEnableOpenDragGesture: true,
-            drawerEdgeDragWidth: 110, // 关键：避免和系统返回硬刚
+            drawerEdgeDragWidth: 110,
             drawerDragStartBehavior: DragStartBehavior.down,
 
-            // ✅ 抽屉圆角跟随全局 cardRadius（仅右侧外边圆角）
             drawer: Drawer(
               width: _drawerWidth(context),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.horizontal(
-                  right: Radius.circular(drawerRadius),
-                ),
+                borderRadius: BorderRadius.horizontal(right: Radius.circular(drawerRadius)),
               ),
               clipBehavior: Clip.antiAlias,
               child: FilterDrawer(
                 initial: _filters,
                 onApply: _applyFilters,
                 onReset: _resetFilters,
-                // ✅ 设置入口移到筛选页右下角
                 onOpenSettings: _openSettingsFromDrawer,
               ),
             ),
 
             extendBodyBehindAppBar: true,
             appBar: FoggyAppBar(
-              // ✅ 标题：Wallhaven Pro -> Wallhaven
               title: const Text("Wallhaven"),
               isScrolled: _isScrolled,
-              // ✅ 主页雾化更淡（分控）
               fogStrength: 0.82,
-              // ✅ 主页右上角设置入口移除（筛选页右下角）
               actions: const [],
             ),
 
@@ -449,18 +439,19 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (context) => SimpleDialog(
         title: const Text("切换图源"),
-        children: store.sources.map((source) {
+        children: store.sourceConfigs.map((cfg) {
+          final isCurrent = store.currentSourceConfig.id == cfg.id;
           return SimpleDialogOption(
             onPressed: () {
-              store.setSource(source);
+              store.setCurrentSourceConfig(cfg.id);
               Navigator.pop(context);
             },
             child: Row(
               children: [
-                Icon(source.isBuiltIn ? Icons.verified : Icons.link, color: theme.iconTheme.color, size: 20),
+                Icon(cfg.id.startsWith('default_') ? Icons.verified : Icons.link, color: theme.iconTheme.color, size: 20),
                 const SizedBox(width: 12),
-                Expanded(child: Text(source.name, style: const TextStyle(fontSize: 16))),
-                if (store.currentSource.id == source.id) Icon(Icons.check, color: theme.iconTheme.color),
+                Expanded(child: Text(cfg.name, style: const TextStyle(fontSize: 16))),
+                if (isCurrent) Icon(Icons.check, color: theme.iconTheme.color),
               ],
             ),
           );
@@ -484,7 +475,6 @@ class _SettingsPageState extends State<SettingsPage> {
             title: const Text('设置'),
             leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
             isScrolled: _isScrolled,
-            // ✅ 设置页雾化维持更稳（分控）
             fogStrength: 1.0,
           ),
           body: ListView(
@@ -508,7 +498,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 SettingsItem(
                   icon: Icons.swap_horiz,
                   title: "切换图源",
-                  subtitle: store.currentSource.name,
+                  subtitle: store.currentSourceConfig.name,
                   onTap: () => _showSourceSelectionDialog(context),
                 ),
                 SettingsItem(
