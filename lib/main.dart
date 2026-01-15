@@ -1,3 +1,4 @@
+// lib/main.dart
 import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -15,10 +16,14 @@ import 'pages/sub_pages.dart';
 import 'pages/filter_drawer.dart';
 import 'pages/wallpaper_detail_page.dart';
 
+// ✅ domain/data
 import 'domain/entities/filter_spec.dart';
 import 'domain/entities/search_query.dart';
-import 'domain/entities/source_kind.dart';
 import 'domain/entities/wallpaper_item.dart';
+
+// ✅ 关键：main.dart 里用到了 SortBy/SortOrder/RatingLevel，所以必须引入
+import 'domain/entities/source_capabilities.dart';
+
 import 'data/http/http_client.dart';
 import 'data/repository/wallpaper_repository.dart';
 import 'data/source_factory.dart';
@@ -73,6 +78,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// 🏠 首页
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
   @override
@@ -80,8 +86,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  static const String _kFiltersPrefsKey = 'filters_v3'; // ✅ 再升级：避免读旧格式
-  static const int _kRandomBatchSize = 20; // ✅ 随机源每次“加载更多”补多少张
+  static const String _kFiltersPrefsKey = 'filters_v2';
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _scrollController = ScrollController();
@@ -138,12 +143,13 @@ class _HomePageState extends State<HomePage> {
         'rating': f.rating.map((e) => e.name).toList(),
         'categories': f.categories.toList(),
         'timeRange': f.timeRange,
-        'extras': f.extras,
       };
 
   FilterSpec _filtersFromJson(Map<String, dynamic> m) {
     Set<String> toSet(dynamic v) {
-      if (v is List) return v.map((e) => e?.toString() ?? '').where((s) => s.trim().isNotEmpty).toSet();
+      if (v is List) {
+        return v.map((e) => e?.toString() ?? '').where((s) => s.trim().isNotEmpty).toSet();
+      }
       return <String>{};
     }
 
@@ -184,16 +190,6 @@ class _HomePageState extends State<HomePage> {
       return null;
     }
 
-    final extras = <String, String>{};
-    final ex = m['extras'];
-    if (ex is Map) {
-      for (final e in ex.entries) {
-        final k = e.key.toString().trim();
-        if (k.isEmpty) continue;
-        extras[k] = (e.value ?? '').toString();
-      }
-    }
-
     return FilterSpec(
       text: (m['text'] is String) ? (m['text'] as String) : '',
       sortBy: sortByFrom(m['sortBy']),
@@ -205,7 +201,6 @@ class _HomePageState extends State<HomePage> {
       rating: ratingFrom(m['rating']),
       categories: toSet(m['categories']),
       timeRange: toOptString(m['timeRange']),
-      extras: extras,
     );
   }
 
@@ -256,8 +251,6 @@ class _HomePageState extends State<HomePage> {
 
     final nextPage = _page + 1;
     final ok = await _fetchItems(page: nextPage);
-
-    // ✅ 只有 pagedSearch 成功才推进 page；random 不需要 page，但也沿用你的 UI 逻辑
     if (ok) _page = nextPage;
 
     if (mounted) setState(() => _isLoading = false);
@@ -270,32 +263,13 @@ class _HomePageState extends State<HomePage> {
       final src = _factory.fromStore(store);
       _repo.setSource(src);
 
-      if (_repo.kind == SourceKind.pagedSearch) {
-        final newItems = await _repo.search(SearchQuery(page: page, filters: _filters));
-        if (!mounted) return false;
-        setState(() => _items.addAll(newItems));
-        return true;
-      }
+      final newItems = await _repo.search(
+        SearchQuery(page: page, filters: _filters),
+      );
 
-      // ✅ random：滑到底补图（A）
-      int added = 0;
-      final seen = <String>{..._items.map((e) => e.preview.toString())};
-
-      for (int i = 0; i < _kRandomBatchSize; i++) {
-        final it = await _repo.random(_filters);
-        if (it == null) continue;
-
-        final key = it.preview.toString();
-        if (key.isEmpty || seen.contains(key)) continue;
-
-        seen.add(key);
-        added++;
-        if (!mounted) return false;
-
-        setState(() => _items.add(it));
-      }
-
-      return added > 0;
+      if (!mounted) return false;
+      setState(() => _items.addAll(newItems));
+      return true;
     } catch (e) {
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -359,7 +333,8 @@ class _HomePageState extends State<HomePage> {
     Navigator.of(context).maybePop();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPage()));
+      // ✅ 去掉 const，避免 “找不到 const 构造” 的报错
+      Navigator.push(context, MaterialPageRoute(builder: (context) => SettingsPage()));
     });
   }
 
@@ -384,9 +359,6 @@ class _HomePageState extends State<HomePage> {
             });
           }
         }
-
-        final src = _factory.fromStore(store);
-        final caps = src.capabilities;
 
         final isDark = theme.brightness == Brightness.dark;
         final overlay = _drawerOpen
@@ -424,7 +396,6 @@ class _HomePageState extends State<HomePage> {
               clipBehavior: Clip.antiAlias,
               child: FilterDrawer(
                 initial: _filters,
-                capabilities: caps,
                 onApply: _applyFilters,
                 onReset: _resetFilters,
                 onOpenSettings: _openSettingsFromDrawer,
@@ -432,7 +403,7 @@ class _HomePageState extends State<HomePage> {
             ),
             extendBodyBehindAppBar: true,
             appBar: FoggyAppBar(
-              title: Text(store.currentSourceConfig.name),
+              title: const Text("Wallhaven"),
               isScrolled: _isScrolled,
               fogStrength: 0.82,
               actions: const [],
@@ -465,7 +436,6 @@ class _HomePageState extends State<HomePage> {
                               builder: (_) => WallpaperDetailPage(
                                 id: item.id,
                                 heroThumb: imageUrl,
-                                item: item,
                               ),
                             ),
                           ),
