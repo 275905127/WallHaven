@@ -33,19 +33,48 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
     _load();
   }
 
+  void _ensureWallhaven(ThemeStore store) {
+    // 现在详情页只支持 wallhaven。以后你接入其它源，再在这里扩展。
+    if (store.currentSourceConfig.pluginId != WallhavenPlugin.kId) {
+      throw UnsupportedError('当前图源暂不支持详情页：${store.currentSourceConfig.pluginId}');
+    }
+  }
+
   Future<void> _load() async {
     final store = ThemeScope.of(context);
-    final client = WallhavenClient(
-  baseUrl: store.currentPluginSettings['baseUrl'],
-  apiKey: store.currentPluginSettings['apiKey'],
-);
 
-    final data = await client.detail(id: widget.id);
-    if (!mounted) return;
-    setState(() {
-      _detail = data;
-      _loading = false;
-    });
+    try {
+      _ensureWallhaven(store);
+
+      final settings = store.currentPluginSettings;
+
+      final baseUrl = (settings['baseUrl'] as String?)?.trim();
+      final apiKey = (settings['apiKey'] as String?)?.trim();
+
+      final client = WallhavenClient(
+        baseUrl: (baseUrl == null || baseUrl.isEmpty) ? null : baseUrl,
+        apiKey: (apiKey == null || apiKey.isEmpty) ? null : apiKey,
+      );
+
+      final data = await client.detail(id: widget.id);
+      if (!mounted) return;
+
+      setState(() {
+        _detail = data;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _detail = null;
+        _loading = false;
+      });
+
+      // 给一个最小提示，别炸 UI
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('加载失败：$e')),
+      );
+    }
   }
 
   Color _monoPrimary(BuildContext context) {
@@ -96,7 +125,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      // ✅ 背景走全局 scaffoldBackgroundColor
+      // ✅ 背景走全局 scaffoldBackgroundColor（Scaffold 默认就是它，这里不手写颜色）
       body: SafeArea(
         top: true,
         bottom: true,
@@ -123,15 +152,12 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
     final imageUrl = (d.url.isNotEmpty) ? d.url : (widget.heroThumb ?? '');
     final aspect = (d.width > 0 && d.height > 0) ? (d.width / d.height) : 16 / 9;
 
-    // 参考图：上方大图 + 下方信息面板（黑白灰、信息整齐）
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ✅ 顶部不放 AppBar / 标题 / 返回
-          // ✅ 图片不加卡片边框（仅裁切圆角，不卡片底色/边框）
           ClipRRect(
             borderRadius: BorderRadius.circular(store.cardRadius),
             child: AspectRatio(
@@ -152,10 +178,8 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 14),
 
-          // 信息面板（仿你图里那块）
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
@@ -170,59 +194,20 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
                 _actionsRow(context),
                 const SizedBox(height: 10),
                 _metaLine(context, Icons.person_outline, "上传者", d.uploader ?? "-"),
-                if ((d.shortUrl ?? '').isNotEmpty)
-                  _metaLine(context, Icons.link, "短链", d.shortUrl!),
-                _metaLine(
-                  context,
-                  Icons.remove_red_eye_outlined,
-                  "浏览量",
-                  d.views?.toString() ?? "-",
-                ),
-                _metaLine(
-                  context,
-                  Icons.favorite_border,
-                  "收藏量",
-                  d.favorites?.toString() ?? "-",
-                ),
-                _metaLine(
-                  context,
-                  Icons.fullscreen,
-                  "分辨率",
-                  d.resolution ?? "${d.width}x${d.height}",
-                ),
-                _metaLine(
-                  context,
-                  Icons.insert_drive_file_outlined,
-                  "大小",
-                  d.fileSize != null ? _humanSize(d.fileSize!) : "-",
-                ),
-                _metaLine(
-                  context,
-                  Icons.category_outlined,
-                  "分类",
-                  _cnCategory(d.category),
-                ),
-                _metaLine(
-                  context,
-                  Icons.shield_outlined,
-                  "纯净度",
-                  _cnPurity(d.purity),
-                ),
-                _metaLine(
-                  context,
-                  Icons.image_outlined,
-                  "格式",
-                  d.fileType ?? "-",
-                ),
-                if ((d.source ?? '').isNotEmpty)
-                  _metaLine(context, Icons.public, "来源", d.source!),
+                if ((d.shortUrl ?? '').isNotEmpty) _metaLine(context, Icons.link, "短链", d.shortUrl!),
+                _metaLine(context, Icons.remove_red_eye_outlined, "浏览量", d.views?.toString() ?? "-"),
+                _metaLine(context, Icons.favorite_border, "收藏量", d.favorites?.toString() ?? "-"),
+                _metaLine(context, Icons.fullscreen, "分辨率", d.resolution ?? "${d.width}x${d.height}"),
+                _metaLine(context, Icons.insert_drive_file_outlined, "大小", d.fileSize != null ? _humanSize(d.fileSize!) : "-"),
+                _metaLine(context, Icons.category_outlined, "分类", _cnCategory(d.category)),
+                _metaLine(context, Icons.shield_outlined, "纯净度", _cnPurity(d.purity)),
+                _metaLine(context, Icons.image_outlined, "格式", d.fileType ?? "-"),
+                if ((d.source ?? '').isNotEmpty) _metaLine(context, Icons.public, "来源", d.source!),
               ],
             ),
           ),
 
           const SizedBox(height: 14),
-
-          // 标签区（仿你图里的 tag 串）
           _tagsPanel(context),
         ],
       ),
@@ -246,23 +231,14 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
 
     return Row(
       children: [
-        action(Icons.content_cut_outlined, () {
-          // 占位：裁剪 / 设为壁纸 / 你的后续逻辑
-        }),
+        action(Icons.content_cut_outlined, () {}),
         const SizedBox(width: 6),
-        action(Icons.share_outlined, () {
-          // 占位：分享
-        }),
+        action(Icons.share_outlined, () {}),
         const SizedBox(width: 6),
-        action(Icons.file_download_outlined, () {
-          // 占位：下载
-        }),
+        action(Icons.file_download_outlined, () {}),
         const SizedBox(width: 6),
-        action(Icons.bookmark_border, () {
-          // 占位：收藏
-        }),
+        action(Icons.bookmark_border, () {}),
         const Spacer(),
-        // 右侧收口：留白，不搞花哨
       ],
     );
   }
@@ -316,7 +292,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
-          color: theme.scaffoldBackgroundColor, // 贴近“底色里长出来”的感觉
+          color: theme.scaffoldBackgroundColor,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: mono.withOpacity(0.16)),
         ),
@@ -352,10 +328,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
           ),
           const SizedBox(height: 12),
           if (tags.isEmpty)
-            Text(
-              "暂无标签",
-              style: TextStyle(color: theme.textTheme.bodyMedium?.color),
-            )
+            Text("暂无标签", style: TextStyle(color: theme.textTheme.bodyMedium?.color))
           else
             Wrap(
               spacing: 10,
