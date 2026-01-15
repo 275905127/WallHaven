@@ -21,8 +21,8 @@ import 'pages/filter_drawer.dart';
 import 'pages/wallpaper_detail_page.dart';
 import 'models/wallpaper.dart';
 
-// ✅ 迁移点：使用 WallhavenClient
-import 'api/wallhaven_api.dart';
+// ✅ 最终版：业务层只依赖“统一 client 接口”，不认识 WallhavenClient
+import 'sources/source_plugin.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -189,7 +189,6 @@ class _HomePageState extends State<HomePage> {
       setState(() => _isLoading = false);
     }
 
-    // ok == false 时已经 snack 了，不额外处理
     (void)ok;
   }
 
@@ -208,49 +207,38 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  /// ✅ 从插件配置中，拿到 wallhaven 的连接参数
-  ({String baseUrl, String? apiKey}) _wallhavenConn(ThemeStore store) {
-    final p = store.currentPlugin;
-    if (p == null || p.pluginId != WallhavenPlugin.kId) {
-      throw UnsupportedError('Current plugin not supported: ${store.currentSourceConfig.pluginId}');
-    }
-
-    final s = store.currentPluginSettings;
-    final baseUrl = (s['baseUrl'] as String?)?.trim();
-    final apiKey = (s['apiKey'] as String?)?.trim();
-
-    final fixedBaseUrl = (baseUrl != null && baseUrl.isNotEmpty) ? baseUrl : WallhavenPlugin.kDefaultBaseUrl;
-    final fixedApiKey = (apiKey != null && apiKey.isNotEmpty) ? apiKey : null;
-
-    return (baseUrl: fixedBaseUrl, apiKey: fixedApiKey);
-  }
-
+  /// ✅ 最终版：业务层只拿 “统一 client”，不认识 WallhavenClient / WallhavenPlugin
   Future<bool> _fetchWallpapers({required int page}) async {
     final store = ThemeScope.of(context);
     final f = _filters;
 
     try {
-      final conn = _wallhavenConn(store);
+      final plugin = store.currentPlugin;
+      final settings = store.currentSettings;
 
-      // ✅ 迁移点：使用 WallhavenClient（复用 Dio）
-      final client = WallhavenClient(
+      final WallpaperSourceClient client = plugin.createClient(
+        settings: settings,
         dio: _dio,
-        baseUrl: conn.baseUrl,
-        apiKey: conn.apiKey,
       );
+
+      // ✅ 当前 drawer/filter 是 WallhavenFilters，所以这里仍然组 Wallhaven 的参数；
+      //    未来你做“插件自带筛选 UI”后，这段会被插件化替换。
+      final params = <String, dynamic>{
+        'sorting': f.sorting,
+        'order': f.order,
+        'categories': f.categories,
+        'purity': f.purity,
+        'resolutions': f.resolutions.isEmpty ? null : f.resolutions,
+        'ratios': f.ratios.isEmpty ? null : f.ratios,
+        'q': f.query.isEmpty ? null : f.query,
+        'atleast': f.atleast.isEmpty ? null : f.atleast,
+        'colors': f.colors.isEmpty ? null : f.colors,
+        'topRange': (f.sorting == 'toplist') ? f.topRange : null,
+      }..removeWhere((k, v) => v == null);
 
       final newItems = await client.search(
         page: page,
-        sorting: f.sorting,
-        order: f.order,
-        categories: f.categories,
-        purity: f.purity,
-        resolutions: f.resolutions.isEmpty ? null : f.resolutions,
-        ratios: f.ratios.isEmpty ? null : f.ratios,
-        query: f.query.isEmpty ? null : f.query,
-        atleast: f.atleast.isEmpty ? null : f.atleast,
-        colors: f.colors.isEmpty ? null : f.colors,
-        topRange: (f.sorting == 'toplist') ? f.topRange : null,
+        params: params,
       );
 
       if (!mounted) return false;
@@ -338,7 +326,6 @@ class _HomePageState extends State<HomePage> {
         } else if (_lastSourceConfigId != currentId) {
           _lastSourceConfigId = currentId;
 
-          // ✅ 如果当前正在请求，别叠加刷新
           if (!_isLoading) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
