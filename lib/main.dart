@@ -16,12 +16,16 @@ import 'pages/sub_pages.dart';
 import 'pages/filter_drawer.dart';
 import 'pages/wallpaper_detail_page.dart';
 
-// ✅ 新的 domain/data
+// ✅ domain/data
 import 'domain/entities/search_query.dart';
 import 'domain/entities/wallpaper_item.dart';
+import 'domain/search/query_spec.dart';
+
 import 'data/http/http_client.dart';
 import 'data/repository/wallpaper_repository.dart';
 import 'data/source_factory.dart';
+import 'data/query_adapters/wallhaven_query_adapter.dart';
+import 'data/query_adapters/generic_query_adapter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,12 +85,12 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  static const String _kFiltersPrefsKey = 'wallhaven_filters_v1';
+  // ✅ 改：不再叫 wallhaven_filters_v1
+  static const String _kQueryPrefsKey = 'query_spec_v1';
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _scrollController = ScrollController();
 
-  // ✅ UI 只持有 domain items
   final List<WallpaperItem> _items = [];
 
   int _page = 1;
@@ -100,7 +104,8 @@ class _HomePageState extends State<HomePage> {
   late final SourceFactory _factory;
   late final WallpaperRepository _repo;
 
-  WallhavenFilters _filters = const WallhavenFilters();
+  // ✅ 改：Domain Query
+  QuerySpec _query = const QuerySpec();
 
   @override
   void initState() {
@@ -109,7 +114,7 @@ class _HomePageState extends State<HomePage> {
     _http = HttpClient();
     _factory = SourceFactory(http: _http);
 
-    // 临时占位，第一次 fetch 时会 setSource
+    // 临时占位：第一次 fetch 会 setSource
     _repo = WallpaperRepository(_factory.fromStore(ThemeScope.of(context)));
 
     _bootstrap();
@@ -125,63 +130,90 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _bootstrap() async {
-    await _loadPersistedFilters();
+    await _loadPersistedQuery();
     if (!mounted) return;
     await _initData();
   }
 
-  Future<void> _loadPersistedFilters() async {
+  // =========================
+  // ✅ QuerySpec 持久化
+  // =========================
+
+  Future<void> _loadPersistedQuery() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_kFiltersPrefsKey);
+      final raw = prefs.getString(_kQueryPrefsKey);
       if (raw == null || raw.trim().isEmpty) return;
 
-      final m = jsonDecode(raw);
-      if (m is! Map) return;
+      final dynamic decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      final m = decoded.cast<String, dynamic>();
 
-      final next = WallhavenFilters(
-        query: (m['query'] ?? '') as String,
-        sorting: (m['sorting'] ?? 'toplist') as String,
-        order: (m['order'] ?? 'desc') as String,
-        categories: (m['categories'] ?? '111') as String,
-        purity: (m['purity'] ?? '100') as String,
-        resolutions: (m['resolutions'] ?? '') as String,
-        ratios: (m['ratios'] ?? '') as String,
-        atleast: (m['atleast'] ?? '') as String,
-        colors: (m['colors'] ?? '') as String,
-        topRange: (m['topRange'] ?? '1M') as String,
+      QuerySpec next = const QuerySpec();
+
+      // text
+      final text = (m['text'] as String?) ?? '';
+      next = next.copyWith(text: text);
+
+      // sort/order
+      next = next.copyWith(
+        sort: _parseSortKey(m['sort'] as String?) ?? next.sort,
+        order: _parseSortOrder(m['order'] as String?) ?? next.order,
+      );
+
+      // categories/ratings
+      next = next.copyWith(
+        categories: _parseEnumSet<Category>(m['categories'], Category.values, Category.general),
+        ratings: _parseEnumSet<Rating>(m['ratings'], Rating.values, Rating.sfw),
+      );
+
+      // sets
+      next = next.copyWith(
+        resolutions: _parseStringSet(m['resolutions']),
+        ratios: _parseStringSet(m['ratios']),
+      );
+
+      // scalars
+      next = next.copyWith(
+        atleast: (m['atleast'] as String?) ?? '',
+        colorHex: (m['colorHex'] as String?) ?? '',
+        toplistRange: (m['toplistRange'] as String?) ?? next.toplistRange,
       );
 
       if (!mounted) return;
-      setState(() => _filters = next);
+      setState(() => _query = next);
     } catch (_) {}
   }
 
-  Future<void> _persistFilters(WallhavenFilters f) async {
+  Future<void> _persistQuery(QuerySpec q) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final map = <String, dynamic>{
-        'query': f.query,
-        'sorting': f.sorting,
-        'order': f.order,
-        'categories': f.categories,
-        'purity': f.purity,
-        'resolutions': f.resolutions,
-        'ratios': f.ratios,
-        'atleast': f.atleast,
-        'colors': f.colors,
-        'topRange': f.topRange,
+        'text': q.text,
+        'sort': q.sort.name,
+        'order': q.order.name,
+        'categories': q.categories.map((e) => e.name).toList(),
+        'ratings': q.ratings.map((e) => e.name).toList(),
+        'resolutions': q.resolutions.toList()..sort(),
+        'ratios': q.ratios.toList()..sort(),
+        'atleast': q.atleast,
+        'colorHex': q.colorHex,
+        'toplistRange': q.toplistRange,
       };
-      await prefs.setString(_kFiltersPrefsKey, jsonEncode(map));
+      await prefs.setString(_kQueryPrefsKey, jsonEncode(map));
     } catch (_) {}
   }
 
-  Future<void> _clearPersistedFilters() async {
+  Future<void> _clearPersistedQuery() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_kFiltersPrefsKey);
+      await prefs.remove(_kQueryPrefsKey);
     } catch (_) {}
   }
+
+  // =========================
+  // Data loading
+  // =========================
 
   Future<void> _initData() async {
     if (_isLoading) return;
@@ -208,26 +240,16 @@ class _HomePageState extends State<HomePage> {
 
   Future<bool> _fetchItems({required int page}) async {
     final store = ThemeScope.of(context);
-    final f = _filters;
 
     try {
-      // ✅ 切源：只在这里做“source 切换”，UI 不参与实例化细节
+      // 切源：repo 只负责 search；源选择交给 factory
       final src = _factory.fromStore(store);
       _repo.setSource(src);
 
-      // 暂时仍然用 WallhavenFilters 组 params（下一轮把这也 domain 化）
-      final params = <String, dynamic>{
-        'sorting': f.sorting,
-        'order': f.order,
-        'categories': f.categories,
-        'purity': f.purity,
-        'resolutions': f.resolutions.isEmpty ? null : f.resolutions,
-        'ratios': f.ratios.isEmpty ? null : f.ratios,
-        'q': f.query.isEmpty ? null : f.query,
-        'atleast': f.atleast.isEmpty ? null : f.atleast,
-        'colors': f.colors.isEmpty ? null : f.colors,
-        'topRange': (f.sorting == 'toplist') ? f.topRange : null,
-      }..removeWhere((k, v) => v == null);
+      // ✅ 关键：由 adapter 翻译参数，UI 不知道 wallhaven 参数长什么样
+      final Map<String, dynamic> params = (src.pluginId == 'wallhaven')
+          ? WallhavenQueryAdapter.toParams(_query)
+          : GenericQueryAdapter.toParams(_query);
 
       final newItems = await _repo.search(SearchQuery(page: page, params: params));
 
@@ -245,15 +267,15 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _onRefresh() async => _initData();
 
-  void _applyFilters(WallhavenFilters f) {
-    setState(() => _filters = f);
-    _persistFilters(f);
+  void _applyQuery(QuerySpec q) {
+    setState(() => _query = q);
+    _persistQuery(q);
     _initData();
   }
 
-  void _resetFilters() {
-    setState(() => _filters = const WallhavenFilters());
-    _clearPersistedFilters();
+  void _resetQuery() {
+    setState(() => _query = const QuerySpec());
+    _clearPersistedQuery();
     _initData();
   }
 
@@ -310,7 +332,7 @@ class _HomePageState extends State<HomePage> {
       builder: (context, _) {
         final theme = Theme.of(context);
 
-        // 切源自动刷新（只负责触发，不负责创建 source）
+        // 切源自动刷新
         final currentId = store.currentSourceConfig.id;
         if (_lastSourceConfigId == null) {
           _lastSourceConfigId = currentId;
@@ -359,9 +381,9 @@ class _HomePageState extends State<HomePage> {
               ),
               clipBehavior: Clip.antiAlias,
               child: FilterDrawer(
-                initial: _filters,
-                onApply: _applyFilters,
-                onReset: _resetFilters,
+                initial: _query,
+                onApply: _applyQuery,
+                onReset: _resetQuery,
                 onOpenSettings: _openSettingsFromDrawer,
               ),
             ),
@@ -434,4 +456,45 @@ class _HomePageState extends State<HomePage> {
       },
     );
   }
+}
+
+// ====== 持久化解析 helpers ======
+
+SortKey? _parseSortKey(String? s) {
+  if (s == null) return null;
+  for (final v in SortKey.values) {
+    if (v.name == s) return v;
+  }
+  return null;
+}
+
+SortOrder? _parseSortOrder(String? s) {
+  if (s == null) return null;
+  for (final v in SortOrder.values) {
+    if (v.name == s) return v;
+  }
+  return null;
+}
+
+Set<String> _parseStringSet(dynamic v) {
+  if (v is List) return v.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty).toSet();
+  if (v is String && v.trim().isNotEmpty) return v.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toSet();
+  return <String>{};
+}
+
+Set<T> _parseEnumSet<T>(dynamic v, List<T> values, T fallback) {
+  if (v is List) {
+    final set = <T>{};
+    for (final e in v) {
+      final name = e?.toString();
+      if (name == null) continue;
+      final match = values.firstWhere(
+        (x) => (x as dynamic).name == name,
+        orElse: () => fallback,
+      );
+      set.add(match);
+    }
+    return set.isEmpty ? {fallback} : set;
+  }
+  return {fallback};
 }
