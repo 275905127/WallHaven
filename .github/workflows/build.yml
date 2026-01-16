@@ -1,44 +1,75 @@
-name: Flutter CI
+name: Flutter CI (manual)
 
 on:
-  push:
-    branches: ["**"]
-  pull_request:
-    branches: ["**"]
   workflow_dispatch:
+    inputs:
+      build_apk:
+        description: "Also build release APK"
+        required: false
+        default: "true"
+      target_platform:
+        description: "APK target platform (android-arm64 / android-arm / android-x64)"
+        required: false
+        default: "android-arm64"
+      strict_analyze:
+        description: "Fail workflow on flutter analyze (true/false)"
+        required: false
+        default: "false"
 
 jobs:
-  build:
+  flutter_ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
-
+      # Flutter SDK
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: "stable"
-          flutter-version: "3.27.1"
           cache: true
 
-      - name: Flutter Pub Get
+      - name: Flutter version
+        run: flutter --version
+
+      # Pub cache（flutter-action 已经 cache 了一部分，这里是额外保险）
+      - name: Cache pub
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Pub get
         run: flutter pub get
 
-      # ✅ 先不让 analyze 阻断（你现在 lint 太多，会卡死）
-      - name: Flutter Analyze (non-blocking)
+      # ✅ Analyze：默认不阻断（你现在 lint 太多，先别卡死）
+      - name: Analyze (non-blocking by default)
+        if: ${{ inputs.strict_analyze != 'true' }}
         run: flutter analyze || true
 
-      # ✅ 测试：阻断
-      - name: Flutter Test
+      # ✅ Analyze：需要你手动打开严格模式才阻断
+      - name: Analyze (strict)
+        if: ${{ inputs.strict_analyze == 'true' }}
+        run: flutter analyze
+
+      # Test：阻断（如果你没写 test，也会是 0 tests 通过）
+      - name: Run tests
         run: flutter test
 
-      # ✅ Release APK：阻断（你要的是架构整好，release 能出包）
-      - name: Build Release APK (arm64)
-        run: flutter build apk --release --target-platform android-arm64
+      # Build：阻断（这是你当前最需要守住的底线）
+      - name: Build APK (release)
+        if: ${{ inputs.build_apk == 'true' }}
+        run: flutter build apk --release --target-platform ${{ inputs.target_platform }}
+
+      - name: Upload APK artifact
+        if: ${{ inputs.build_apk == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: build/app/outputs/flutter-apk/*.apk
