@@ -160,7 +160,7 @@ class ThemeStore extends ChangeNotifier {
   }
 
   void setAccent(Color newColor, String newName) {
-    if (_accentColor.value == newColor.value && _accentName == newName) return;
+    if (_accentColor.toARGB32() == newColor.toARGB32() && _accentName == newName) return;
     _accentColor = newColor;
     _accentName = newName;
     notifyListeners();
@@ -182,14 +182,14 @@ class ThemeStore extends ChangeNotifier {
   }
 
   void setCustomBackgroundColor(Color? color) {
-    if (_customBackgroundColor?.value == color?.value) return;
+    if (_customBackgroundColor?.toARGB32() == color?.toARGB32()) return;
     _customBackgroundColor = color;
     notifyListeners();
     savePreferences();
   }
 
   void setCustomCardColor(Color? color) {
-    if (_customCardColor?.value == color?.value) return;
+    if (_customCardColor?.toARGB32() == color?.toARGB32()) return;
     _customCardColor = color;
     notifyListeners();
     savePreferences();
@@ -245,7 +245,8 @@ class ThemeStore extends ChangeNotifier {
       }
 
       final s = json['settings'];
-      final Map<String, dynamic> settings = (s is Map) ? s.cast<String, dynamic>() : <String, dynamic>{};
+      final Map<String, dynamic> settings =
+          (s is Map) ? s.cast<String, dynamic>() : <String, dynamic>{};
 
       final finalName = name.isNotEmpty ? name : p.defaultName;
 
@@ -340,7 +341,7 @@ class ThemeStore extends ChangeNotifier {
       prefs.setInt('theme_mode', _preferredMode.index);
       prefs.setBool('enable_theme_mode', _enableThemeMode);
 
-      prefs.setInt('accent_color', _accentColor.value);
+      prefs.setInt('accent_color', _accentColor.toARGB32());
       prefs.setString('accent_name', _accentName);
 
       prefs.setBool('enable_custom_colors', _enableCustomColors);
@@ -348,13 +349,13 @@ class ThemeStore extends ChangeNotifier {
       prefs.setDouble('image_radius', _imageRadius);
 
       if (_customBackgroundColor != null) {
-        prefs.setInt('custom_bg_color', _customBackgroundColor!.value);
+        prefs.setInt('custom_bg_color', _customBackgroundColor!.toARGB32());
       } else {
         prefs.remove('custom_bg_color');
       }
 
       if (_customCardColor != null) {
-        prefs.setInt('custom_card_color', _customCardColor!.value);
+        prefs.setInt('custom_card_color', _customCardColor!.toARGB32());
       } else {
         prefs.remove('custom_card_color');
       }
@@ -404,7 +405,8 @@ class ThemeStore extends ChangeNotifier {
         final currentId = prefs.getString('current_source_config_id');
 
         _currentConfig = (currentId != null)
-            ? _sourceConfigs.firstWhere((c) => c.id == currentId, orElse: () => _sourceConfigs.first)
+            ? _sourceConfigs.firstWhere((c) => c.id == currentId,
+                orElse: () => _sourceConfigs.first)
             : _sourceConfigs.first;
       } else {
         final def = _registry.defaultConfig();
@@ -421,7 +423,8 @@ class ThemeStore extends ChangeNotifier {
 
       final p = _registry.plugin(_currentConfig.pluginId);
       if (p != null) {
-        _currentConfig = _currentConfig.copyWith(settings: p.sanitizeSettings(_currentConfig.settings));
+        _currentConfig =
+            _currentConfig.copyWith(settings: p.sanitizeSettings(_currentConfig.settings));
       }
 
       _invalidateCapsCache();
