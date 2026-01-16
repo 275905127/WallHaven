@@ -2,6 +2,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+
 import '../theme/theme_store.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/foggy_app_bar.dart';
@@ -30,8 +31,11 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
   void initState() {
     super.initState();
     _sc.addListener(() {
-      if (_sc.offset > 0 && !_isScrolled) setState(() => _isScrolled = true);
-      else if (_sc.offset <= 0 && _isScrolled) setState(() => _isScrolled = false);
+      if (_sc.offset > 0 && !_isScrolled) {
+        setState(() => _isScrolled = true);
+      } else if (_sc.offset <= 0 && _isScrolled) {
+        setState(() => _isScrolled = false);
+      }
     });
   }
 
@@ -52,10 +56,19 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
     }
   }
 
-  void _showHexColorDialog(BuildContext context, String title, Color? currentColor, Function(Color?) onColorChanged) {
+  void _showHexColorDialog(
+    BuildContext context,
+    String title,
+    Color? currentColor,
+    ValueChanged<Color?> onColorChanged,
+  ) {
     String initHex = "";
     if (currentColor != null) {
-      initHex = currentColor.value.toRadixString(16).toUpperCase().padLeft(8, '0').substring(2);
+      initHex = currentColor.value
+          .toRadixString(16)
+          .toUpperCase()
+          .padLeft(8, '0')
+          .substring(2);
     }
     final textCtrl = TextEditingController(text: initHex);
     String? errorText;
@@ -78,7 +91,8 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
                   border: const OutlineInputBorder(),
                 ),
                 onChanged: (val) {
-                  if (val.isNotEmpty && val.length != 6) {
+                  final v = val.trim();
+                  if (v.isNotEmpty && v.length != 6) {
                     setState(() => errorText = "请输入 6 位颜色代码");
                   } else {
                     setState(() => errorText = null);
@@ -111,7 +125,10 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
               },
               child: const Text("恢复默认", style: TextStyle(color: Colors.red)),
             ),
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消")),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("取消"),
+            ),
             TextButton(
               onPressed: () {
                 final color = _parseColor(textCtrl.text);
@@ -132,28 +149,46 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
 
   Color? _parseColor(String hex) {
     try {
-      hex = hex.replaceAll("#", "");
-      if (hex.length == 6) hex = "FF$hex";
-      return Color(int.parse(hex, radix: 16));
+      var t = hex.trim().replaceAll("#", "");
+      if (t.isEmpty) return null;
+      if (t.length == 6) t = "FF$t";
+      if (t.length != 8) return null;
+      return Color(int.parse(t, radix: 16));
     } catch (_) {
       return null;
     }
   }
 
-  Widget _radiusSlider(BuildContext context, String title, double value, ValueChanged<double> onChanged, VoidCallback onSave) {
+  Widget _radiusSlider(
+    BuildContext context,
+    String title,
+    double value,
+    ValueChanged<double> onChanged,
+    VoidCallback onSave,
+  ) {
     final theme = Theme.of(context);
     final store = ThemeScope.of(context);
+
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(store.cardRadius)),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(store.cardRadius),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: TextStyle(fontSize: 16, color: theme.textTheme.bodyLarge?.color)),
-              Text("${value.toInt()} px", style: TextStyle(color: theme.textTheme.bodyMedium?.color)),
+              Text(
+                title,
+                style: TextStyle(fontSize: 16, color: theme.textTheme.bodyLarge?.color),
+              ),
+              Text(
+                "${value.toInt()} px",
+                style: TextStyle(color: theme.textTheme.bodyMedium?.color),
+              ),
             ],
           ),
           Slider(
@@ -177,7 +212,9 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
     final bool switchValue = disabled ? false : store.enableThemeMode;
     final bool expanded = switchValue;
 
-    final Color fg = disabled ? tokens.disabledFg : (theme.textTheme.bodyLarge?.color ?? Colors.white);
+    final Color fg = disabled
+        ? tokens.disabledFg
+        : (theme.textTheme.bodyLarge?.color ?? Colors.white);
 
     final BorderRadius headerRadius = BorderRadius.only(
       topLeft: Radius.circular(store.cardRadius),
@@ -193,7 +230,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
       bottomRight: Radius.circular(store.cardRadius),
     );
 
-    Widget header = Container(
+    final header = Container(
       decoration: BoxDecoration(color: theme.cardColor, borderRadius: headerRadius),
       child: Material(
         color: Colors.transparent,
@@ -213,8 +250,13 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
                       Text("颜色模式", style: TextStyle(fontSize: 16, color: fg)),
                       const SizedBox(height: 2),
                       Text(
-                        disabled ? "已被「自定义颜色」接管" : (store.enableThemeMode ? _modeLabel(store.preferredMode) : "关闭：跟随系统"),
-                        style: TextStyle(fontSize: 13, color: disabled ? fg : theme.textTheme.bodyMedium?.color),
+                        disabled
+                            ? "已被「自定义颜色」接管"
+                            : (store.enableThemeMode ? _modeLabel(store.preferredMode) : "关闭：跟随系统"),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: disabled ? fg : theme.textTheme.bodyMedium?.color,
+                        ),
                       ),
                     ],
                   ),
@@ -230,7 +272,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
       ),
     );
 
-    Widget bodyCard = Container(
+    final bodyCard = Container(
       decoration: BoxDecoration(color: theme.cardColor, borderRadius: bodyRadius),
       child: Column(
         children: [
@@ -264,7 +306,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
       ),
     );
 
-    Widget expandedBlock = Column(
+    final expandedBlock = Column(
       children: [
         Container(height: tokens.dividerThickness, color: tokens.dividerColor),
         bodyCard,
@@ -303,7 +345,10 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
           appBar: FoggyAppBar(
             title: const Text("个性化"),
             isScrolled: _isScrolled,
-            leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
           body: ListView(
             controller: _sc,
@@ -333,10 +378,12 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
                         height: 24,
                         decoration: BoxDecoration(
                           color: store.customBackgroundColor ?? Colors.transparent,
-                          border: Border.all(color: Colors.grey.withOpacity(0.5)),
+                          border: Border.all(color: Colors.grey.withAlpha(128)),
                           shape: BoxShape.circle,
                         ),
-                        child: store.customBackgroundColor == null ? const Icon(Icons.auto_awesome, size: 14, color: Colors.grey) : null,
+                        child: store.customBackgroundColor == null
+                            ? const Icon(Icons.auto_awesome, size: 14, color: Colors.grey)
+                            : null,
                       ),
                       onTap: () => _showHexColorDialog(
                         context,
@@ -354,10 +401,12 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
                         height: 24,
                         decoration: BoxDecoration(
                           color: store.customCardColor ?? Colors.transparent,
-                          border: Border.all(color: Colors.grey.withOpacity(0.5)),
+                          border: Border.all(color: Colors.grey.withAlpha(128)),
                           shape: BoxShape.circle,
                         ),
-                        child: store.customCardColor == null ? const Icon(Icons.auto_awesome, size: 14, color: Colors.grey) : null,
+                        child: store.customCardColor == null
+                            ? const Icon(Icons.auto_awesome, size: 14, color: Colors.grey)
+                            : null,
                       ),
                       onTap: () => _showHexColorDialog(
                         context,
@@ -371,9 +420,21 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
               ),
               const SizedBox(height: 24),
               const SectionHeader(title: "圆角设置"),
-              _radiusSlider(context, "全局圆角", store.cardRadius, (val) => store.setCardRadius(val), () => store.savePreferences()),
+              _radiusSlider(
+                context,
+                "全局圆角",
+                store.cardRadius,
+                (val) => store.setCardRadius(val),
+                () => store.savePreferences(),
+              ),
               const SizedBox(height: 12),
-              _radiusSlider(context, "图片圆角", store.imageRadius, (val) => store.setImageRadius(val), () => store.savePreferences()),
+              _radiusSlider(
+                context,
+                "图片圆角",
+                store.imageRadius,
+                (val) => store.setImageRadius(val),
+                () => store.savePreferences(),
+              ),
             ],
           ),
         );
@@ -387,6 +448,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
 // ==========================================
 class SourceManagementPage extends StatefulWidget {
   const SourceManagementPage({super.key});
+
   @override
   State<SourceManagementPage> createState() => _SourceManagementPageState();
 }
@@ -399,8 +461,11 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
   void initState() {
     super.initState();
     _sc.addListener(() {
-      if (_sc.offset > 0 && !_isScrolled) setState(() => _isScrolled = true);
-      else if (_sc.offset <= 0 && _isScrolled) setState(() => _isScrolled = false);
+      if (_sc.offset > 0 && !_isScrolled) {
+        setState(() => _isScrolled = true);
+      } else if (_sc.offset <= 0 && _isScrolled) {
+        setState(() => _isScrolled = false);
+      }
     });
   }
 
@@ -410,9 +475,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     super.dispose();
   }
 
-  bool _isBuiltInConfig(SourceConfig c) {
-    return c.id.startsWith('default_');
-  }
+  bool _isBuiltInConfig(SourceConfig c) => c.id.startsWith('default_');
 
   String _baseUrlOf(SourceConfig c) {
     final v = c.settings['baseUrl'];
@@ -434,10 +497,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
   void _showAddSourceDialog(BuildContext context) {
     final store = ThemeScope.of(context);
 
-    // A：粘贴 JSON
     final jsonCtrl = TextEditingController();
-
-    // B：表单生成 JSON（最简：name + baseUrl + listKey）
     final nameCtrl = TextEditingController();
     final urlCtrl = TextEditingController();
     final listKeyCtrl = TextEditingController(text: "@direct");
@@ -449,7 +509,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
 
-    bool _looksLikeJson(String s) {
+    bool looksLikeJson(String s) {
       final t = s.trim();
       return t.startsWith('{') && t.endsWith('}');
     }
@@ -488,7 +548,12 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         children: [
                           const Icon(Icons.error_outline, size: 18, color: Colors.red),
                           const SizedBox(width: 8),
-                          Expanded(child: Text(errorText!, style: const TextStyle(color: Colors.red))),
+                          Expanded(
+                            child: Text(
+                              errorText!,
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -496,9 +561,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                     Flexible(
                       child: TabBarView(
                         children: [
-                          // =======================
                           // A：粘贴 JSON
-                          // =======================
                           SingleChildScrollView(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -520,7 +583,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                                   alignment: Alignment.centerLeft,
                                   child: TextButton.icon(
                                     onPressed: () {
-                                      // 给个最小示例（不会影响你粘贴别的）
                                       const sample = {
                                         "name": "示例 (随机直链)",
                                         "baseUrl": "https://example.com/api/random",
@@ -539,9 +601,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                             ),
                           ),
 
-                          // =======================
-                          // B：表单生成 JSON（无脑）
-                          // =======================
+                          // B：表单生成 JSON（最简）
                           SingleChildScrollView(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -601,25 +661,22 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                 ),
                 TextButton(
                   onPressed: () {
-                    // 根据当前 tab 决定走 A 还是 B
                     final tab = DefaultTabController.of(dialogCtx).index;
 
                     try {
                       setState(() => errorText = null);
 
                       if (tab == 0) {
-                        // A：粘贴 JSON
                         final raw = jsonCtrl.text.trim();
                         if (raw.isEmpty) {
                           setState(() => errorText = "你没粘贴任何配置。");
                           return;
                         }
-                        if (!_looksLikeJson(raw)) {
+                        if (!looksLikeJson(raw)) {
                           setState(() => errorText = "这看起来不像 JSON（需要以 { 开头，以 } 结尾）。");
                           return;
                         }
 
-                        // ✅ 入口最终版：交给 store 解析 + 入库
                         store.addSourceFromJsonString(raw);
 
                         Navigator.pop(dialogCtx);
@@ -627,23 +684,23 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         return;
                       }
 
-                      // B：表单
                       final name = nameCtrl.text.trim();
                       final url = urlCtrl.text.trim();
-                      final listKey = listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
+                      final listKey =
+                          listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
 
                       if (name.isEmpty || url.isEmpty) {
                         setState(() => errorText = "名称和 API 地址是必填。");
                         return;
                       }
 
-                      // ✅ 表单就是“无脑”：直接生成一个最简 JSON 丢给同一个入口
                       final cfg = <String, dynamic>{
                         "name": name,
                         "baseUrl": url,
                         "listKey": listKey,
                         "filters": <dynamic>[],
                       };
+
                       store.addSourceFromJsonString(jsonEncode(cfg));
 
                       Navigator.pop(dialogCtx);
@@ -694,14 +751,23 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 16),
-              TextField(controller: userCtrl, decoration: const InputDecoration(labelText: "用户名 (可选)")),
+              TextField(
+                controller: userCtrl,
+                decoration: const InputDecoration(labelText: "用户名 (可选)"),
+              ),
               const SizedBox(height: 16),
-              TextField(controller: keyCtrl, decoration: const InputDecoration(labelText: "API Key (可选)")),
+              TextField(
+                controller: keyCtrl,
+                decoration: const InputDecoration(labelText: "API Key (可选)"),
+              ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("取消")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("取消"),
+          ),
           TextButton(
             onPressed: () {
               final nextSettings = Map<String, dynamic>.from(cfg.settings);
@@ -711,8 +777,10 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                 if (u.isNotEmpty) nextSettings['baseUrl'] = u;
               }
 
-              nextSettings['username'] = userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
-              nextSettings['apiKey'] = keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim();
+              nextSettings['username'] =
+                  userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
+              nextSettings['apiKey'] =
+                  keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim();
 
               final updated = cfg.copyWith(
                 name: builtIn ? cfg.name : nameCtrl.text.trim(),
@@ -743,7 +811,10 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
           appBar: FoggyAppBar(
             title: const Text("图源管理"),
             isScrolled: _isScrolled,
-            leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
           body: ListView(
             controller: _sc,
@@ -791,9 +862,15 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                 }).toList(),
               ),
               const SizedBox(height: 24),
-              SettingsGroup(items: [
-                SettingsItem(icon: Icons.add_circle_outline, title: "添加新图源", onTap: () => _showAddSourceDialog(context)),
-              ]),
+              SettingsGroup(
+                items: [
+                  SettingsItem(
+                    icon: Icons.add_circle_outline,
+                    title: "添加新图源",
+                    onTap: () => _showAddSourceDialog(context),
+                  ),
+                ],
+              ),
             ],
           ),
         );
