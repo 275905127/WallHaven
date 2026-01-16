@@ -272,38 +272,31 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
 
     // ✅ 这里用 RadioListTile（稳定）
     final bodyCard = Container(
-      decoration: BoxDecoration(color: theme.cardColor, borderRadius: bodyRadius),
-      child: Column(
-        children: [
-          RadioListTile<ThemeMode>(
-            title: const Text("系统 (默认)"),
-            value: ThemeMode.system,
-            groupValue: store.preferredMode,
-            onChanged: disabled ? null : (v) => store.setPreferredMode(v!),
-            activeColor: theme.colorScheme.primary,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-          ),
-          Container(height: tokens.dividerThickness, color: tokens.dividerColor),
-          RadioListTile<ThemeMode>(
-            title: const Text("浅色"),
-            value: ThemeMode.light,
-            groupValue: store.preferredMode,
-            onChanged: disabled ? null : (v) => store.setPreferredMode(v!),
-            activeColor: theme.colorScheme.primary,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-          ),
-          Container(height: tokens.dividerThickness, color: tokens.dividerColor),
-          RadioListTile<ThemeMode>(
-            title: const Text("深色"),
-            value: ThemeMode.dark,
-            groupValue: store.preferredMode,
-            onChanged: disabled ? null : (v) => store.setPreferredMode(v!),
-            activeColor: theme.colorScheme.primary,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-          ),
-        ],
-      ),
-    );
+  decoration: BoxDecoration(color: theme.cardColor, borderRadius: bodyRadius),
+  clipBehavior: Clip.antiAlias,
+  child: RadioGroup<ThemeMode>(
+    groupValue: store.preferredMode,
+    onChanged: disabled ? null : (v) => store.setPreferredMode(v),
+    child: Column(
+      children: [
+        RadioTile<ThemeMode>(
+          value: ThemeMode.system,
+          title: const Text("系统 (默认)"),
+        ),
+        Container(height: tokens.dividerThickness, color: tokens.dividerColor),
+        RadioTile<ThemeMode>(
+          value: ThemeMode.light,
+          title: const Text("浅色"),
+        ),
+        Container(height: tokens.dividerThickness, color: tokens.dividerColor),
+        RadioTile<ThemeMode>(
+          value: ThemeMode.dark,
+          title: const Text("深色"),
+        ),
+      ],
+    ),
+  ),
+);
 
     final expandedBlock = Column(
       children: [
