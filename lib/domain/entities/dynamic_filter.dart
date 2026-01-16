@@ -1,7 +1,13 @@
+// lib/domain/entities/dynamic_filter.dart
+
 class DynamicFilterOption {
   final String label;
   final String value;
-  const DynamicFilterOption({required this.label, required this.value});
+
+  const DynamicFilterOption({
+    required this.label,
+    required this.value,
+  });
 }
 
 enum DynamicFilterType {
