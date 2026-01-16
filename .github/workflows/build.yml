@@ -1,8 +1,6 @@
 name: Flutter CI
 
 on:
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
     inputs:
       build_apk:
@@ -10,9 +8,18 @@ on:
         required: false
         default: "true"
       target_platform:
-        description: "APK target platform (android-arm64 / android-arm / android-x64)"
+        description: "APK target platform"
         required: false
-        default: "android-arm64"
+        type: choice
+        options:
+          - android-arm64
+          - android-arm
+          - android-x64
+        default: android-arm64
+      strict_analyze:
+        description: "Fail workflow on flutter analyze (true/false)"
+        required: false
+        default: "false"
 
 concurrency:
   group: flutter-ci-${{ github.ref }}
