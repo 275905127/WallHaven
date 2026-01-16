@@ -32,10 +32,11 @@ class ThemeStore extends ChangeNotifier {
   late final HttpClient _http = HttpClient();
   late final SourceFactory _factory = SourceFactory(http: _http);
 
-SourceCapabilities get currentCapabilities {
-  final src = _factory.fromStore(this);
-  return src.capabilities;
-}
+  SourceCapabilities get currentCapabilities {
+    final src = _factory.fromStore(this);
+    return src.capabilities;
+  }
+
   // ===== Theme =====
   ThemeMode _mode = ThemeMode.system;
   ThemeMode _preferredMode = ThemeMode.system;
@@ -82,25 +83,19 @@ SourceCapabilities get currentCapabilities {
     if (p == null) throw StateError('Plugin not found: ${_currentConfig.pluginId}');
     return p;
   }
-   
-   
 
   // 其他源：保守最小集
-  return const SourceCapabilities(supportsText: true);
-}
-  /// 给业务层用：拿到当前插件的“已清洗 settings”
-  Map<String, dynamic> get currentSettings => currentPlugin.sanitizeSettings(_currentConfig.settings);
+  // 删除当前WallpaperSourceCapabilities的getter，保留currentCapabilities
+  SourceCapabilities get currentCapabilities {
+    final http = HttpClient();
+    final factory = SourceFactory(http: http);
+    final src = factory.fromStore(this);
+    return src.capabilities;
+  }
 
-  // ✅ 给 UI 用：当前 source 的 capabilities（用于动态筛选 UI）
-SourceCapabilities get currentCapabilities {
-  final http = HttpClient();
-  final factory = SourceFactory(http: http);
-  final src = factory.fromStore(this);
-  return src.capabilities;
-}
-
-// ✅ 兼容旧名字：全项目只允许存在一次
-SourceCapabilities get currentWallpaperSourceCapabilities => currentCapabilities;
+  // ✅ 兼容旧名字：全项目只允许存在一次
+  // SourceCapabilities get currentWallpaperSourceCapabilities => currentCapabilities; 
+  // 删除上面的这一行
 
   ThemeStore() {
     final def = _registry.defaultConfig();
@@ -211,23 +206,15 @@ SourceCapabilities get currentWallpaperSourceCapabilities => currentCapabilities
     savePreferences();
   }
 
-  /// ✅ 新增：从 JSON Map 添加“自由图源”
-  ///
-  /// 约定兼容两种格式：
-  /// 1) 你贴的自由图源 JSON（无 pluginId）： { name, baseUrl, listKey, filters, ... }
-  ///    -> 归入 pluginId = "generic"（你必须在 registry 里注册 generic 插件）
-  /// 2) 完整插件化配置： { pluginId, name, settings: {...} }
+  // 新增从 JSON Map 添加“自由图源”
   void addSourceFromJson(Map<String, dynamic> json) {
-    // 允许用户粘贴“自由图源 JSON”
     final pluginIdRaw = json['pluginId'];
     final String? pluginId = (pluginIdRaw is String && pluginIdRaw.trim().isNotEmpty) ? pluginIdRaw.trim() : null;
-
-    // 允许两种字段名：name / title
     final nameRaw = json['name'] ?? json['title'];
     final String name = (nameRaw is String && nameRaw.trim().isNotEmpty) ? nameRaw.trim() : '';
 
     if (pluginId != null) {
-      // 走“完整插件化”
+      // 完整插件化配置
       final p = _registry.plugin(pluginId);
       if (p == null) {
         throw StateError('Plugin not found: $pluginId (registry 未注册该插件)');
@@ -254,7 +241,6 @@ SourceCapabilities get currentWallpaperSourceCapabilities => currentCapabilities
       throw StateError('Generic plugin not found: $genericId（你必须在 SourceRegistry 注册 generic 插件）');
     }
 
-    // 把自由图源 JSON 整体作为 settings 存进去（让 generic 插件自己解释）
     final finalName = name.isNotEmpty ? name : p.defaultName;
 
     addSource(
@@ -264,7 +250,6 @@ SourceCapabilities get currentWallpaperSourceCapabilities => currentCapabilities
     );
   }
 
-  /// ✅ 新增：从 JSON 字符串添加（UI 直接调用这个）
   void addSourceFromJsonString(String raw) {
     final text = raw.trim();
     if (text.isEmpty) throw FormatException('Empty json');
@@ -273,7 +258,6 @@ SourceCapabilities get currentWallpaperSourceCapabilities => currentCapabilities
     addSourceFromJson(decoded.cast<String, dynamic>());
   }
 
-  /// 你现有 UI 的 “添加图源” 还是 wallhaven 参数，这里给它直接用
   void addWallhavenSource({
     required String name,
     required String url,
@@ -327,19 +311,15 @@ SourceCapabilities get currentWallpaperSourceCapabilities => currentCapabilities
     savePreferences();
   }
 
-  // ===== 持久化 =====
-
+  // 持久化
   Future<void> savePreferences() async {
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(milliseconds: 120), () async {
       final prefs = await SharedPreferences.getInstance();
-
       prefs.setInt('theme_mode', _preferredMode.index);
       prefs.setBool('enable_theme_mode', _enableThemeMode);
-
       prefs.setInt('accent_color', _accentColor.value);
       prefs.setString('accent_name', _accentName);
-
       prefs.setBool('enable_custom_colors', _enableCustomColors);
       prefs.setDouble('card_radius', _cardRadius);
       prefs.setDouble('image_radius', _imageRadius);
@@ -408,7 +388,6 @@ SourceCapabilities get currentWallpaperSourceCapabilities => currentCapabilities
         _currentConfig = def;
       }
 
-      // 全量清洗一次，避免历史脏数据
       _sourceConfigs = _sourceConfigs.map((c) {
         final p = _registry.plugin(c.pluginId);
         if (p == null) return c;
