@@ -20,87 +20,79 @@ class GenericJsonSource implements WallpaperSource {
 
   final HttpClient _http;
 
-  /// ✅ 允许 baseUrl 直接就是完整 endpoint（例如随机直链 API）
   final String baseUrl;
-  final String searchPath; // 可空
-  final String detailPath; // 可空
+  final String searchPath;
+  final String detailPath;
   final String? apiKey;
 
-  /// ✅ settings 原样保留（mapping/capabilities/filters）
+  /// 原始 settings（filters / capabilities / mapping 等）
   final Map<String, dynamic> settings;
 
   GenericJsonSource({
     required this.sourceId,
     required HttpClient http,
     required this.baseUrl,
-    required this.searchPath,
-    required this.detailPath,
+    this.searchPath = '',
+    this.detailPath = '',
     required this.settings,
     this.apiKey,
   }) : _http = http;
 
-  // ----------------------------
-  // kind：settings.kind 或 listKey=@direct 视为 random
-  // ----------------------------
+  // =========================
+  // Source kind
+  // =========================
   @override
   SourceKind get kind {
-    final k = (settings['kind'] ?? '').toString().trim().toLowerCase();
+    final k = (settings['kind'] ?? '').toString().toLowerCase();
     if (k == 'random') return SourceKind.random;
-    final listKey = (settings['listKey'] ?? '').toString().trim();
-    if (listKey == '@direct') return SourceKind.random;
+    if ((settings['listKey'] ?? '') == '@direct') return SourceKind.random;
     return SourceKind.pagedSearch;
   }
 
-  String _join(String base, String path) {
-    final b = base.trim();
-    final p = path.trim();
-    if (p.isEmpty) return b;
-    if (b.isEmpty) return p;
-    if (p.startsWith('http://') || p.startsWith('https://')) return p;
-    if (p.startsWith('/')) return '$b$p';
-    return '$b/$p';
+  // =========================
+  // Capabilities
+  // =========================
+  @override
+  SourceCapabilities get capabilities {
+    return SourceCapabilities(
+      supportsText: true,
+      dynamicFilters: _dynamicFiltersFromLegacyFilters(),
+    );
   }
 
-  Uri _safeUri(String s) => Uri.tryParse(s) ?? Uri.parse('about:blank');
-
-  // ----------------------------
-  // ✅ 从你给的自由 JSON（filters）生成 dynamicFilters
-  // ----------------------------
   List<DynamicFilter> _dynamicFiltersFromLegacyFilters() {
     final raw = settings['filters'];
     if (raw is! List) return const [];
+
     final out = <DynamicFilter>[];
 
     for (final e in raw) {
       if (e is! Map) continue;
       final m = e.cast<String, dynamic>();
 
-      final title = (m['title'] ?? '').toString().trim();
-      final paramName = (m['paramName'] ?? '').toString().trim();
-      final type = (m['type'] ?? '').toString().trim().toLowerCase();
-
-      if (title.isEmpty || paramName.isEmpty) continue;
-      if (type != 'radio') continue;
-
-      final optsRaw = m['options'];
-      if (optsRaw is! List) continue;
+      final title = (m['title'] ?? '').toString();
+      final param = (m['paramName'] ?? '').toString();
+      if (title.isEmpty || param.isEmpty) continue;
 
       final opts = <DynamicFilterOption>[];
-      for (final o in optsRaw) {
-        if (o is! Map) continue;
-        final mm = o.cast<String, dynamic>();
-        final label = (mm['label'] ?? '').toString().trim();
-        final value = (mm['value'] ?? '').toString();
-        if (label.isNotEmpty) {
-          opts.add(DynamicFilterOption(label: label, value: value));
+      final rawOpts = m['options'];
+      if (rawOpts is List) {
+        for (final o in rawOpts) {
+          if (o is! Map) continue;
+          final label = (o['label'] ?? '').toString();
+          final value = (o['value'] ?? '').toString();
+          if (label.isNotEmpty) {
+            opts.add(DynamicFilterOption(label: label, value: value));
+          }
         }
       }
+
       if (opts.isEmpty) continue;
 
       out.add(
         DynamicFilter(
           title: title,
-          paramName: paramName,
+          paramName: param,
           type: DynamicFilterType.radio,
           options: opts,
         ),
@@ -110,127 +102,86 @@ class GenericJsonSource implements WallpaperSource {
     return out;
   }
 
-  // ----------------------------
-  // capabilities：优先 settings.capabilities，否则最小集 + legacy dynamicFilters
-  // ----------------------------
+  // =========================
+  // random
+  // =========================
   @override
-  SourceCapabilities get capabilities {
-    final caps = settings['capabilities'];
-    if (caps is Map) {
-      final m = caps.cast<String, dynamic>();
+  Future<WallpaperItem?> random(FilterSpec filters) async {
+    if (baseUrl.isEmpty) return null;
 
-      bool b(String k, bool def) => (m[k] is bool) ? (m[k] as bool) : def;
+    try {
+      final resp = await _http.dio.get(baseUrl, queryParameters: filters.extras);
+      if (resp.statusCode != 200) return null;
 
-      List<String> strList(String k) {
-        final v = m[k];
-        if (v is List) return v.map((e) => e?.toString() ?? '').where((e) => e.trim().isNotEmpty).toList();
-        return const [];
+      final data = resp.data;
+      if (data is String) {
+        return _itemFromUrl(data);
       }
-
-      List<OptionItem> optionList(String k) {
-        final v = m[k];
-        if (v is! List) return const [];
-        final out = <OptionItem>[];
-        for (final e in v) {
-          if (e is Map) {
-            final mm = e.cast<String, dynamic>();
-            final id = (mm['id'] ?? '').toString().trim();
-            final label = (mm['label'] ?? '').toString().trim();
-            if (id.isNotEmpty && label.isNotEmpty) out.add(OptionItem(id: id, label: label));
-          }
-        }
-        return out;
+      if (data is Map) {
+        final url = data['url'] ?? data['image'] ?? data['src'];
+        if (url is String) return _itemFromUrl(url);
       }
+    } catch (_) {}
 
-      List<SortBy> sortList() {
-        final raw = strList('sortByOptions');
-        final out = <SortBy>[];
-        for (final s in raw) {
-          for (final e in SortBy.values) {
-            if (e.name == s) out.add(e);
-          }
-        }
-        return out;
-      }
+    return null;
+  }
 
-      List<RatingLevel> ratingList() {
-        final raw = strList('ratingOptions');
-        final out = <RatingLevel>[];
-        for (final s in raw) {
-          for (final e in RatingLevel.values) {
-            if (e.name == s) out.add(e);
-          }
-        }
-        return out;
-      }
+  // =========================
+  // search
+  // =========================
+  @override
+  Future<List<WallpaperItem>> search(SearchQuery query) async {
+    if (kind == SourceKind.random) return const [];
+    if (baseUrl.isEmpty) return const [];
 
-      // dynamicFilters（可选）
-      final dyn = <DynamicFilter>[];
-      final dynRaw = m['dynamicFilters'];
-      if (dynRaw is List) {
-        for (final e in dynRaw) {
-          if (e is! Map) continue;
-          final mm = e.cast<String, dynamic>();
-          final title = (mm['title'] ?? '').toString().trim();
-          final paramName = (mm['paramName'] ?? '').toString().trim();
-          final type = (mm['type'] ?? '').toString().trim().toLowerCase();
-
-          if (title.isEmpty || paramName.isEmpty) continue;
-          if (type != 'radio') continue;
-
-          final optsRaw = mm['options'];
-          if (optsRaw is! List) continue;
-
-          final opts = <DynamicFilterOption>[];
-          for (final o in optsRaw) {
-            if (o is! Map) continue;
-            final o2 = o.cast<String, dynamic>();
-            final label = (o2['label'] ?? '').toString().trim();
-            final value = (o2['value'] ?? '').toString();
-            if (label.isNotEmpty) opts.add(DynamicFilterOption(label: label, value: value));
-          }
-          if (opts.isEmpty) continue;
-
-          dyn.add(DynamicFilter(title: title, paramName: paramName, type: DynamicFilterType.radio, options: opts));
-        }
-      }
-
-      return SourceCapabilities(
-        supportsText: b('supportsText', true),
-        supportsSort: b('supportsSort', false),
-        sortByOptions: sortList(),
-        supportsOrder: b('supportsOrder', false),
-        supportsResolutions: b('supportsResolutions', false),
-        resolutionOptions: strList('resolutionOptions'),
-        supportsAtleast: b('supportsAtleast', false),
-        atleastOptions: strList('atleastOptions'),
-        supportsRatios: b('supportsRatios', false),
-        ratioOptions: strList('ratioOptions'),
-        supportsColor: b('supportsColor', false),
-        colorOptions: strList('colorOptions'),
-        supportsRating: b('supportsRating', false),
-        ratingOptions: ratingList(),
-        supportsCategories: b('supportsCategories', false),
-        categoryOptions: optionList('categoryOptions'),
-        supportsTimeRange: b('supportsTimeRange', false),
-        timeRangeOptions: optionList('timeRangeOptions'),
-        dynamicFilters: dyn, // 确保这里返回 dynamicFilters
+    try {
+      final resp = await _http.dio.get(
+        baseUrl,
+        queryParameters: {
+          ...query.filters.extras,
+          'page': query.page,
+        },
       );
-    }
 
-    // 没给 capabilities：默认只支持关键词 + legacy filters（如果有）
-    return SourceCapabilities(
-      supportsText: true,
-      supportsSort: false,
-      supportsOrder: false,
-      supportsResolutions: false,
-      supportsAtleast: false,
-      supportsRatios: false,
-      supportsColor: false,
-      supportsRating: false,
-      supportsCategories: false,
-      supportsTimeRange: false,
-      dynamicFilters: _dynamicFiltersFromLegacyFilters(),
+      if (resp.statusCode != 200) return const [];
+
+      final data = resp.data;
+      if (data is! List) return const [];
+
+      final out = <WallpaperItem>[];
+      for (final e in data) {
+        if (e is Map) {
+          final url = e['url'] ?? e['image'] ?? e['src'];
+          if (url is String) {
+            out.add(_itemFromUrl(url));
+          }
+        }
+      }
+      return out;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  // =========================
+  // detail（通用源默认不支持）
+  // =========================
+  @override
+  Future<WallpaperDetailItem?> detail(String id) async {
+    return null;
+  }
+
+  // =========================
+  // helpers
+  // =========================
+  WallpaperItem _itemFromUrl(String url) {
+    return WallpaperItem(
+      sourceId: sourceId,
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      preview: Uri.parse(url),
+      width: 0,
+      height: 0,
+      extra: const {},
     );
   }
 }
