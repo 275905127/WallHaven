@@ -391,9 +391,9 @@ class _FilterDrawerState extends State<FilterDrawer> {
     final s = (v == null) ? '' : v.toString();
     if (s.trim().isEmpty) return '不限';
 
-    // 尝试把 value 映射回 label
+    // ✅ 用 toString 对齐类型，避免 value 不是 String 时 summary 显示不了 label
     for (final o in d.options) {
-      if (o.value == s) return o.label;
+      if (o.value.toString() == s) return o.label;
     }
     return s;
   }
@@ -402,13 +402,11 @@ class _FilterDrawerState extends State<FilterDrawer> {
     required BuildContext context,
     required DynamicFilter d,
   }) {
-    // null/空字符串 都视为未选
     final current = _f.extras[d.paramName];
     final currentStr = (current == null) ? null : current.toString();
 
-    final items = d.options
-        .map((o) => _PickItem<String>(o.value, o.label))
-        .toList();
+    // ✅ 强制转成 String，避免 option.value 不是 String 时炸
+    final items = d.options.map((o) => _PickItem<String>(o.value.toString(), o.label)).toList();
 
     return _singlePickListNullable<String>(
       context: context,
@@ -488,7 +486,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     final mono = _monoPrimary(context);
     final store = ThemeScope.of(context);
 
-    // ✅ 由当前 source 决定能力
     final SourceCapabilities caps = store.currentCapabilities;
 
     final isDark = theme.brightness == Brightness.dark;
@@ -529,7 +526,9 @@ class _FilterDrawerState extends State<FilterDrawer> {
       rows.add(
         _RowDef(
           title: '时间范围',
-          valueLabel: (_f.timeRange ?? '').trim().isEmpty ? '不限' : _summaryOptions({_f.timeRange!}, caps.timeRangeOptions),
+          valueLabel: (_f.timeRange ?? '').trim().isEmpty
+              ? '不限'
+              : _summaryOptions({_f.timeRange!}, caps.timeRangeOptions),
           expanded: _timeRangeExpanded,
           onToggle: () => setState(() => _timeRangeExpanded = !_timeRangeExpanded),
           child: _singlePickListNullable<String>(
@@ -693,7 +692,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
           child: _singlePickListNullable<String>(
             context: context,
             items: caps.colorOptions.map((c) => _PickItem<String>(c, c.toUpperCase())).toList(),
-            value: (_f.color ?? '').trim().isEmpty ? null : _f.color!.trim().replaceAll('#', ''),
+            value: (_f.color ?? '').trim().isNotEmpty ? _f.color!.trim().replaceAll('#', '') : null,
             onPick: (v) {
               setState(() {
                 final vv = (v ?? '').trim().replaceAll('#', '');
@@ -710,9 +709,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
     // ✅ Dynamic filters（radio）
     if (caps.dynamicFilters.isNotEmpty) {
       for (final d in caps.dynamicFilters) {
-        // 只支持 radio（你 current model 也是 radio）
         if (d.type != DynamicFilterType.radio) continue;
-
         final expanded = _dynExpanded[d.paramName] ?? false;
         rows.add(
           _RowDef(
@@ -730,7 +727,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     for (int i = 0; i < rows.length; i++) {
       final def = rows[i];
       final br = _groupRadiusFor(context, i, rows.length);
-
       groupRows.add(
         _groupCollapseRow(
           context: context,
