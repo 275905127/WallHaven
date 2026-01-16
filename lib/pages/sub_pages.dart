@@ -274,7 +274,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
       decoration: BoxDecoration(color: theme.cardColor, borderRadius: bodyRadius),
       child: Column(
         children: [
-          RadioListTile<ThemeMode>(
+          RadioGroup<ThemeMode>(
             title: const Text("系统 (默认)"),
             value: ThemeMode.system,
             groupValue: store.preferredMode,
@@ -283,7 +283,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),
           ),
           Container(height: tokens.dividerThickness, color: tokens.dividerColor),
-          RadioListTile<ThemeMode>(
+          RadioGroup<ThemeMode>(
             title: const Text("浅色"),
             value: ThemeMode.light,
             groupValue: store.preferredMode,
@@ -292,7 +292,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),
           ),
           Container(height: tokens.dividerThickness, color: tokens.dividerColor),
-          RadioListTile<ThemeMode>(
+          RadioGroup<ThemeMode>(
             title: const Text("深色"),
             value: ThemeMode.dark,
             groupValue: store.preferredMode,
