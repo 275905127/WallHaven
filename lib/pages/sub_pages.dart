@@ -496,7 +496,6 @@ class _RadioDot extends StatelessWidget {
   final bool disabled;
 
   const _RadioDot({
-    super.key,
     required this.selected,
     required this.disabled,
   });
