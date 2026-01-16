@@ -280,19 +280,19 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
       child: RadioGroup<ThemeMode>(
        groupValue: store.preferredMode,
        onChanged: disabled ? null : (ThemeMode v) => store.setPreferredMode(v),
-    child: Column(
+       child: Column(
         children: [
          RadioTile<ThemeMode>(
           value: ThemeMode.system,
           title: const Text("系统 (默认)"),
-        ),
-        Container(height: tokens.dividerThickness, color: tokens.dividerColor),
-        RadioTile<ThemeMode>(
+         ),
+         Container(height: tokens.dividerThickness, color: tokens.dividerColor),
+         RadioTile<ThemeMode>(
           value: ThemeMode.light,
           title: const Text("浅色"),
-        ),
-        Container(height: tokens.dividerThickness, color: tokens.dividerColor),
-        RadioTile<ThemeMode>(
+         ),
+         Container(height: tokens.dividerThickness, color: tokens.dividerColor),
+         RadioTile<ThemeMode>(
           value: ThemeMode.dark,
           title: const Text("深色"),
         ),
