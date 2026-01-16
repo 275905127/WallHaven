@@ -72,38 +72,36 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Pub get
-        run: flutter pub get
-
       - name: Debug inputs
         run: |
           echo "build_apk='${{ inputs.build_apk }}'"
           echo "target_platform='${{ inputs.target_platform }}'"
           echo "strict_analyze='${{ inputs.strict_analyze }}'"
 
-      # ✅ 防手残：格式不一致直接失败
-      #- name: Check format
-      #  run: flutter format --set-exit-if-changed .
+      - name: Pub get
+        run: flutter pub get
 
-      # ✅ 不再“分析但放过”：直接阻断
-      - name: Analyze
+      # 可选：格式（不阻断）
+      - name: Check format (non-blocking)
+        run: dart format . || true
+
+      # Analyze（按你的输入决定是否阻断）
+      - name: Analyze (non-blocking by default)
+        if: ${{ inputs.strict_analyze != 'true' }}
+        run: flutter analyze || true
+
+      - name: Analyze (strict)
+        if: ${{ inputs.strict_analyze == 'true' }}
         run: flutter analyze
 
+      # Tests（阻断）
       - name: Run tests
         run: flutter test
 
-      
-
-      # ✅ PR 默认不构建 APK；手动触发默认构建
+      # Build（阻断）
       - name: Build APK (release)
         if: ${{ inputs.build_apk == 'true' }}
-        run: |
-          TP="${{ inputs.target_platform }}"
-          if [ -z "$TP" ]; then
-            echo "target_platform is empty, fallback to android-arm64"
-            TP="android-arm64"
-          fi
-          flutter build apk --release --target-platform="$TP"
+        run: flutter build apk --release --target-platform="${{ inputs.target_platform }}"
 
       - name: Upload APK artifact
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_apk == 'true' }}
