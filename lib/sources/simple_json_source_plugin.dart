@@ -26,7 +26,7 @@ class SimpleJsonPlugin implements SourcePlugin {
   }
 
   @override
-Map<String, dynamic> sanitizeSettings(Map<String, dynamic> s) {
+ Map<String, dynamic> sanitizeSettings(Map<String, dynamic> s) {
   final m = Map<String, dynamic>.from(s);
 
   String normBaseUrl(String? url) {
