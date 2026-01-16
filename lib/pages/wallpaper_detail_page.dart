@@ -89,7 +89,6 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
   }
 
   // 下面你的 build/工具函数都不用动
-}
 
   Color _monoPrimary(BuildContext context) {
     final b = Theme.of(context).brightness;
