@@ -1,6 +1,5 @@
 // lib/main.dart
 import 'dart:convert';
-import 'pages/settings_page.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
@@ -9,25 +8,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'theme/app_theme.dart';
-import 'theme/theme_store.dart';
-import 'widgets/foggy_app_bar.dart';
-import 'widgets/settings_widgets.dart';
-import 'pages/sub_pages.dart';
-import 'pages/filter_drawer.dart';
-import 'pages/wallpaper_detail_page.dart';
-
-// ✅ domain/data
-import 'domain/entities/filter_spec.dart';
-import 'domain/entities/search_query.dart';
-import 'domain/entities/wallpaper_item.dart';
-
-// ✅ 关键：main.dart 里用到了 SortBy/SortOrder/RatingLevel，所以必须引入
-import 'domain/entities/source_capabilities.dart';
-
 import 'data/http/http_client.dart';
 import 'data/repository/wallpaper_repository.dart';
 import 'data/source_factory.dart';
+import 'domain/entities/filter_spec.dart';
+import 'domain/entities/search_query.dart';
+import 'domain/entities/source_capabilities.dart';
+import 'domain/entities/wallpaper_item.dart';
+import 'pages/filter_drawer.dart';
+import 'pages/settings_page.dart';
+import 'pages/wallpaper_detail_page.dart';
+import 'theme/app_theme.dart';
+import 'theme/theme_store.dart';
+import 'widgets/foggy_app_bar.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -103,7 +96,7 @@ class _HomePageState extends State<HomePage> {
 
   late final HttpClient _http;
   late final SourceFactory _factory;
-  WallpaperRepository? _repo; // ✅ 注意：依赖 ThemeScope，不能在 initState 里 new
+  WallpaperRepository? _repo; // ✅ 依赖 ThemeScope，不能在 initState 里 new
 
   FilterSpec _filters = const FilterSpec();
 
@@ -142,7 +135,7 @@ class _HomePageState extends State<HomePage> {
     // 初始化 repo（依赖当前 source）
     _repo = WallpaperRepository(_factory.fromStore(store));
 
-    // 启动启动流程（只跑一次）
+    // 启动流程（只跑一次）
     _bootstrap();
   }
 
@@ -255,7 +248,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _initData() async {
     if (_isLoading) return;
-    if (_repo == null) return; // ✅ 防御：理论上不会发生
+    if (_repo == null) return;
 
     setState(() => _isLoading = true);
 
