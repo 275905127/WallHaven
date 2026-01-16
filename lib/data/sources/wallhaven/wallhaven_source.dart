@@ -277,7 +277,9 @@ class WallhavenSource implements WallpaperSource {
       final tagsJson = (j['tags'] as List?) ?? const [];
       for (final t in tagsJson) {
         if (t is Map) {
-          final name = (t as Map).cast<String, dynamic>()['name'];
+          // ✅ 这里直接用 t.cast，去掉多余的 as Map（unnecessary_cast）
+          final m = t.cast<String, dynamic>();
+          final name = m['name'];
           if (name is String && name.trim().isNotEmpty) tags.add(name.trim());
         }
       }
