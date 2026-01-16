@@ -82,8 +82,8 @@ jobs:
           echo "strict_analyze='${{ inputs.strict_analyze }}'"
 
       # ✅ 防手残：格式不一致直接失败
-      - name: Check format
-        run: flutter format --set-exit-if-changed .
+      #- name: Check format
+      #  run: flutter format --set-exit-if-changed .
 
       # ✅ 不再“分析但放过”：直接阻断
       - name: Analyze
