@@ -1,12 +1,14 @@
+// lib/domain/entities/source_capabilities.dart
+
 import 'option_item.dart';
-import 'dynamic_filter.dart'; // 确保正确导入
+import 'dynamic_filter.dart';
 
 enum SortBy { relevance, newest, views, favorites, random, toplist }
 enum SortOrder { asc, desc }
 
-/// 这个是“内容分级”的通用枚举：
+/// 通用内容分级枚举：
 /// - safe / questionable / explicit
-/// 具体某个源怎么映射（比如 wallhaven purity bitset）是 source 的事
+/// 具体图源如何映射由 source 自己处理
 enum RatingLevel { safe, questionable, explicit }
 
 class SourceCapabilities {
@@ -38,7 +40,7 @@ class SourceCapabilities {
   final bool supportsTimeRange;
   final List<OptionItem> timeRangeOptions;
 
-  // 新增字段 dynamicFilters
+  /// ✅ 自由图源 / 第三方源动态筛选
   final List<DynamicFilter> dynamicFilters;
 
   const SourceCapabilities({
@@ -70,7 +72,6 @@ class SourceCapabilities {
     this.supportsTimeRange = false,
     this.timeRangeOptions = const [],
 
-    // 动态过滤器的默认值
     this.dynamicFilters = const [],
   });
 }
