@@ -103,28 +103,47 @@ class _HomePageState extends State<HomePage> {
 
   late final HttpClient _http;
   late final SourceFactory _factory;
-  late final WallpaperRepository _repo;
+  WallpaperRepository? _repo; // ✅ 注意：依赖 ThemeScope，不能在 initState 里 new
 
   FilterSpec _filters = const FilterSpec();
+
+  bool _didInitDeps = false; // ✅ 防止 didChangeDependencies 重复初始化
 
   @override
   void initState() {
     super.initState();
 
+    // ✅ 这些不依赖 context，可以留在 initState
     _http = HttpClient();
     _factory = SourceFactory(http: _http);
-    _repo = WallpaperRepository(_factory.fromStore(ThemeScope.of(context)));
-
-    _bootstrap();
 
     _scrollController.addListener(() {
-      if (_scrollController.offset > 0 && !_isScrolled) setState(() => _isScrolled = true);
-      else if (_scrollController.offset <= 0 && _isScrolled) setState(() => _isScrolled = false);
+      if (_scrollController.offset > 0 && !_isScrolled) {
+        setState(() => _isScrolled = true);
+      } else if (_scrollController.offset <= 0 && _isScrolled) {
+        setState(() => _isScrolled = false);
+      }
 
       if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
         _loadMore();
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didInitDeps) return;
+    _didInitDeps = true;
+
+    // ✅ 只能在这里（或 build）里依赖 ThemeScope.of(context)
+    final store = ThemeScope.of(context);
+
+    // 初始化 repo（依赖当前 source）
+    _repo = WallpaperRepository(_factory.fromStore(store));
+
+    // 启动启动流程（只跑一次）
+    _bootstrap();
   }
 
   Future<void> _bootstrap() async {
@@ -236,6 +255,8 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _initData() async {
     if (_isLoading) return;
+    if (_repo == null) return; // ✅ 防御：理论上不会发生
+
     setState(() => _isLoading = true);
 
     _page = 1;
@@ -248,6 +269,8 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadMore() async {
     if (_isLoading) return;
+    if (_repo == null) return;
+
     setState(() => _isLoading = true);
 
     final nextPage = _page + 1;
@@ -258,13 +281,16 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<bool> _fetchItems({required int page}) async {
+    final repo = _repo;
+    if (repo == null) return false;
+
     final store = ThemeScope.of(context);
 
     try {
       final src = _factory.fromStore(store);
-      _repo.setSource(src);
+      repo.setSource(src);
 
-      final newItems = await _repo.search(
+      final newItems = await repo.search(
         SearchQuery(page: page, filters: _filters),
       );
 
@@ -334,7 +360,6 @@ class _HomePageState extends State<HomePage> {
     Navigator.of(context).maybePop();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      // ✅ 去掉 const，避免 “找不到 const 构造” 的报错
       Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsPage()));
     });
   }
