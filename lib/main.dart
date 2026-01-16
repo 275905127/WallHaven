@@ -455,6 +455,7 @@ class _HomePageState extends State<HomePage> {
                               builder: (_) => WallpaperDetailPage(
                                 id: item.id,
                                 heroThumb: imageUrl,
+                                item: item, // ← 就是这里
                               ),
                             ),
                           ),
