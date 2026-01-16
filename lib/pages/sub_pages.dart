@@ -537,6 +537,45 @@ class SourceManagementPage extends StatefulWidget {
   State<SourceManagementPage> createState() => _SourceManagementPageState();
 }
 
+class _RadioDot extends StatelessWidget {
+  final bool selected;
+  final bool disabled;
+
+  const _RadioDot({
+    super.key,
+    required this.selected,
+    required this.disabled,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<AppTokens>()!;
+    final mono = theme.brightness == Brightness.dark ? Colors.white : Colors.black;
+
+    final border = disabled ? tokens.disabledFg.withAlpha(90) : mono.withAlpha(120);
+    final fill = disabled ? tokens.disabledFg.withAlpha(90) : mono;
+
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: border, width: 1.5),
+      ),
+      alignment: Alignment.center,
+      child: AnimatedContainer(
+        duration: tokens.expandDuration,
+        curve: tokens.expandCurve,
+        width: selected ? 10 : 0,
+        height: selected ? 10 : 0,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: selected ? fill : Colors.transparent,
+        ),
+      ),
+    );
+  }
+}
+
 class _SourceManagementPageState extends State<SourceManagementPage> {
   final ScrollController _sc = ScrollController();
   bool _isScrolled = false;
