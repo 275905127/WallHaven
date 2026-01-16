@@ -204,6 +204,50 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
     );
   }
 
+  /// ✅ 不要写在 _themeModeFold 里面当“局部函数”
+  /// 直接作为 State 的方法：结构清晰、不会触发你那堆 lint/括号灾难
+  Widget modeRadioRow({
+    required BuildContext context,
+    required AppTokens tokens,
+    required bool disabled,
+    required ThemeMode value,
+    required String title,
+    required ThemeMode groupValue,
+    required ValueChanged<ThemeMode> onPick,
+  }) {
+    final theme = Theme.of(context);
+    final fg = disabled ? tokens.disabledFg : (theme.textTheme.bodyLarge?.color ?? Colors.white);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: disabled ? null : () => onPick(value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 22,
+                height: 22,
+                child: _RadioDot(
+                  selected: groupValue == value,
+                  disabled: disabled,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(fontSize: 14, color: fg),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _themeModeFold(BuildContext context, ThemeStore store) {
     final theme = Theme.of(context);
     final tokens = theme.extension<AppTokens>()!;
@@ -271,90 +315,43 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
       ),
     );
 
- Widget _modeRadioRow({
-  required BuildContext context,
-  required AppTokens tokens,
-  required bool disabled,
-  required ThemeMode value,
-  required String title,
-  required ThemeMode groupValue,
-  required ValueChanged<ThemeMode> onPick,
-}) {
-  final theme = Theme.of(context);
-  final fg = disabled ? tokens.disabledFg : (theme.textTheme.bodyLarge?.color ?? Colors.white);
-
-  return Material(
-    color: Colors.transparent,
-    child: InkWell(
-      onTap: disabled ? null : () => onPick(value),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            // ✅ 自己画 radio（不碰 deprecated API）
-            SizedBox(
-              width: 22,
-              height: 22,
-              child: _RadioDot(
-                selected: groupValue == value,
-                disabled: disabled,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(fontSize: 14, color: fg),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-
-    // ✅ 新 API：RadioGroup(value/onChanged) + RadioListTile
-    // - 不再使用 groupValue/onChanged（那些已经 deprecated）
-    // - toggleable=true 允许再点一次取消（你原来的“关闭/不限”逻辑在这里不需要）
     final bodyCard = Container(
-  decoration: BoxDecoration(color: theme.cardColor, borderRadius: bodyRadius),
-  clipBehavior: Clip.antiAlias,
-  child: Column(
-    children: [
-      _modeRadioRow(
-        context: context,
-        tokens: tokens,
-        disabled: disabled,
-        value: ThemeMode.system,
-        title: "系统 (默认)",
-        groupValue: store.preferredMode,
-        onPick: (v) => store.setPreferredMode(v),
+      decoration: BoxDecoration(color: theme.cardColor, borderRadius: bodyRadius),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          modeRadioRow(
+            context: context,
+            tokens: tokens,
+            disabled: disabled,
+            value: ThemeMode.system,
+            title: "系统 (默认)",
+            groupValue: store.preferredMode,
+            onPick: (v) => store.setPreferredMode(v),
+          ),
+          Container(height: tokens.dividerThickness, color: tokens.dividerColor),
+          modeRadioRow(
+            context: context,
+            tokens: tokens,
+            disabled: disabled,
+            value: ThemeMode.light,
+            title: "浅色",
+            groupValue: store.preferredMode,
+            onPick: (v) => store.setPreferredMode(v),
+          ),
+          Container(height: tokens.dividerThickness, color: tokens.dividerColor),
+          modeRadioRow(
+            context: context,
+            tokens: tokens,
+            disabled: disabled,
+            value: ThemeMode.dark,
+            title: "深色",
+            groupValue: store.preferredMode,
+            onPick: (v) => store.setPreferredMode(v),
+          ),
+        ],
       ),
-      Container(height: tokens.dividerThickness, color: tokens.dividerColor),
-      _modeRadioRow(
-        context: context,
-        tokens: tokens,
-        disabled: disabled,
-        value: ThemeMode.light,
-        title: "浅色",
-        groupValue: store.preferredMode,
-        onPick: (v) => store.setPreferredMode(v),
-      ),
-      Container(height: tokens.dividerThickness, color: tokens.dividerColor),
-      _modeRadioRow(
-        context: context,
-        tokens: tokens,
-        disabled: disabled,
-        value: ThemeMode.dark,
-        title: "深色",
-        groupValue: store.preferredMode,
-        onPick: (v) => store.setPreferredMode(v),
-      ),
-    ],
-  ),
-);
+    );
 
     final expandedBlock = Column(
       children: [
@@ -383,7 +380,6 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {
-        // ✅ 替换 deprecated 的 .value
         final bgHex = store.customBackgroundColor != null
             ? "#${store.customBackgroundColor!.toARGB32().toRadixString(16).toUpperCase().substring(2)}"
             : "默认";
@@ -494,16 +490,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
   }
 }
 
-// ==========================================
-// 2. 图源管理二级页（插件化：操作 SourceConfig）
-// ==========================================
-class SourceManagementPage extends StatefulWidget {
-  const SourceManagementPage({super.key});
-
-  @override
-  State<SourceManagementPage> createState() => _SourceManagementPageState();
-}
-
+/// ✅ Radio 的点：放文件级别，别夹在别的 class 中间制造歧义
 class _RadioDot extends StatelessWidget {
   final bool selected;
   final bool disabled;
@@ -541,6 +528,16 @@ class _RadioDot extends StatelessWidget {
       ),
     );
   }
+}
+
+// ==========================================
+// 2. 图源管理二级页（插件化：操作 SourceConfig）
+// ==========================================
+class SourceManagementPage extends StatefulWidget {
+  const SourceManagementPage({super.key});
+
+  @override
+  State<SourceManagementPage> createState() => _SourceManagementPageState();
 }
 
 class _SourceManagementPageState extends State<SourceManagementPage> {
@@ -777,7 +774,8 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
 
                       final name = nameCtrl.text.trim();
                       final url = urlCtrl.text.trim();
-                      final listKey = listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
+                      final listKey =
+                          listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
 
                       if (name.isEmpty || url.isEmpty) {
                         setState(() => errorText = "名称和 API 地址是必填。");
@@ -867,7 +865,8 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                 if (u.isNotEmpty) nextSettings['baseUrl'] = u;
               }
 
-              nextSettings['username'] = userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
+              nextSettings['username'] =
+                  userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
               nextSettings['apiKey'] = keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim();
 
               final updated = cfg.copyWith(
