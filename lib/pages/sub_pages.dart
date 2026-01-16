@@ -271,6 +271,83 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
       ),
     );
 
+ Widget _modeRadioRow({
+  required BuildContext context,
+  required AppTokens tokens,
+  required bool disabled,
+  required ThemeMode value,
+  required String title,
+  required ThemeMode groupValue,
+  required ValueChanged<ThemeMode> onPick,
+}) {
+  final theme = Theme.of(context);
+  final fg = disabled ? tokens.disabledFg : (theme.textTheme.bodyLarge?.color ?? Colors.white);
+
+  return Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: disabled ? null : () => onPick(value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            // ✅ 自己画 radio（不碰 deprecated API）
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: _RadioDot(
+                selected: groupValue == value,
+                disabled: disabled,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(fontSize: 14, color: fg),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _RadioDot extends StatelessWidget {
+  final bool selected;
+  final bool disabled;
+  const _RadioDot({required this.selected, required this.disabled});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<AppTokens>()!;
+    final mono = theme.brightness == Brightness.dark ? Colors.white : Colors.black;
+
+    final border = disabled ? tokens.disabledFg.withAlpha(90) : mono.withAlpha(120);
+    final fill = disabled ? tokens.disabledFg.withAlpha(90) : mono;
+
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: border, width: 1.5),
+      ),
+      alignment: Alignment.center,
+      child: AnimatedContainer(
+        duration: tokens.expandDuration,
+        curve: tokens.expandCurve,
+        width: selected ? 10 : 0,
+        height: selected ? 10 : 0,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: selected ? fill : Colors.transparent,
+        ),
+      ),
+    );
+  }
+}
+
     // ✅ 新 API：RadioGroup(value/onChanged) + RadioListTile
     // - 不再使用 groupValue/onChanged（那些已经 deprecated）
     // - toggleable=true 允许再点一次取消（你原来的“关闭/不限”逻辑在这里不需要）
