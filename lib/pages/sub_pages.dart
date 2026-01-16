@@ -212,7 +212,8 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
     final bool switchValue = disabled ? false : store.enableThemeMode;
     final bool expanded = switchValue;
 
-    final Color fg = disabled ? tokens.disabledFg : (theme.textTheme.bodyLarge?.color ?? Colors.white);
+    final Color fg =
+        disabled ? tokens.disabledFg : (theme.textTheme.bodyLarge?.color ?? Colors.white);
 
     final BorderRadius headerRadius = BorderRadius.only(
       topLeft: Radius.circular(store.cardRadius),
@@ -270,33 +271,44 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
       ),
     );
 
-    // ✅ 这里用 RadioListTile（稳定）
+    // ✅ 新 API：RadioGroup(value/onChanged) + RadioListTile
+    // - 不再使用 groupValue/onChanged（那些已经 deprecated）
+    // - toggleable=true 允许再点一次取消（你原来的“关闭/不限”逻辑在这里不需要）
     final bodyCard = Container(
-  decoration: BoxDecoration(color: theme.cardColor, borderRadius: bodyRadius),
-  clipBehavior: Clip.antiAlias,
-  child: RadioGroup<ThemeMode>(
-    groupValue: store.preferredMode,
-    onChanged: disabled ? null : (v) => store.setPreferredMode(v),
-    child: Column(
-      children: [
-        RadioTile<ThemeMode>(
-          value: ThemeMode.system,
-          title: const Text("系统 (默认)"),
+      decoration: BoxDecoration(color: theme.cardColor, borderRadius: bodyRadius),
+      clipBehavior: Clip.antiAlias,
+      child: RadioGroup<ThemeMode>(
+        value: store.preferredMode,
+        onChanged: disabled ? null : (v) => store.setPreferredMode(v),
+        child: Column(
+          children: [
+            RadioListTile<ThemeMode>(
+              value: ThemeMode.system,
+              groupValue: store.preferredMode,
+              onChanged: disabled ? null : (v) => store.setPreferredMode(v!),
+              toggleable: true,
+              title: const Text("系统 (默认)"),
+            ),
+            Container(height: tokens.dividerThickness, color: tokens.dividerColor),
+            RadioListTile<ThemeMode>(
+              value: ThemeMode.light,
+              groupValue: store.preferredMode,
+              onChanged: disabled ? null : (v) => store.setPreferredMode(v!),
+              toggleable: true,
+              title: const Text("浅色"),
+            ),
+            Container(height: tokens.dividerThickness, color: tokens.dividerColor),
+            RadioListTile<ThemeMode>(
+              value: ThemeMode.dark,
+              groupValue: store.preferredMode,
+              onChanged: disabled ? null : (v) => store.setPreferredMode(v!),
+              toggleable: true,
+              title: const Text("深色"),
+            ),
+          ],
         ),
-        Container(height: tokens.dividerThickness, color: tokens.dividerColor),
-        RadioTile<ThemeMode>(
-          value: ThemeMode.light,
-          title: const Text("浅色"),
-        ),
-        Container(height: tokens.dividerThickness, color: tokens.dividerColor),
-        RadioTile<ThemeMode>(
-          value: ThemeMode.dark,
-          title: const Text("深色"),
-        ),
-      ],
-    ),
-  ),
-);
+      ),
+    );
 
     final expandedBlock = Column(
       children: [
@@ -680,8 +692,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
 
                       final name = nameCtrl.text.trim();
                       final url = urlCtrl.text.trim();
-                      final listKey =
-                          listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
+                      final listKey = listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
 
                       if (name.isEmpty || url.isEmpty) {
                         setState(() => errorText = "名称和 API 地址是必填。");
