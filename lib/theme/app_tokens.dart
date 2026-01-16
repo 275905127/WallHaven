@@ -120,7 +120,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
       switchTrackOff: const Color(0xFFE3E3E3),
 
       // 轨道描边（浅色）
-      switchTrackOutline: Colors.black.withOpacity(0.10),
+      switchTrackOutline: Colors.black.withAlpha(26), // 0.10 * 255 ≈ 26
       switchTrackOutlineWidth: 1.0,
 
       // ✅ Slider（浅色）
@@ -158,7 +158,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
       switchTrackOff: const Color(0xFF3B3B3B),
 
       // 轨道描边（深色）
-      switchTrackOutline: Colors.white.withOpacity(0.12),
+      switchTrackOutline: Colors.white.withAlpha(31), // 0.12 * 255 ≈ 31
       switchTrackOutlineWidth: 1.0,
 
       // ✅ Slider（深色）
