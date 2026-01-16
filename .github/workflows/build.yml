@@ -1,48 +1,66 @@
-name: Build Android App (ARM64 Only)
+name: Flutter CI (manual)
 
 on:
- workflow_dispatch:
+  workflow_dispatch:
+    inputs:
+      build_apk:
+        description: "Also build release APK"
+        required: false
+        default: "true"
+      target_platform:
+        description: "APK target platform (android-arm64 / android-arm / android-x64)"
+        required: false
+        default: "android-arm64"
 
 jobs:
-  build:
+  flutter_ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      # 开启缓存
-      - name: Set up Flutter
+      # Flutter SDK
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.27.1'
-          channel: 'stable'
+          channel: "stable"
           cache: true
 
-      - name: Install dependencies
+      - name: Flutter version
+        run: flutter --version
+
+      # Pub cache (额外保险；flutter-action 的 cache 已经覆盖一部分)
+      - name: Cache pub
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Pub get
         run: flutter pub get
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x android/gradlew
+      # 强烈建议打开：提前发现“字段/接口不配套”
+      - name: Analyze
+        run: flutter analyze
 
-      # ========================================================
-      # 修改点 1：指定只打 android-arm64 的包
-      # 去掉了 --split-per-abi，改用 --target-platform
-      # ========================================================
-      - name: Build Release APK (ARM64)
-        run: flutter build apk --release --target-platform android-arm64
+      # 如果你现在没写 test，这步也能过（0 tests）
+      - name: Run tests
+        run: flutter test
 
-      # ========================================================
-      # 修改点 2：文件名变了
-      # 指定平台后，生成的文件名通常是 app-release.apk
-      # ========================================================
-      - name: Upload APK
+      # 可选：Release APK（默认 true）
+      - name: Build APK (release)
+        if: ${{ inputs.build_apk == 'true' }}
+        run: |
+          flutter build apk --release --target-platform ${{ inputs.target_platform }}
+
+      - name: Upload APK artifact
+        if: ${{ inputs.build_apk == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: WallHaven-App-ARM64
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: app-release-apk
+          path: build/app/outputs/flutter-apk/*.apk
