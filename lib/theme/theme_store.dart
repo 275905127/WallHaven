@@ -32,9 +32,19 @@ class ThemeStore extends ChangeNotifier {
   late final HttpClient _http = HttpClient();
   late final SourceFactory _factory = SourceFactory(http: _http);
 
+  // 删除重复声明的 currentCapabilities，保留一个
   SourceCapabilities get currentCapabilities {
     final src = _factory.fromStore(this);
     return src.capabilities;
+  }
+
+  // 其他源：保守最小集
+  // 删除现有的currentWallpaperSourceCapabilities获取器
+  // 直接调用 currentCapabilities 即可
+
+  // ✅ 给业务层用：拿到当前插件的“已清洗 settings”
+  Map<String, dynamic> get currentSettings {
+    return currentPlugin.sanitizeSettings(_currentConfig.settings);
   }
 
   // ===== Theme =====
@@ -82,34 +92,6 @@ class ThemeStore extends ChangeNotifier {
     final p = _registry.plugin(_currentConfig.pluginId);
     if (p == null) throw StateError('Plugin not found: ${_currentConfig.pluginId}');
     return p;
-  }
-
-  // 其他源：保守最小集
-  // 删除当前WallpaperSourceCapabilities的getter，保留currentCapabilities
-  SourceCapabilities get currentCapabilities {
-    final http = HttpClient();
-    final factory = SourceFactory(http: http);
-    final src = factory.fromStore(this);
-    return src.capabilities;
-  }
-
-  // ✅ 兼容旧名字：全项目只允许存在一次
-  // SourceCapabilities get currentWallpaperSourceCapabilities => currentCapabilities; 
-  // 删除上面的这一行
-
-  ThemeStore() {
-    final def = _registry.defaultConfig();
-    _sourceConfigs = [def];
-    _currentConfig = def;
-    _loadFromPrefs();
-  }
-
-  void _recomputeEffectiveMode() {
-    if (_enableCustomColors) {
-      _mode = ThemeMode.light;
-      return;
-    }
-    _mode = _enableThemeMode ? _preferredMode : ThemeMode.system;
   }
 
   // ===== Theme actions =====
