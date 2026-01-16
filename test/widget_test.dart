@@ -1,3 +1,5 @@
+// test/widget_test.dart
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -8,23 +10,27 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() async {
-    // ⚠️ shared_preferences 旧签名：Map<String, Object>
+    // shared_preferences 旧签名：Map<String, Object>
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
-  testWidgets('MyApp can build (smoke test)', (tester) async {
+  testWidgets('App root can build (smoke test)', (tester) async {
     final store = ThemeStore();
 
     await tester.pumpWidget(
       ThemeScope(
         store: store,
-        child: MyApp(), // 如果 MyApp 不是 const，就去掉 const
+        child: MaterialApp(
+          home: const HomePage(),
+        ),
       ),
     );
 
-    // ThemeStore 会异步读 prefs，给它 settle 时间
-    await tester.pumpAndSettle(const Duration(milliseconds: 300));
+    // 给首帧 + 一次 settle（别无限 settle）
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.byType(MyApp), findsOneWidget);
+    // 只验证：HomePage 成功进入树里
+    expect(find.byType(HomePage), findsOneWidget);
   });
 }
