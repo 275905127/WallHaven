@@ -33,14 +33,28 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
 
   late final HttpClient _http;
   late final SourceFactory _factory;
-  late final WallpaperRepository _repo;
+  WallpaperRepository? _repo;
+
+  bool _didInitDeps = false;
 
   @override
   void initState() {
     super.initState();
     _http = HttpClient();
     _factory = SourceFactory(http: _http);
-    _repo = WallpaperRepository(_factory.fromStore(ThemeScope.of(context)));
+    // ❌ 不要在 initState 里 ThemeScope.of(context)
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didInitDeps) return;
+    _didInitDeps = true;
+
+    final store = ThemeScope.of(context);
+    _repo = WallpaperRepository(_factory.fromStore(store));
+
+    // ✅ 现在再 load
     _load();
   }
 
@@ -51,11 +65,14 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
   }
 
   Future<void> _load() async {
+    final repo = _repo;
+    if (repo == null) return;
+
     try {
       final store = ThemeScope.of(context);
-      _repo.setSource(_factory.fromStore(store));
+      repo.setSource(_factory.fromStore(store));
 
-      final d = await _repo.detail(widget.id);
+      final d = await repo.detail(widget.id);
       if (!mounted) return;
 
       setState(() {
@@ -70,6 +87,9 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
       });
     }
   }
+
+  // 下面你的 build/工具函数都不用动
+}
 
   Color _monoPrimary(BuildContext context) {
     final b = Theme.of(context).brightness;
