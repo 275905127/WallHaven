@@ -62,6 +62,12 @@ class _FilterDrawerState extends State<FilterDrawer> {
     super.dispose();
   }
 
+  // ✅ 替代 withOpacity：用 alpha（0-255），避免 precision loss 的 deprecated
+  Color _withAlpha01(Color c, double a01) {
+    final a = (a01.clamp(0.0, 1.0) * 255).round();
+    return c.withAlpha(a);
+  }
+
   Color _monoPrimary(BuildContext context) {
     final b = Theme.of(context).brightness;
     return b == Brightness.dark ? Colors.white : Colors.black;
@@ -298,19 +304,24 @@ class _FilterDrawerState extends State<FilterDrawer> {
       return InkWell(
         onTap: () {
           final next = Set<String>.from(selected);
-          if (on) next.remove(text);
-          else next.add(text);
+          if (on) {
+            next.remove(text);
+          } else {
+            next.add(text);
+          }
           onChanged(next);
         },
         borderRadius: BorderRadius.circular(999),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: on ? mono.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.08) : theme.cardColor,
+            color: on
+                ? _withAlpha01(mono, theme.brightness == Brightness.dark ? 0.18 : 0.08)
+                : theme.cardColor,
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
               width: 1,
-              color: on ? mono.withOpacity(0.40) : mono.withOpacity(0.12),
+              color: on ? _withAlpha01(mono, 0.40) : _withAlpha01(mono, 0.12),
             ),
           ),
           child: Text(
@@ -348,19 +359,24 @@ class _FilterDrawerState extends State<FilterDrawer> {
       return InkWell(
         onTap: () {
           final next = Set<String>.from(selectedIds);
-          if (on) next.remove(it.id);
-          else next.add(it.id);
+          if (on) {
+            next.remove(it.id);
+          } else {
+            next.add(it.id);
+          }
           onChanged(next);
         },
         borderRadius: BorderRadius.circular(999),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: on ? mono.withOpacity(theme.brightness == Brightness.dark ? 0.18 : 0.08) : theme.cardColor,
+            color: on
+                ? _withAlpha01(mono, theme.brightness == Brightness.dark ? 0.18 : 0.08)
+                : theme.cardColor,
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
               width: 1,
-              color: on ? mono.withOpacity(0.40) : mono.withOpacity(0.12),
+              color: on ? _withAlpha01(mono, 0.40) : _withAlpha01(mono, 0.12),
             ),
           ),
           child: Text(
@@ -391,7 +407,6 @@ class _FilterDrawerState extends State<FilterDrawer> {
     final s = (v == null) ? '' : v.toString();
     if (s.trim().isEmpty) return '不限';
 
-    // ✅ 用 toString 对齐类型，避免 value 不是 String 时 summary 显示不了 label
     for (final o in d.options) {
       if (o.value.toString() == s) return o.label;
     }
@@ -405,8 +420,8 @@ class _FilterDrawerState extends State<FilterDrawer> {
     final current = _f.extras[d.paramName];
     final currentStr = (current == null) ? null : current.toString();
 
-    // ✅ 强制转成 String，避免 option.value 不是 String 时炸
-    final items = d.options.map((o) => _PickItem<String>(o.value.toString(), o.label)).toList();
+    final items =
+        d.options.map((o) => _PickItem<String>(o.value.toString(), o.label)).toList();
 
     return _singlePickListNullable<String>(
       context: context,
@@ -465,7 +480,8 @@ class _FilterDrawerState extends State<FilterDrawer> {
     return '${list.take(2).join('，')} 等 ${list.length} 项';
   }
 
-  String _summaryOptions(Set<String> selected, List<OptionItem> options, {String empty = '不限'}) {
+  String _summaryOptions(Set<String> selected, List<OptionItem> options,
+      {String empty = '不限'}) {
     if (selected.isEmpty) return empty;
     final map = {for (final o in options) o.id: o.label};
     final labels = selected.map((id) => map[id] ?? id).toList()..sort();
@@ -508,7 +524,9 @@ class _FilterDrawerState extends State<FilterDrawer> {
           onToggle: () => setState(() => _sortExpanded = !_sortExpanded),
           child: _singlePickListNullable<SortBy>(
             context: context,
-            items: caps.sortByOptions.map((e) => _PickItem<SortBy>(e, _sortLabel(e))).toList(),
+            items: caps.sortByOptions
+                .map((e) => _PickItem<SortBy>(e, _sortLabel(e)))
+                .toList(),
             value: _f.sortBy,
             onPick: (v) {
               setState(() {
@@ -533,7 +551,9 @@ class _FilterDrawerState extends State<FilterDrawer> {
           onToggle: () => setState(() => _timeRangeExpanded = !_timeRangeExpanded),
           child: _singlePickListNullable<String>(
             context: context,
-            items: caps.timeRangeOptions.map((o) => _PickItem<String>(o.id, o.label)).toList(),
+            items: caps.timeRangeOptions
+                .map((o) => _PickItem<String>(o.id, o.label))
+                .toList(),
             value: (_f.timeRange ?? '').trim().isEmpty ? null : _f.timeRange,
             onPick: (v) {
               setState(() {
@@ -602,7 +622,9 @@ class _FilterDrawerState extends State<FilterDrawer> {
           onToggle: () => setState(() => _ratingExpanded = !_ratingExpanded),
           child: _multiOptionPicker(
             context: context,
-            options: caps.ratingOptions.map((r) => OptionItem(id: r.name, label: _ratingLabel(r))).toList(),
+            options: caps.ratingOptions
+                .map((r) => OptionItem(id: r.name, label: _ratingLabel(r)))
+                .toList(),
             selectedIds: _f.rating.map((e) => e.name).toSet(),
             onChanged: (set) {
               final next = <RatingLevel>{};
@@ -648,7 +670,9 @@ class _FilterDrawerState extends State<FilterDrawer> {
           onToggle: () => setState(() => _atleastExpanded = !_atleastExpanded),
           child: _singlePickListNullable<String>(
             context: context,
-            items: caps.atleastOptions.map((e) => _PickItem<String>(e, e.isEmpty ? '不限' : e)).toList(),
+            items: caps.atleastOptions
+                .map((e) => _PickItem<String>(e, e.isEmpty ? '不限' : e))
+                .toList(),
             value: (_f.atleast ?? '').trim().isEmpty ? null : _f.atleast,
             onPick: (v) {
               setState(() {
@@ -686,13 +710,18 @@ class _FilterDrawerState extends State<FilterDrawer> {
       rows.add(
         _RowDef(
           title: '颜色（十六进制）',
-          valueLabel: (_f.color ?? '').trim().isEmpty ? '不限' : _f.color!.trim().toUpperCase(),
+          valueLabel:
+              (_f.color ?? '').trim().isEmpty ? '不限' : _f.color!.trim().toUpperCase(),
           expanded: _colorExpanded,
           onToggle: () => setState(() => _colorExpanded = !_colorExpanded),
           child: _singlePickListNullable<String>(
             context: context,
-            items: caps.colorOptions.map((c) => _PickItem<String>(c, c.toUpperCase())).toList(),
-            value: (_f.color ?? '').trim().isNotEmpty ? _f.color!.trim().replaceAll('#', '') : null,
+            items: caps.colorOptions
+                .map((c) => _PickItem<String>(c, c.toUpperCase()))
+                .toList(),
+            value: (_f.color ?? '').trim().isNotEmpty
+                ? _f.color!.trim().replaceAll('#', '')
+                : null,
             onPick: (v) {
               setState(() {
                 final vv = (v ?? '').trim().replaceAll('#', '');
@@ -709,7 +738,9 @@ class _FilterDrawerState extends State<FilterDrawer> {
     // ✅ Dynamic filters（radio）
     if (caps.dynamicFilters.isNotEmpty) {
       for (final d in caps.dynamicFilters) {
-        if (d.type != DynamicFilterType.radio) continue;
+        if (d.type != DynamicFilterType.radio) {
+          continue;
+        }
         final expanded = _dynExpanded[d.paramName] ?? false;
         rows.add(
           _RowDef(
@@ -773,7 +804,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
                           },
                           child: Text(
                             "重置",
-                            style: TextStyle(color: mono.withOpacity(0.7)),
+                            style: TextStyle(color: _withAlpha01(mono, 0.7)),
                           ),
                         ),
                       ],
