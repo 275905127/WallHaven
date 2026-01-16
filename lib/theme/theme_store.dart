@@ -98,7 +98,7 @@ class ThemeStore extends ChangeNotifier {
   void setPreferredMode(ThemeMode newMode) {
     if (_preferredMode == newMode) return;
     _preferredMode = newMode;
-    _recomputeEffectiveMode();
+    _recomputeEffectiveMode(); // 这里调用了方法
     notifyListeners();
     savePreferences();
   }
@@ -106,7 +106,7 @@ class ThemeStore extends ChangeNotifier {
   void setEnableThemeMode(bool value) {
     if (_enableThemeMode == value) return;
     _enableThemeMode = value;
-    _recomputeEffectiveMode();
+    _recomputeEffectiveMode(); // 这里调用了方法
     notifyListeners();
     savePreferences();
   }
@@ -114,7 +114,7 @@ class ThemeStore extends ChangeNotifier {
   void setEnableCustomColors(bool value) {
     if (_enableCustomColors == value) return;
     _enableCustomColors = value;
-    _recomputeEffectiveMode();
+    _recomputeEffectiveMode(); // 这里调用了方法
     notifyListeners();
     savePreferences();
   }
