@@ -17,7 +17,7 @@ void main() {
     await tester.pumpWidget(
       ThemeScope(
         store: store,
-        child: const MyApp(),
+        child: MyApp(),
       ),
     );
 
