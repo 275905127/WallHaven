@@ -197,34 +197,24 @@ class GenericJsonSource implements WallpaperSource {
 
       return SourceCapabilities(
         supportsText: b('supportsText', true),
-
         supportsSort: b('supportsSort', false),
         sortByOptions: sortList(),
-
         supportsOrder: b('supportsOrder', false),
-
         supportsResolutions: b('supportsResolutions', false),
         resolutionOptions: strList('resolutionOptions'),
-
         supportsAtleast: b('supportsAtleast', false),
         atleastOptions: strList('atleastOptions'),
-
         supportsRatios: b('supportsRatios', false),
         ratioOptions: strList('ratioOptions'),
-
         supportsColor: b('supportsColor', false),
         colorOptions: strList('colorOptions'),
-
         supportsRating: b('supportsRating', false),
         ratingOptions: ratingList(),
-
         supportsCategories: b('supportsCategories', false),
         categoryOptions: optionList('categoryOptions'),
-
         supportsTimeRange: b('supportsTimeRange', false),
         timeRangeOptions: optionList('timeRangeOptions'),
-
-        dynamicFilters: dyn,
+        dynamicFilters: dyn, // 确保这里返回 dynamicFilters
       );
     }
 
@@ -242,167 +232,5 @@ class GenericJsonSource implements WallpaperSource {
       supportsTimeRange: false,
       dynamicFilters: _dynamicFiltersFromLegacyFilters(),
     );
-  }
-
-  // ----------------------------
-  // ✅ 参数构建：固定字段 + extras（最关键）
-  // ----------------------------
-  Map<String, dynamic> _buildParams(FilterSpec f, {int? page}) {
-    final out = <String, dynamic>{};
-
-    if (page != null) out['page'] = page;
-    if (f.text.trim().isNotEmpty) out['q'] = f.text.trim();
-
-    // ✅ 自定义参数（Luvbree 的 isNsfw / type / imageType 等）
-    if (f.extras.isNotEmpty) {
-      for (final e in f.extras.entries) {
-        final k = e.key.trim();
-        if (k.isEmpty) continue;
-        out[k] = e.value;
-      }
-    }
-
-    if (apiKey != null && apiKey!.isNotEmpty) {
-      final apiKeyParam = (settings['apiKeyParam'] is String && (settings['apiKeyParam'] as String).trim().isNotEmpty)
-          ? (settings['apiKeyParam'] as String).trim()
-          : 'apikey';
-      out[apiKeyParam] = apiKey;
-    }
-
-    return out;
-  }
-
-  // ----------------------------
-  // ✅ 解码：支持三种返回
-  // 1) listKey='@direct'：resp.data 直接就是图片直链（String）
-  // 2) listKey 指向字段：root[listKey] 是 String 或 List
-  // 3) 默认：root['data'] / root 本身
-  // ----------------------------
-  String? _extractDirectUrl(dynamic data) {
-    if (data is String && data.trim().isNotEmpty) return data.trim();
-    if (data is Map) {
-      // 常见字段
-      for (final k in ['url', 'image', 'path', 'src', 'data', 'link']) {
-        final v = data[k];
-        if (v is String && v.trim().isNotEmpty) return v.trim();
-      }
-    }
-    return null;
-  }
-
-  @override
-  Future<WallpaperItem?> random(FilterSpec filters) async {
-    if (baseUrl.trim().isEmpty) return null;
-
-    final url = _join(baseUrl, searchPath); // searchPath 可空
-    try {
-      final resp = await _http.dio.get(url, queryParameters: _buildParams(filters));
-      if (resp.statusCode != 200) return null;
-
-      final listKey = (settings['listKey'] ?? '').toString().trim();
-      final root = resp.data;
-
-      dynamic payload = root;
-      if (listKey.isNotEmpty && listKey != '@direct' && root is Map && root.containsKey(listKey)) {
-        payload = root[listKey];
-      }
-
-      if (listKey == '@direct') {
-        final u = _extractDirectUrl(root) ?? _extractDirectUrl(payload);
-        if (u == null) return null;
-        return WallpaperItem(
-          sourceId: sourceId,
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
-          preview: _safeUri(u),
-          width: 0,
-          height: 0,
-          extra: (root is Map) ? root.cast<String, dynamic>() : const {},
-        );
-      }
-
-      // payload 可能是 String / Map / List
-      final direct = _extractDirectUrl(payload);
-      if (direct != null) {
-        return WallpaperItem(
-          sourceId: sourceId,
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
-          preview: _safeUri(direct),
-          width: 0,
-          height: 0,
-          extra: (payload is Map) ? payload.cast<String, dynamic>() : const {},
-        );
-      }
-
-      // list
-      if (payload is List) {
-        for (final e in payload) {
-          final u = _extractDirectUrl(e);
-          if (u != null) {
-            return WallpaperItem(
-              sourceId: sourceId,
-              id: DateTime.now().microsecondsSinceEpoch.toString(),
-              preview: _safeUri(u),
-              width: 0,
-              height: 0,
-              extra: (e is Map) ? e.cast<String, dynamic>() : const {},
-            );
-          }
-        }
-      }
-
-      return null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  @override
-  Future<List<WallpaperItem>> search(SearchQuery query) async {
-    // random 源不走分页搜索
-    if (kind == SourceKind.random) return const [];
-
-    if (baseUrl.trim().isEmpty) return const [];
-    final url = _join(baseUrl, searchPath);
-
-    try {
-      final resp = await _http.dio.get(url, queryParameters: _buildParams(query.filters, page: query.page));
-      if (resp.statusCode != 200) return const [];
-
-      final root = resp.data;
-      dynamic payload = root;
-
-      // dataKey/listKey
-      final dataKey = (settings['dataKey'] ?? settings['listKey'] ?? 'data').toString().trim();
-      if (root is Map && root.containsKey(dataKey)) {
-        payload = root[dataKey];
-      }
-
-      if (payload is! List) return const [];
-
-      final items = <WallpaperItem>[];
-      for (final e in payload) {
-        final u = _extractDirectUrl(e);
-        if (u == null) continue;
-        items.add(
-          WallpaperItem(
-            sourceId: sourceId,
-            id: DateTime.now().microsecondsSinceEpoch.toString(),
-            preview: _safeUri(u),
-            width: 0,
-            height: 0,
-            extra: (e is Map) ? e.cast<String, dynamic>() : const {},
-          ),
-        );
-      }
-      return items;
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  @override
-  Future<WallpaperDetailItem?> detail(String id) async {
-    // 对 generic/random：默认无详情（你要也能做，但先别强行）
-    return null;
   }
 }
