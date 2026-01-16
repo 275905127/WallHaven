@@ -105,7 +105,23 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
 
     // extra 尽量“挑可读的”
     final e = item.extra;
-    for (final k in ['author', 'uploader', 'username', 'source', 'short_url', 'shortUrl', 'views', 'favorites', 'rating', 'category', 'resolution', 'file_type', 'fileType', 'file_size', 'fileSize']) {
+    for (final k in [
+      'author',
+      'uploader',
+      'username',
+      'source',
+      'short_url',
+      'shortUrl',
+      'views',
+      'favorites',
+      'rating',
+      'category',
+      'resolution',
+      'file_type',
+      'fileType',
+      'file_size',
+      'fileSize'
+    ]) {
       if (e.containsKey(k)) add(k, k, e[k]);
     }
     return out;
@@ -126,10 +142,10 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
 
     final d = _detail;
 
-    final imageUrl = d?.image.toString()
-        ?? widget.item?.original?.toString()
-        ?? widget.item?.preview.toString()
-        ?? (widget.heroThumb ?? '');
+    final imageUrl = d?.image.toString() ??
+        widget.item?.original?.toString() ??
+        widget.item?.preview.toString() ??
+        (widget.heroThumb ?? '');
 
     final w = d?.width ?? (widget.item?.width ?? 0);
     final h = d?.height ?? (widget.item?.height ?? 0);
@@ -158,12 +174,12 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
                     placeholder: (c, u) => Container(
                       color: theme.cardColor,
                       alignment: Alignment.center,
-                      child: Icon(Icons.image_outlined, color: mono.withOpacity(0.35)),
+                      child: Icon(Icons.image_outlined, color: mono.withAlpha(89)), // 0.35 * 255
                     ),
                     errorWidget: (c, u, e) => Container(
                       color: theme.cardColor,
                       alignment: Alignment.center,
-                      child: Icon(Icons.error_outline, color: mono.withOpacity(0.35)),
+                      child: Icon(Icons.error_outline, color: mono.withAlpha(89)), // 0.35 * 255
                     ),
                   ),
                 ),
@@ -177,7 +193,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
                 decoration: BoxDecoration(
                   color: theme.cardColor,
                   borderRadius: BorderRadius.circular(store.cardRadius),
-                  border: Border.all(color: mono.withOpacity(0.10)),
+                  border: Border.all(color: mono.withAlpha(26)), // 0.10 * 255
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -231,7 +247,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline, size: 18, color: mono.withOpacity(0.55)),
+          Icon(Icons.info_outline, size: 18, color: mono.withAlpha(140)), // 0.55 * 255
           const SizedBox(width: 10),
           SizedBox(
             width: 90,
@@ -240,7 +256,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
               style: TextStyle(
                 fontSize: 13,
                 height: 1.25,
-                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.85),
+                color: theme.textTheme.bodyMedium?.color?.withAlpha(217), // 0.85 * 255
               ),
             ),
           ),
@@ -271,7 +287,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
         decoration: BoxDecoration(
           color: theme.scaffoldBackgroundColor,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: mono.withOpacity(0.16)),
+          border: Border.all(color: mono.withAlpha(41)), // 0.16 * 255
         ),
         child: Text(
           text,
@@ -290,7 +306,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(store.cardRadius),
-        border: Border.all(color: mono.withOpacity(0.10)),
+        border: Border.all(color: mono.withAlpha(26)), // 0.10 * 255
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
