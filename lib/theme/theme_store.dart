@@ -2,7 +2,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -66,6 +65,15 @@ class ThemeStore extends ChangeNotifier {
   List<SourceConfig> _sourceConfigs = const [];
   late SourceConfig _currentConfig;
 
+  // ✅ capabilities 缓存：避免 getter 每次都 fromStore() 造对象
+  String? _capsCacheForConfigId;
+  SourceCapabilities? _capsCache;
+
+  void _invalidateCapsCache() {
+    _capsCacheForConfigId = null;
+    _capsCache = null;
+  }
+
   // ===== Getters =====
   ThemeMode get mode => _mode;
   ThemeMode get preferredMode => _preferredMode;
@@ -95,11 +103,17 @@ class ThemeStore extends ChangeNotifier {
 
   /// ✅ 给 UI 用：当前 source 的 capabilities（用于动态筛选 UI）
   ///
-  /// 这里直接用 factory 从 store 生成 source，再读它的 capabilities。
-  /// 注意：不要在 getter 里 new HttpClient/Factory，否则会重复创建对象。
+  /// 注意：这玩意会在 UI rebuild 时被频繁访问，所以必须避免每次都 new source。
   SourceCapabilities get currentCapabilities {
+    final id = _currentConfig.id;
+    if (_capsCacheForConfigId == id && _capsCache != null) return _capsCache!;
+
     final src = _factory.fromStore(this);
-    return src.capabilities;
+    final caps = src.capabilities;
+
+    _capsCacheForConfigId = id;
+    _capsCache = caps;
+    return caps;
   }
 
   /// ✅ 兼容旧名字：全项目只允许存在一次
@@ -113,7 +127,6 @@ class ThemeStore extends ChangeNotifier {
   }
 
   void _recomputeEffectiveMode() {
-    // 你原本的逻辑：自定义颜色开启时强制 light（你若想改再说）
     if (_enableCustomColors) {
       _mode = ThemeMode.light;
       return;
@@ -190,6 +203,7 @@ class ThemeStore extends ChangeNotifier {
     final idx = _sourceConfigs.indexWhere((c) => c.id == configId);
     if (idx == -1) return;
     _currentConfig = _sourceConfigs[idx];
+    _invalidateCapsCache();
     notifyListeners();
     savePreferences();
   }
@@ -210,16 +224,11 @@ class ThemeStore extends ChangeNotifier {
     );
 
     _sourceConfigs = [..._sourceConfigs, cfg];
+    _invalidateCapsCache();
     notifyListeners();
     savePreferences();
   }
 
-  /// ✅ 新增：从 JSON Map 添加“自由图源”
-  ///
-  /// 兼容两种格式：
-  /// 1) 自由图源 JSON（无 pluginId）：{ name, baseUrl, listKey, filters, ... }
-  ///    -> 归入 pluginId = "generic"
-  /// 2) 完整插件化配置：{ pluginId, name, settings: {...} }
   void addSourceFromJson(Map<String, dynamic> json) {
     final pluginIdRaw = json['pluginId'];
     final String? pluginId =
@@ -244,7 +253,6 @@ class ThemeStore extends ChangeNotifier {
       return;
     }
 
-    // 无 pluginId：按自由图源 -> generic 插件
     const genericId = 'generic';
     final p = _registry.plugin(genericId);
     if (p == null) {
@@ -256,7 +264,7 @@ class ThemeStore extends ChangeNotifier {
     addSource(
       pluginId: genericId,
       name: finalName,
-      settings: json, // 整包存进去，让 generic 插件解释
+      settings: json,
     );
   }
 
@@ -268,7 +276,6 @@ class ThemeStore extends ChangeNotifier {
     addSourceFromJson(decoded.cast<String, dynamic>());
   }
 
-  // 你现有 UI 的“添加 wallhaven”入口：保留
   void addWallhavenSource({
     required String name,
     required String url,
@@ -301,6 +308,7 @@ class ThemeStore extends ChangeNotifier {
 
     if (_currentConfig.id == fixed.id) _currentConfig = fixed;
 
+    _invalidateCapsCache();
     notifyListeners();
     savePreferences();
   }
@@ -310,7 +318,7 @@ class ThemeStore extends ChangeNotifier {
     if (idx == -1) return;
 
     final target = _sourceConfigs[idx];
-    if (_isBuiltIn(target)) return; // 默认实例不允许删
+    if (_isBuiltIn(target)) return;
 
     final next = _sourceConfigs.where((c) => c.id != id).toList();
     if (next.isEmpty) return;
@@ -318,6 +326,7 @@ class ThemeStore extends ChangeNotifier {
     _sourceConfigs = next;
     if (_currentConfig.id == id) _currentConfig = _sourceConfigs.first;
 
+    _invalidateCapsCache();
     notifyListeners();
     savePreferences();
   }
@@ -415,6 +424,7 @@ class ThemeStore extends ChangeNotifier {
         _currentConfig = _currentConfig.copyWith(settings: p.sanitizeSettings(_currentConfig.settings));
       }
 
+      _invalidateCapsCache();
       _recomputeEffectiveMode();
     } catch (e) {
       debugPrint("Load Prefs Error: $e");
@@ -426,8 +436,6 @@ class ThemeStore extends ChangeNotifier {
   @override
   void dispose() {
     _saveDebounce?.cancel();
-    // 如果你的 HttpClient 里持有 dio，建议在 HttpClient.dispose 里 close
-    // 这里先不瞎关，避免你 HttpClient 没实现 dispose 反而报错
     super.dispose();
   }
 }
