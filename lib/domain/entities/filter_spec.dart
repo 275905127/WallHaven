@@ -1,3 +1,4 @@
+// lib/domain/entities/filter_spec.dart
 import 'source_capabilities.dart';
 
 class FilterSpec {
@@ -18,9 +19,7 @@ class FilterSpec {
   final String? timeRange;
 
   /// ✅ 自定义参数（给 generic / 第三方源用）
-  /// key = paramName, value = 任意 JSON 兼容类型（String/bool/int/double/null）
-  ///
-  /// 你之前用 Map<String,String> 会逼你到处 toString/parse，后面必炸。
+  /// key = paramName, value = JSON 兼容类型（String/bool/int/double/null）
   final Map<String, dynamic> extras;
 
   const FilterSpec({
@@ -95,17 +94,5 @@ class FilterSpec {
     return copyWith(extras: next);
   }
 
-  FilterSpec clearExtras() => const FilterSpec().copyWith(
-        text: text,
-        sortBy: sortBy,
-        order: order,
-        resolutions: resolutions,
-        atleast: atleast,
-        ratios: ratios,
-        color: color,
-        rating: rating,
-        categories: categories,
-        timeRange: timeRange,
-        extras: const {},
-      );
+  FilterSpec clearExtras() => copyWith(extras: const {});
 }
