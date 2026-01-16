@@ -49,6 +49,8 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
     return (v * s).clamp(0.0, 1.0);
   }
 
+  int _a(double opacity) => (opacity.clamp(0.0, 1.0) * 255).round();
+
   SystemUiOverlayStyle _overlayStyle(BuildContext context, Color baseColor) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -65,9 +67,7 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
     }
 
     // ✅ 常规：未滚动 → 透明；滚动后 → 轻雾化（颜色来自页面背景）
-    final Color barColor = isScrolled
-        ? baseColor.withOpacity(_o(0.94))
-        : Colors.transparent;
+    final Color barColor = isScrolled ? baseColor.withAlpha(_a(_o(0.94))) : Colors.transparent;
 
     return SystemUiOverlayStyle(
       statusBarColor: barColor,
@@ -114,13 +114,13 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                baseColor.withOpacity(_o(0.94)),
-                baseColor.withOpacity(_o(0.94)),
-                baseColor.withOpacity(_o(0.90)),
-                baseColor.withOpacity(_o(0.75)),
-                baseColor.withOpacity(_o(0.50)),
-                baseColor.withOpacity(_o(0.20)),
-                baseColor.withOpacity(0.0),
+                baseColor.withAlpha(_a(_o(0.94))),
+                baseColor.withAlpha(_a(_o(0.94))),
+                baseColor.withAlpha(_a(_o(0.90))),
+                baseColor.withAlpha(_a(_o(0.75))),
+                baseColor.withAlpha(_a(_o(0.50))),
+                baseColor.withAlpha(_a(_o(0.20))),
+                baseColor.withAlpha(0),
               ],
               stops: const [0.0, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
             ),
