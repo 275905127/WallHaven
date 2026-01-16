@@ -275,29 +275,40 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
     // - 不再使用 groupValue/onChanged（那些已经 deprecated）
     // - toggleable=true 允许再点一次取消（你原来的“关闭/不限”逻辑在这里不需要）
     final bodyCard = Container(
-      decoration: BoxDecoration(color: theme.cardColor, borderRadius: bodyRadius),
-      clipBehavior: Clip.antiAlias,
-      child: RadioGroup<ThemeMode>(
-       groupValue: store.preferredMode,
-       onChanged: disabled ? null : (ThemeMode v) => store.setPreferredMode(v),
-       child: Column(
-        children: [
-         RadioTile<ThemeMode>(
-          value: ThemeMode.system,
-          title: const Text("系统 (默认)"),
-         ),
-         Container(height: tokens.dividerThickness, color: tokens.dividerColor),
-         RadioTile<ThemeMode>(
-          value: ThemeMode.light,
-          title: const Text("浅色"),
-         ),
-         Container(height: tokens.dividerThickness, color: tokens.dividerColor),
-         RadioTile<ThemeMode>(
-          value: ThemeMode.dark,
-          title: const Text("深色"),
-        ),
-      ],
-    ),
+  decoration: BoxDecoration(color: theme.cardColor, borderRadius: bodyRadius),
+  clipBehavior: Clip.antiAlias,
+  child: Column(
+    children: [
+      _modeRadioRow(
+        context: context,
+        tokens: tokens,
+        disabled: disabled,
+        value: ThemeMode.system,
+        title: "系统 (默认)",
+        groupValue: store.preferredMode,
+        onPick: (v) => store.setPreferredMode(v),
+      ),
+      Container(height: tokens.dividerThickness, color: tokens.dividerColor),
+      _modeRadioRow(
+        context: context,
+        tokens: tokens,
+        disabled: disabled,
+        value: ThemeMode.light,
+        title: "浅色",
+        groupValue: store.preferredMode,
+        onPick: (v) => store.setPreferredMode(v),
+      ),
+      Container(height: tokens.dividerThickness, color: tokens.dividerColor),
+      _modeRadioRow(
+        context: context,
+        tokens: tokens,
+        disabled: disabled,
+        value: ThemeMode.dark,
+        title: "深色",
+        groupValue: store.preferredMode,
+        onPick: (v) => store.setPreferredMode(v),
+      ),
+    ],
   ),
 );
 
