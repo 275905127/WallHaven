@@ -8,7 +8,8 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues(<String, Object?>{});
+    // ⚠️ shared_preferences 旧签名：Map<String, Object>
+    SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
   testWidgets('MyApp can build (smoke test)', (tester) async {
@@ -17,11 +18,11 @@ void main() {
     await tester.pumpWidget(
       ThemeScope(
         store: store,
-        child: MyApp(),
+        child: MyApp(), // 如果 MyApp 不是 const，就去掉 const
       ),
     );
 
-    // ThemeStore 会异步 load prefs，给它一点 settle 时间
+    // ThemeStore 会异步读 prefs，给它 settle 时间
     await tester.pumpAndSettle(const Duration(milliseconds: 300));
 
     expect(find.byType(MyApp), findsOneWidget);
