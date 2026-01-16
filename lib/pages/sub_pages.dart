@@ -8,9 +8,7 @@ import '../theme/app_tokens.dart';
 import '../widgets/foggy_app_bar.dart';
 import '../widgets/settings_widgets.dart';
 
-// ⚠️ 这些 import 你项目里可能还在用（比如类型/常量）
-// 如果 analyzer 报 unused，你自己删掉即可，不影响运行。
-import '../models/image_source.dart';
+// 你这里确实需要 SourceConfig 等类型
 import '../sources/source_plugin.dart';
 
 // ==========================================
@@ -589,7 +587,8 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                                         "listKey": "@direct",
                                         "filters": []
                                       };
-                                      jsonCtrl.text = const JsonEncoder.withIndent("  ").convert(sample);
+                                      jsonCtrl.text =
+                                          const JsonEncoder.withIndent("  ").convert(sample);
                                       setState(() => errorText = null);
                                     },
                                     icon: const Icon(Icons.auto_awesome_outlined, size: 18),
@@ -686,8 +685,9 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
 
                       final name = nameCtrl.text.trim();
                       final url = urlCtrl.text.trim();
-                      final listKey =
-                          listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
+                      final listKey = listKeyCtrl.text.trim().isEmpty
+                          ? "@direct"
+                          : listKeyCtrl.text.trim();
 
                       if (name.isEmpty || url.isEmpty) {
                         setState(() => errorText = "名称和 API 地址是必填。");
@@ -853,7 +853,10 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         else
                           const Padding(
                             padding: EdgeInsets.only(right: 6),
-                            child: Text("默认", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            child: Text(
+                              "默认",
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
                           ),
                       ],
                     ),
