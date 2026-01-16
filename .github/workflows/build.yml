@@ -79,6 +79,12 @@ jobs:
       - name: Run tests
         run: flutter test
 
+      - name: Debug inputs
+        run: |
+          echo "build_apk='${{ inputs.build_apk }}'"
+          echo "target_platform='${{ inputs.target_platform }}'"
+          echo "strict_analyze='${{ inputs.strict_analyze }}'"
+
       # ✅ PR 默认不构建 APK；手动触发默认构建
       - name: Build APK (release)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_apk == 'true' }}
