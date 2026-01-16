@@ -26,35 +26,38 @@ class SimpleJsonPlugin implements SourcePlugin {
   }
 
   @override
-  Map<String, dynamic> sanitizeSettings(Map<String, dynamic> s) {
-    final m = Map<String, dynamic>.from(s);
+Map<String, dynamic> sanitizeSettings(Map<String, dynamic> s) {
+  final m = Map<String, dynamic>.from(s);
 
-    String normBaseUrl(String? url) {
-      var u = (url ?? '').trim();
-      if (u.isEmpty) return u;
-      if (!u.startsWith('http://') && !u.startsWith('https://')) u = 'https://$u';
-      while (u.endsWith('/')) u = u.substring(0, u.length - 1);
-      return u;
+  String normBaseUrl(String? url) {
+    var u = (url ?? '').trim();
+    if (u.isEmpty) return u;
+    if (!u.startsWith('http://') && !u.startsWith('https://')) {
+      u = 'https://$u';
     }
-
-    String normPath(String? p, String fallback) {
-      var v = (p ?? fallback).trim();
-      if (v.isEmpty) v = fallback;
-      if (!v.startsWith('/')) v = '/$v';
-      return v;
+    while (u.endsWith('/')) {
+      u = u.substring(0, u.length - 1);
     }
-
-    String? normOpt(String? v) {
-      final t = v?.trim();
-      if (t == null || t.isEmpty) return null;
-      return t;
-    }
-
-    m['baseUrl'] = normBaseUrl(m['baseUrl'] as String?);
-    m['searchPath'] = normPath(m['searchPath'] as String?, '/search');
-    m['detailPath'] = normPath(m['detailPath'] as String?, '/w/{id}');
-    m['apiKey'] = normOpt(m['apiKey'] as String?);
-
-    return m;
+    return u;
   }
+
+  String normPath(String? p, String fallback) {
+    var v = (p ?? fallback).trim();
+    if (v.isEmpty) v = fallback;
+    if (!v.startsWith('/')) v = '/$v';
+    return v;
+  }
+
+  String? normOpt(String? v) {
+    final t = v?.trim();
+    if (t == null || t.isEmpty) return null;
+    return t;
+  }
+
+  m['baseUrl'] = normBaseUrl(m['baseUrl'] as String?);
+  m['searchPath'] = normPath(m['searchPath'] as String?, '/search');
+  m['detailPath'] = normPath(m['detailPath'] as String?, '/w/{id}');
+  m['apiKey'] = normOpt(m['apiKey'] as String?);
+
+  return m;
 }
