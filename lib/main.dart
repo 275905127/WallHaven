@@ -36,7 +36,7 @@ void main() async {
       store: themeStore,
       child: ListenableBuilder(
         listenable: themeStore,
-        builder: (context, child) => MyApp(),
+        builder: (context, child) => const MyApp(),
       ),
     ),
   );
