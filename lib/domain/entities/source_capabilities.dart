@@ -1,5 +1,5 @@
-// lib/domain/entities/source_capabilities.dart
 import 'option_item.dart';
+import 'dynamic_filter.dart'; // 确保正确导入
 
 enum SortBy { relevance, newest, views, favorites, random, toplist }
 enum SortOrder { asc, desc }
@@ -38,6 +38,9 @@ class SourceCapabilities {
   final bool supportsTimeRange;
   final List<OptionItem> timeRangeOptions;
 
+  // 新增字段 dynamicFilters
+  final List<DynamicFilter> dynamicFilters;
+
   const SourceCapabilities({
     this.supportsText = true,
 
@@ -66,5 +69,8 @@ class SourceCapabilities {
 
     this.supportsTimeRange = false,
     this.timeRangeOptions = const [],
+
+    // 动态过滤器的默认值
+    this.dynamicFilters = const [],
   });
 }
