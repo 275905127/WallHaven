@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../domain/entities/dynamic_filter.dart';
 import '../domain/entities/filter_spec.dart';
 import '../domain/entities/source_capabilities.dart';
 import '../domain/entities/option_item.dart';
@@ -44,6 +45,9 @@ class _FilterDrawerState extends State<FilterDrawer> {
   bool _ratiosExpanded = false;
   bool _colorExpanded = false;
 
+  /// ✅ 动态筛选展开状态：key=paramName
+  final Map<String, bool> _dynExpanded = {};
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +80,7 @@ class _FilterDrawerState extends State<FilterDrawer> {
       _atleastExpanded = false;
       _ratiosExpanded = false;
       _colorExpanded = false;
+      _dynExpanded.clear();
     }
 
     final next = _f.copyWith(text: _qCtrl.text);
@@ -380,6 +385,51 @@ class _FilterDrawerState extends State<FilterDrawer> {
     );
   }
 
+  // ========== Dynamic (radio) ==========
+  String _dynSummary(DynamicFilter d) {
+    final v = _f.extras[d.paramName];
+    final s = (v == null) ? '' : v.toString();
+    if (s.trim().isEmpty) return '不限';
+
+    // 尝试把 value 映射回 label
+    for (final o in d.options) {
+      if (o.value == s) return o.label;
+    }
+    return s;
+  }
+
+  Widget _dynamicRadioPicker({
+    required BuildContext context,
+    required DynamicFilter d,
+  }) {
+    // null/空字符串 都视为未选
+    final current = _f.extras[d.paramName];
+    final currentStr = (current == null) ? null : current.toString();
+
+    final items = d.options
+        .map((o) => _PickItem<String>(o.value, o.label))
+        .toList();
+
+    return _singlePickListNullable<String>(
+      context: context,
+      items: items,
+      value: (currentStr == null || currentStr.trim().isEmpty) ? null : currentStr,
+      onPick: (v) {
+        setState(() {
+          final vv = (v ?? '').toString();
+          if (vv.trim().isEmpty) {
+            _f = _f.removeExtra(d.paramName);
+          } else {
+            _f = _f.putExtra(d.paramName, vv);
+          }
+          _dynExpanded[d.paramName] = false;
+        });
+        _commitApply();
+      },
+    );
+  }
+
+  // labels
   String _sortLabel(SortBy v) {
     switch (v) {
       case SortBy.relevance:
@@ -655,6 +705,25 @@ class _FilterDrawerState extends State<FilterDrawer> {
           ),
         ),
       );
+    }
+
+    // ✅ Dynamic filters（radio）
+    if (caps.dynamicFilters.isNotEmpty) {
+      for (final d in caps.dynamicFilters) {
+        // 只支持 radio（你 current model 也是 radio）
+        if (d.type != DynamicFilterType.radio) continue;
+
+        final expanded = _dynExpanded[d.paramName] ?? false;
+        rows.add(
+          _RowDef(
+            title: d.title,
+            valueLabel: _dynSummary(d),
+            expanded: expanded,
+            onToggle: () => setState(() => _dynExpanded[d.paramName] = !expanded),
+            child: _dynamicRadioPicker(context: context, d: d),
+          ),
+        );
+      }
     }
 
     final groupRows = <Widget>[];
