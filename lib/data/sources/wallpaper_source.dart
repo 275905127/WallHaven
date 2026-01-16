@@ -5,6 +5,10 @@ import '../../domain/entities/source_kind.dart';
 import '../../domain/entities/wallpaper_detail_item.dart';
 import '../../domain/entities/wallpaper_item.dart';
 
+/// 冻结接口：任何 source 都必须实现这三个方法（不支持就返回空/null）
+/// - search: 分页搜索源返回列表；随机源返回空列表
+/// - random: 随机源返回单个；分页源返回 null
+/// - detail: 可选，不支持返回 null
 abstract class WallpaperSource {
   String get sourceId;
   String get pluginId;
@@ -13,12 +17,9 @@ abstract class WallpaperSource {
 
   SourceCapabilities get capabilities;
 
-  /// 分页搜索源实现这个；随机源可以返回空
   Future<List<WallpaperItem>> search(SearchQuery query);
 
-  /// 随机源实现这个；分页源可以默认返回 null/throw
   Future<WallpaperItem?> random(FilterSpec filters);
 
-  /// 详情（可选）
   Future<WallpaperDetailItem?> detail(String id);
 }
