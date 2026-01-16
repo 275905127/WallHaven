@@ -99,20 +99,21 @@ class AppTheme {
 
       extensions: [tokens],
 
-      // ✅ 统一全局卡片圆角（SettingsGroup / 普通卡片 / 包含 Drawer 内的 Card）
-      cardTheme: CardTheme(shape: cardShape),
+      // ✅ Flutter 3.27+ 这里要用 CardThemeData（不是 CardTheme）
+      cardTheme: CardThemeData(shape: cardShape),
 
       // ✅ 抽屉整体圆角跟随全局 cardRadius
       drawerTheme: DrawerThemeData(shape: _drawerShape(cardRadius)),
 
-      // ✅ 你说的“长条选择弹窗/底部弹层”也一起收敛到全局圆角
+      // ✅ 长条选择弹窗/底部弹层也一起收敛到全局圆角
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         shape: cardShape,
       ),
 
-      dialogTheme: DialogTheme(
+      // ✅ Flutter 3.27+ 这里要用 DialogThemeData（不是 DialogTheme）
+      dialogTheme: DialogThemeData(
         backgroundColor: AppColors.lightAlert,
         surfaceTintColor: Colors.transparent,
         shape: cardShape,
@@ -171,8 +172,8 @@ class AppTheme {
 
       extensions: [tokens],
 
-      // ✅ 统一全局卡片圆角（不碰图片圆角）
-      cardTheme: CardTheme(shape: cardShape),
+      // ✅ Flutter 3.27+：CardThemeData
+      cardTheme: CardThemeData(shape: cardShape),
 
       // ✅ 抽屉整体圆角跟随全局 cardRadius
       drawerTheme: DrawerThemeData(shape: _drawerShape(cardRadius)),
@@ -184,7 +185,8 @@ class AppTheme {
         shape: cardShape,
       ),
 
-      dialogTheme: DialogTheme(
+      // ✅ Flutter 3.27+：DialogThemeData
+      dialogTheme: DialogThemeData(
         backgroundColor: AppColors.darkAlert,
         surfaceTintColor: Colors.transparent,
         shape: cardShape,
