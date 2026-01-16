@@ -17,9 +17,11 @@ class FilterSpec {
 
   final String? timeRange;
 
-  /// ✅ 自定义参数（给随机源/第三方源用）
-  /// key = paramName, value = 具体值（字符串）
-  final Map<String, String> extras;
+  /// ✅ 自定义参数（给 generic / 第三方源用）
+  /// key = paramName, value = 任意 JSON 兼容类型（String/bool/int/double/null）
+  ///
+  /// 你之前用 Map<String,String> 会逼你到处 toString/parse，后面必炸。
+  final Map<String, dynamic> extras;
 
   const FilterSpec({
     this.text = '',
@@ -37,21 +39,30 @@ class FilterSpec {
 
   FilterSpec copyWith({
     String? text,
+
     SortBy? sortBy,
     bool clearSortBy = false,
+
     SortOrder? order,
     bool clearOrder = false,
+
     Set<String>? resolutions,
+
     String? atleast,
     bool clearAtleast = false,
+
     Set<String>? ratios,
+
     String? color,
     bool clearColor = false,
+
     Set<RatingLevel>? rating,
     Set<String>? categories,
+
     String? timeRange,
     bool clearTimeRange = false,
-    Map<String, String>? extras,
+
+    Map<String, dynamic>? extras,
   }) {
     return FilterSpec(
       text: text ?? this.text,
@@ -68,10 +79,10 @@ class FilterSpec {
     );
   }
 
-  FilterSpec putExtra(String key, String value) {
+  FilterSpec putExtra(String key, dynamic value) {
     final k = key.trim();
     if (k.isEmpty) return this;
-    final next = Map<String, String>.from(extras);
+    final next = Map<String, dynamic>.from(extras);
     next[k] = value;
     return copyWith(extras: next);
   }
@@ -80,7 +91,21 @@ class FilterSpec {
     final k = key.trim();
     if (k.isEmpty) return this;
     if (!extras.containsKey(k)) return this;
-    final next = Map<String, String>.from(extras)..remove(k);
+    final next = Map<String, dynamic>.from(extras)..remove(k);
     return copyWith(extras: next);
   }
+
+  FilterSpec clearExtras() => const FilterSpec().copyWith(
+        text: text,
+        sortBy: sortBy,
+        order: order,
+        resolutions: resolutions,
+        atleast: atleast,
+        ratios: ratios,
+        color: color,
+        rating: rating,
+        categories: categories,
+        timeRange: timeRange,
+        extras: const {},
+      );
 }
