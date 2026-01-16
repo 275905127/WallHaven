@@ -277,9 +277,7 @@ class WallhavenSource implements WallpaperSource {
       final tagsJson = (j['tags'] as List?) ?? const [];
       for (final t in tagsJson) {
         if (t is Map) {
-          // ✅ 这里直接用 t.cast，去掉多余的 as Map（unnecessary_cast）
-          final m = t.cast<String, dynamic>();
-          final name = m['name'];
+          final name = t.cast<String, dynamic>()['name'];
           if (name is String && name.trim().isNotEmpty) tags.add(name.trim());
         }
       }
@@ -317,7 +315,9 @@ class WallhavenSource implements WallpaperSource {
         width: w,
         height: h,
         author: (uploader?['username'] as String?),
-        authorAvatar: Uri.tryParse((avatar?['200px'] as String?) ?? (avatar?['128px'] as String?) ?? ''),
+        authorAvatar: Uri.tryParse(
+          (avatar?['200px'] as String?) ?? (avatar?['128px'] as String?) ?? '',
+        ),
         shortUrl: Uri.tryParse((j['short_url'] as String?) ?? ''),
         sourceUrl: Uri.tryParse((j['source'] as String?) ?? ''),
         views: (j['views'] as int?),
