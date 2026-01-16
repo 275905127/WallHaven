@@ -60,4 +60,5 @@ class SimpleJsonPlugin implements SourcePlugin {
   m['apiKey'] = normOpt(m['apiKey'] as String?);
 
   return m;
+ }
 }
