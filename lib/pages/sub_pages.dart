@@ -314,39 +314,6 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
   );
 }
 
-class _RadioDot extends StatelessWidget {
-  final bool selected;
-  final bool disabled;
-  const _RadioDot({required this.selected, required this.disabled});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = theme.extension<AppTokens>()!;
-    final mono = theme.brightness == Brightness.dark ? Colors.white : Colors.black;
-
-    final border = disabled ? tokens.disabledFg.withAlpha(90) : mono.withAlpha(120);
-    final fill = disabled ? tokens.disabledFg.withAlpha(90) : mono;
-
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: border, width: 1.5),
-      ),
-      alignment: Alignment.center,
-      child: AnimatedContainer(
-        duration: tokens.expandDuration,
-        curve: tokens.expandCurve,
-        width: selected ? 10 : 0,
-        height: selected ? 10 : 0,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: selected ? fill : Colors.transparent,
-        ),
-      ),
-    );
-  }
-}
 
     // ✅ 新 API：RadioGroup(value/onChanged) + RadioListTile
     // - 不再使用 groupValue/onChanged（那些已经 deprecated）
