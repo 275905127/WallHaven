@@ -87,8 +87,14 @@ jobs:
 
       # ✅ PR 默认不构建 APK；手动触发默认构建
       - name: Build APK (release)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_apk == 'true' }}
-        run: flutter build apk --release --target-platform ${{ inputs.target_platform }}
+        if: ${{ inputs.build_apk == 'true' }}
+        run: |
+          TP="${{ inputs.target_platform }}"
+          if [ -z "$TP" ]; then
+            echo "target_platform is empty, fallback to android-arm64"
+            TP="android-arm64"
+          fi
+          flutter build apk --release --target-platform="$TP"
 
       - name: Upload APK artifact
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_apk == 'true' }}
