@@ -62,7 +62,9 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
   ) {
     String initHex = "";
     if (currentColor != null) {
-      initHex = currentColor.value
+      // ✅ 替换 deprecated 的 .value
+      initHex = currentColor
+          .toARGB32()
           .toRadixString(16)
           .toUpperCase()
           .padLeft(8, '0')
@@ -210,9 +212,7 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
     final bool switchValue = disabled ? false : store.enableThemeMode;
     final bool expanded = switchValue;
 
-    final Color fg = disabled
-        ? tokens.disabledFg
-        : (theme.textTheme.bodyLarge?.color ?? Colors.white);
+    final Color fg = disabled ? tokens.disabledFg : (theme.textTheme.bodyLarge?.color ?? Colors.white);
 
     final BorderRadius headerRadius = BorderRadius.only(
       topLeft: Radius.circular(store.cardRadius),
@@ -270,38 +270,40 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
       ),
     );
 
+    // ✅ 这里用 RadioListTile（稳定）
     final bodyCard = Container(
       decoration: BoxDecoration(color: theme.cardColor, borderRadius: bodyRadius),
       child: Column(
         children: [
-          RadioGroup<ThemeMode>(
-  value: store.preferredMode,
-  onChanged: disabled ? null : (v) => store.setPreferredMode(v),
-  child: Column(
-    children: [
-      RadioTile<ThemeMode>(
-        value: ThemeMode.system,
-        title: const Text("系统 (默认)"),
+          RadioListTile<ThemeMode>(
+            title: const Text("系统 (默认)"),
+            value: ThemeMode.system,
+            groupValue: store.preferredMode,
+            onChanged: disabled ? null : (v) => store.setPreferredMode(v!),
+            activeColor: theme.colorScheme.primary,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+          Container(height: tokens.dividerThickness, color: tokens.dividerColor),
+          RadioListTile<ThemeMode>(
+            title: const Text("浅色"),
+            value: ThemeMode.light,
+            groupValue: store.preferredMode,
+            onChanged: disabled ? null : (v) => store.setPreferredMode(v!),
+            activeColor: theme.colorScheme.primary,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+          Container(height: tokens.dividerThickness, color: tokens.dividerColor),
+          RadioListTile<ThemeMode>(
+            title: const Text("深色"),
+            value: ThemeMode.dark,
+            groupValue: store.preferredMode,
+            onChanged: disabled ? null : (v) => store.setPreferredMode(v!),
+            activeColor: theme.colorScheme.primary,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+        ],
       ),
-      Container(
-        height: tokens.dividerThickness,
-        color: tokens.dividerColor,
-      ),
-      RadioTile<ThemeMode>(
-        value: ThemeMode.light,
-        title: const Text("浅色"),
-      ),
-      Container(
-        height: tokens.dividerThickness,
-        color: tokens.dividerColor,
-      ),
-      RadioTile<ThemeMode>(
-        value: ThemeMode.dark,
-        title: const Text("深色"),
-      ),
-    ],
-  ),
-)
+    );
 
     final expandedBlock = Column(
       children: [
@@ -330,11 +332,12 @@ class _PersonalizationPageState extends State<PersonalizationPage> {
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {
+        // ✅ 替换 deprecated 的 .value
         final bgHex = store.customBackgroundColor != null
-            ? "#${store.customBackgroundColor!.value.toRadixString(16).toUpperCase().substring(2)}"
+            ? "#${store.customBackgroundColor!.toARGB32().toRadixString(16).toUpperCase().substring(2)}"
             : "默认";
         final cardHex = store.customCardColor != null
-            ? "#${store.customCardColor!.value.toRadixString(16).toUpperCase().substring(2)}"
+            ? "#${store.customCardColor!.toARGB32().toRadixString(16).toUpperCase().substring(2)}"
             : "默认";
 
         return Scaffold(
@@ -684,9 +687,8 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
 
                       final name = nameCtrl.text.trim();
                       final url = urlCtrl.text.trim();
-                      final listKey = listKeyCtrl.text.trim().isEmpty
-                          ? "@direct"
-                          : listKeyCtrl.text.trim();
+                      final listKey =
+                          listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
 
                       if (name.isEmpty || url.isEmpty) {
                         setState(() => errorText = "名称和 API 地址是必填。");
@@ -776,10 +778,8 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                 if (u.isNotEmpty) nextSettings['baseUrl'] = u;
               }
 
-              nextSettings['username'] =
-                  userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
-              nextSettings['apiKey'] =
-                  keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim();
+              nextSettings['username'] = userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
+              nextSettings['apiKey'] = keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim();
 
               final updated = cfg.copyWith(
                 name: builtIn ? cfg.name : nameCtrl.text.trim(),
@@ -852,10 +852,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         else
                           const Padding(
                             padding: EdgeInsets.only(right: 6),
-                            child: Text(
-                              "默认",
-                              style: TextStyle(fontSize: 12, color: Colors.grey),
-                            ),
+                            child: Text("默认", style: TextStyle(fontSize: 12, color: Colors.grey)),
                           ),
                       ],
                     ),
