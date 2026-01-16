@@ -505,7 +505,7 @@ class _RadioDot extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = theme.extension<AppTokens>()!;
-    final mono = theme.brightness == Brightness.dark ? Colors.white : Colors.black;
+    final mono = theme.colorScheme.onSurface; // 比直接黑白更稳
 
     final border = disabled ? tokens.disabledFg.withAlpha(90) : mono.withAlpha(120);
     final fill = disabled ? tokens.disabledFg.withAlpha(90) : mono;
