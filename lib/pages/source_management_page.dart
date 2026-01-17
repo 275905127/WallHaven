@@ -3,12 +3,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '../data/http/http_client.dart';
-import '../data/repository/wallpaper_repository.dart';
-import '../data/source_factory.dart';
-import '../domain/entities/filter_spec.dart';
-import '../domain/entities/search_query.dart';
-import '../domain/entities/source_kind.dart';
 import '../sources/source_plugin.dart';
 import '../theme/theme_store.dart';
 import '../widgets/foggy_app_bar.dart';
@@ -59,83 +53,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     return null;
   }
 
-  void _toast(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  Future<void> _withLoading(String title, Future<void> Function() task) async {
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: Text(title),
-        content: const Padding(
-          padding: EdgeInsets.only(top: 8),
-          child: Row(
-            children: [
-              SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-              SizedBox(width: 12),
-              Expanded(child: Text('请稍等…')),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    try {
-      await task();
-    } finally {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop(); // close loading
-    }
-  }
-
-  Future<void> _testSourceConfig(SourceConfig cfg) async {
-    final store = ThemeScope.of(context);
-    final prevId = store.currentSourceConfig.id;
-
-    await _withLoading("测试图源", () async {
-      // 1) 临时切换到被测试源（复用现有 SourceFactory.fromStore(store)）
-      if (cfg.id != prevId) {
-        store.setCurrentSourceConfig(cfg.id);
-      }
-
-      final http = HttpClient();
-      try {
-        final factory = SourceFactory(http: http);
-        final repo = WallpaperRepository(factory.fromStore(store));
-
-        final kind = repo.kind;
-        if (kind == SourceKind.random) {
-          final item = await repo.random(const FilterSpec());
-          if (item?.preview != null && item!.preview.toString().isNotEmpty) {
-            _toast("✅ 可用（random）\n${item.preview}");
-          } else {
-            _toast("⚠️ 请求成功，但没拿到有效图片链接（random）");
-          }
-        } else {
-          final items = await repo.search(const SearchQuery(page: 1, filters: FilterSpec()));
-          if (items.isNotEmpty) {
-            _toast("✅ 可用（search）返回 ${items.length} 条\n示例：${items.first.preview}");
-          } else {
-            _toast("⚠️ 请求成功，但返回 0 条（search）\n可能是接口结构不匹配或被筛选条件限制");
-          }
-        }
-      } catch (e) {
-        _toast("❌ 测试失败：$e");
-      } finally {
-        // 2) 恢复原来的当前源
-        if (prevId != cfg.id) {
-          store.setCurrentSourceConfig(prevId);
-        }
-        // 3) 释放 dio
-        http.dio.close(force: true);
-      }
-    });
-  }
-
   void _showAddSourceDialog(BuildContext context) {
     final store = ThemeScope.of(context);
 
@@ -145,6 +62,11 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     final listKeyCtrl = TextEditingController(text: "@direct");
 
     String? errorText;
+
+    void toast(String msg) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
 
     bool looksLikeJson(String s) {
       final t = s.trim();
@@ -185,9 +107,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         children: [
                           const Icon(Icons.error_outline, size: 18, color: Colors.red),
                           const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(errorText!, style: const TextStyle(color: Colors.red)),
-                          ),
+                          Expanded(child: Text(errorText!, style: const TextStyle(color: Colors.red))),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -223,8 +143,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                                         "listKey": "@direct",
                                         "filters": []
                                       };
-                                      jsonCtrl.text =
-                                          const JsonEncoder.withIndent("  ").convert(sample);
+                                      jsonCtrl.text = const JsonEncoder.withIndent("  ").convert(sample);
                                       setState(() => errorText = null);
                                     },
                                     icon: const Icon(Icons.auto_awesome_outlined, size: 18),
@@ -313,15 +232,15 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         }
 
                         store.addSourceFromJsonString(raw);
+
                         Navigator.pop(dialogCtx);
-                        _toast("已添加图源");
+                        toast("已添加图源");
                         return;
                       }
 
                       final name = nameCtrl.text.trim();
                       final url = urlCtrl.text.trim();
-                      final listKey =
-                          listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
+                      final listKey = listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
 
                       if (name.isEmpty || url.isEmpty) {
                         setState(() => errorText = "名称和 API 地址是必填。");
@@ -336,8 +255,9 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                       };
 
                       store.addSourceFromJsonString(jsonEncode(cfg));
+
                       Navigator.pop(dialogCtx);
-                      _toast("已添加图源");
+                      toast("已添加图源");
                     } catch (e) {
                       setState(() => errorText = "添加失败：$e");
                     }
@@ -410,8 +330,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                 if (u.isNotEmpty) nextSettings['baseUrl'] = u;
               }
 
-              nextSettings['username'] =
-                  userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
+              nextSettings['username'] = userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
               nextSettings['apiKey'] = keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim();
 
               final updated = cfg.copyWith(
@@ -473,14 +392,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (isCurrent) const Icon(Icons.check, size: 18),
-
-                        // ✅ 新增：测试按钮
-                        IconButton(
-                          tooltip: "测试图源",
-                          icon: const Icon(Icons.play_circle_outline),
-                          onPressed: () => _testSourceConfig(cfg),
-                        ),
-
                         IconButton(
                           icon: const Icon(Icons.edit_outlined),
                           onPressed: () => _showEditConfigDialog(context, cfg),
