@@ -38,7 +38,7 @@ class ThemeScope extends InheritedWidget {
 // ThemeStore
 // ----------------------------
 class ThemeStore extends ChangeNotifier {
-  // ✅ 单例化：不要在 getter 里 new
+  // ⚠️ 这里只用于 currentCapabilities 的构造（会 new Dio），必须 dispose close。
   final HttpClient _http = HttpClient();
   late final SourceFactory _factory = SourceFactory(http: _http);
 
@@ -59,13 +59,13 @@ class ThemeStore extends ChangeNotifier {
 
   Timer? _saveDebounce;
 
-  // ===== Source (插件化最终形态) =====
+  // ===== Source =====
   final SourceRegistry _registry = SourceRegistry.defaultRegistry();
 
   List<SourceConfig> _sourceConfigs = const [];
   late SourceConfig _currentConfig;
 
-  // ✅ capabilities 缓存：避免 getter 每次都 fromStore() 造对象
+  // ===== Capabilities cache =====
   String? _capsCacheForConfigId;
   SourceCapabilities? _capsCache;
 
@@ -98,12 +98,40 @@ class ThemeStore extends ChangeNotifier {
     return p;
   }
 
-  /// 给业务层用：拿到当前插件的“已清洗 settings”
-  Map<String, dynamic> get currentSettings => currentPlugin.sanitizeSettings(_currentConfig.settings);
+  // ------------------------------------------------------------
+  // Wallhaven baseUrl migration: ensure /api/v1
+  // ------------------------------------------------------------
+  Map<String, dynamic> _migrateWallhavenSettingsIfNeeded(
+    String pluginId,
+    Map<String, dynamic> sanitized,
+  ) {
+    if (pluginId != 'wallhaven') return sanitized;
 
-  /// ✅ 给 UI 用：当前 source 的 capabilities（用于动态筛选 UI）
-  ///
-  /// 注意：这玩意会在 UI rebuild 时被频繁访问，所以必须避免每次都 new source。
+    final next = Map<String, dynamic>.from(sanitized);
+
+    String normWallhavenApiBase(String? raw) {
+      var u = (raw ?? '').trim();
+      if (u.isEmpty) u = 'https://wallhaven.cc';
+      if (!u.startsWith('http://') && !u.startsWith('https://')) u = 'https://$u';
+      while (u.endsWith('/')) u = u.substring(0, u.length - 1);
+
+      // ✅ force api root
+      if (!u.endsWith('/api/v1')) u = '$u/api/v1';
+      return u;
+    }
+
+    next['baseUrl'] = normWallhavenApiBase(next['baseUrl'] as String?);
+    return next;
+  }
+
+  /// 给业务层用：拿到当前插件的“已清洗 settings”
+  Map<String, dynamic> get currentSettings {
+    final p = currentPlugin;
+    final sanitized = p.sanitizeSettings(_currentConfig.settings);
+    return _migrateWallhavenSettingsIfNeeded(_currentConfig.pluginId, sanitized);
+  }
+
+  /// 给 UI 用：当前 source capabilities（动态筛选 UI）
   SourceCapabilities get currentCapabilities {
     final id = _currentConfig.id;
     if (_capsCacheForConfigId == id && _capsCache != null) return _capsCache!;
@@ -116,16 +144,30 @@ class ThemeStore extends ChangeNotifier {
     return caps;
   }
 
-  /// ✅ 兼容旧名字：全项目只允许存在一次
+  /// 兼容旧名字
   SourceCapabilities get currentWallpaperSourceCapabilities => currentCapabilities;
 
   ThemeStore() {
+    // ✅ 初始值：至少一个默认 config（由 registry 决定）
     final def = _registry.defaultConfig();
-    _sourceConfigs = [def];
-    _currentConfig = def;
+    final p = _registry.plugin(def.pluginId);
+
+    final sanitized = (p != null)
+        ? p.sanitizeSettings(def.settings)
+        : Map<String, dynamic>.from(def.settings);
+
+    final migrated = _migrateWallhavenSettingsIfNeeded(def.pluginId, sanitized);
+    final fixedDef = def.copyWith(settings: migrated);
+
+    _sourceConfigs = [fixedDef];
+    _currentConfig = fixedDef;
+
     _loadFromPrefs();
   }
 
+  // ------------------------------------------------------------
+  // Theme mode recompute
+  // ------------------------------------------------------------
   void _recomputeEffectiveMode() {
     if (_enableCustomColors) {
       _mode = ThemeMode.light;
@@ -195,14 +237,27 @@ class ThemeStore extends ChangeNotifier {
     savePreferences();
   }
 
-  // ===== Source actions =====
+  // ------------------------------------------------------------
+  // Source actions
+  // ------------------------------------------------------------
   bool _isBuiltIn(SourceConfig c) => c.id.startsWith('default_');
 
   void setCurrentSourceConfig(String configId) {
     if (_currentConfig.id == configId) return;
+
     final idx = _sourceConfigs.indexWhere((c) => c.id == configId);
     if (idx == -1) return;
-    _currentConfig = _sourceConfigs[idx];
+
+    final raw = _sourceConfigs[idx];
+    final p = _registry.plugin(raw.pluginId);
+
+    final sanitized = (p != null)
+        ? p.sanitizeSettings(raw.settings)
+        : Map<String, dynamic>.from(raw.settings);
+
+    final migrated = _migrateWallhavenSettingsIfNeeded(raw.pluginId, sanitized);
+
+    _currentConfig = raw.copyWith(settings: migrated);
     _invalidateCapsCache();
     notifyListeners();
     savePreferences();
@@ -216,11 +271,14 @@ class ThemeStore extends ChangeNotifier {
     final p = _registry.plugin(pluginId);
     if (p == null) throw StateError('Plugin not found: $pluginId');
 
+    final sanitized = p.sanitizeSettings(settings);
+    final migrated = _migrateWallhavenSettingsIfNeeded(pluginId, sanitized);
+
     final cfg = SourceConfig(
       id: 'cfg_${DateTime.now().millisecondsSinceEpoch}',
       pluginId: pluginId,
       name: name.trim(),
-      settings: p.sanitizeSettings(settings),
+      settings: migrated,
     );
 
     _sourceConfigs = [..._sourceConfigs, cfg];
@@ -249,11 +307,11 @@ class ThemeStore extends ChangeNotifier {
           (s is Map) ? s.cast<String, dynamic>() : <String, dynamic>{};
 
       final finalName = name.isNotEmpty ? name : p.defaultName;
-
       addSource(pluginId: pluginId, name: finalName, settings: settings);
       return;
     }
 
+    // 没给 pluginId -> 当作 generic 自由 JSON
     const genericId = 'generic';
     final p = _registry.plugin(genericId);
     if (p == null) {
@@ -261,12 +319,7 @@ class ThemeStore extends ChangeNotifier {
     }
 
     final finalName = name.isNotEmpty ? name : p.defaultName;
-
-    addSource(
-      pluginId: genericId,
-      name: finalName,
-      settings: json,
-    );
+    addSource(pluginId: genericId, name: finalName, settings: json);
   }
 
   void addSourceFromJsonString(String raw) {
@@ -301,7 +354,10 @@ class ThemeStore extends ChangeNotifier {
     final p = _registry.plugin(updated.pluginId);
     if (p == null) return;
 
-    final fixed = updated.copyWith(settings: p.sanitizeSettings(updated.settings));
+    final sanitized = p.sanitizeSettings(updated.settings);
+    final migrated = _migrateWallhavenSettingsIfNeeded(updated.pluginId, sanitized);
+
+    final fixed = updated.copyWith(settings: migrated);
 
     final next = [..._sourceConfigs];
     next[idx] = fixed;
@@ -332,39 +388,91 @@ class ThemeStore extends ChangeNotifier {
     savePreferences();
   }
 
-  // ===== Persist =====
+  // ------------------------------------------------------------
+  // Persist helpers: repair source configs
+  // ------------------------------------------------------------
+  List<SourceConfig> _repairSourceConfigs(List<SourceConfig> raw) {
+    // 1) 先清洗 + 迁移
+    final cleaned = raw.map((c) {
+      final p = _registry.plugin(c.pluginId);
+      if (p == null) return c;
+
+      final sanitized = p.sanitizeSettings(c.settings);
+      final migrated = _migrateWallhavenSettingsIfNeeded(c.pluginId, sanitized);
+      return c.copyWith(settings: migrated);
+    }).where((c) => c.id.isNotEmpty && c.pluginId.isNotEmpty).toList();
+
+    // 2) 确保至少有一个默认 config（由 registry 决定）
+    final def0 = _registry.defaultConfig();
+    final defPlugin = _registry.plugin(def0.pluginId);
+    final defSanitized = (defPlugin != null)
+        ? defPlugin.sanitizeSettings(def0.settings)
+        : Map<String, dynamic>.from(def0.settings);
+    final defMigrated = _migrateWallhavenSettingsIfNeeded(def0.pluginId, defSanitized);
+    final fixedDef = def0.copyWith(settings: defMigrated);
+
+    // 3) 去掉重复 default（保留第一个）
+    final out = <SourceConfig>[];
+    var hasAnyDefault = false;
+
+    for (final c in cleaned) {
+      final isDef = c.id.startsWith('default_');
+      if (isDef) {
+        if (hasAnyDefault) continue; // drop duplicates
+        hasAnyDefault = true;
+      }
+      out.add(c);
+    }
+
+    if (!hasAnyDefault) {
+      out.insert(0, fixedDef);
+    } else {
+      // 如果已有 default，但 pluginId/结构怪异：用 registry 的 default 覆盖掉那个 default
+      // ——避免历史坏默认把整个 app 锁死
+      final idx = out.indexWhere((c) => c.id.startsWith('default_'));
+      if (idx != -1) {
+        out[idx] = fixedDef;
+      }
+    }
+
+    return out;
+  }
+
+  // ------------------------------------------------------------
+  // Persist
+  // ------------------------------------------------------------
   Future<void> savePreferences() async {
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(milliseconds: 120), () async {
       final prefs = await SharedPreferences.getInstance();
 
-      prefs.setInt('theme_mode', _preferredMode.index);
-      prefs.setBool('enable_theme_mode', _enableThemeMode);
+      await prefs.setInt('theme_mode', _preferredMode.index);
+      await prefs.setBool('enable_theme_mode', _enableThemeMode);
 
-      prefs.setInt('accent_color', _accentColor.toARGB32());
-      prefs.setString('accent_name', _accentName);
+      await prefs.setInt('accent_color', _accentColor.toARGB32());
+      await prefs.setString('accent_name', _accentName);
 
-      prefs.setBool('enable_custom_colors', _enableCustomColors);
-      prefs.setDouble('card_radius', _cardRadius);
-      prefs.setDouble('image_radius', _imageRadius);
+      await prefs.setBool('enable_custom_colors', _enableCustomColors);
+      await prefs.setDouble('card_radius', _cardRadius);
+      await prefs.setDouble('image_radius', _imageRadius);
 
       if (_customBackgroundColor != null) {
-        prefs.setInt('custom_bg_color', _customBackgroundColor!.toARGB32());
+        await prefs.setInt('custom_bg_color', _customBackgroundColor!.toARGB32());
       } else {
-        prefs.remove('custom_bg_color');
+        await prefs.remove('custom_bg_color');
       }
 
       if (_customCardColor != null) {
-        prefs.setInt('custom_card_color', _customCardColor!.toARGB32());
+        await prefs.setInt('custom_card_color', _customCardColor!.toARGB32());
       } else {
-        prefs.remove('custom_card_color');
+        await prefs.remove('custom_card_color');
       }
 
-      prefs.setStringList(
+      await prefs.setStringList(
         'source_configs',
         _sourceConfigs.map((c) => jsonEncode(c.toJson())).toList(),
       );
-      prefs.setString('current_source_config_id', _currentConfig.id);
+      await prefs.setString('current_source_config_id', _currentConfig.id);
     });
   }
 
@@ -394,37 +502,26 @@ class ThemeStore extends ChangeNotifier {
       final cardVal = prefs.getInt('custom_card_color');
       _customCardColor = cardVal != null ? Color(cardVal) : null;
 
+      // ---- sources ----
       final cfgJson = prefs.getStringList('source_configs');
+      List<SourceConfig> loaded = const [];
+
       if (cfgJson != null && cfgJson.isNotEmpty) {
-        final loaded = cfgJson
+        loaded = cfgJson
             .map((e) => SourceConfig.fromJson(jsonDecode(e) as Map<String, dynamic>))
-            .where((c) => c.id.isNotEmpty && c.pluginId.isNotEmpty)
             .toList();
-
-        _sourceConfigs = loaded.isNotEmpty ? loaded : [_registry.defaultConfig()];
-        final currentId = prefs.getString('current_source_config_id');
-
-        _currentConfig = (currentId != null)
-            ? _sourceConfigs.firstWhere((c) => c.id == currentId,
-                orElse: () => _sourceConfigs.first)
-            : _sourceConfigs.first;
-      } else {
-        final def = _registry.defaultConfig();
-        _sourceConfigs = [def];
-        _currentConfig = def;
       }
 
-      // 全量清洗一次，避免历史脏数据
-      _sourceConfigs = _sourceConfigs.map((c) {
-        final p = _registry.plugin(c.pluginId);
-        if (p == null) return c;
-        return c.copyWith(settings: p.sanitizeSettings(c.settings));
-      }).toList();
+      _sourceConfigs = _repairSourceConfigs(loaded.isNotEmpty ? loaded : [_registry.defaultConfig()]);
 
-      final p = _registry.plugin(_currentConfig.pluginId);
-      if (p != null) {
-        _currentConfig =
-            _currentConfig.copyWith(settings: p.sanitizeSettings(_currentConfig.settings));
+      final wantedId = prefs.getString('current_source_config_id');
+      if (wantedId != null && wantedId.trim().isNotEmpty) {
+        _currentConfig = _sourceConfigs.firstWhere(
+          (c) => c.id == wantedId,
+          orElse: () => _sourceConfigs.first,
+        );
+      } else {
+        _currentConfig = _sourceConfigs.first;
       }
 
       _invalidateCapsCache();
@@ -439,6 +536,7 @@ class ThemeStore extends ChangeNotifier {
   @override
   void dispose() {
     _saveDebounce?.cancel();
+    _http.dio.close(force: true);
     super.dispose();
   }
 }

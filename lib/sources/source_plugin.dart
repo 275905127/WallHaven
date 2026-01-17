@@ -5,12 +5,13 @@
 /// - 网络请求统一走：data/SourceFactory -> data/sources/*Source -> Repository -> UI
 ///
 /// ⚠️ 这意味着：这里不再 import Dio / Wallpaper / WallhavenClient
+library source_plugin;
 
 /// 插件实例配置（可持久化）
 class SourceConfig {
-  final String id;       // 实例 id（default_wallhaven / cfg_xxx）
+  final String id; // 实例 id（default_wallhaven / cfg_xxx）
   final String pluginId; // wallhaven / generic / ...
-  final String name;     // 展示名
+  final String name; // 展示名
   final Map<String, dynamic> settings;
 
   const SourceConfig({

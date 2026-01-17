@@ -1,4 +1,11 @@
-// lib/sources/simple_json_source_plugin.dart
+/// lib/sources/simple_json_source_plugin.dart
+///
+/// Generic JSON 图源插件（自由配置）
+/// - 支持两类：
+///   1) 随机直链：listKey = "@direct"（通常不需要 searchPath/detailPath）
+///   2) API 搜索/详情：需要 searchPath/detailPath
+library simple_json_source_plugin;
+
 import 'source_plugin.dart';
 
 class SimpleJsonPlugin implements SourcePlugin {
@@ -18,20 +25,22 @@ class SimpleJsonPlugin implements SourcePlugin {
       name: 'Generic JSON',
       settings: {
         'baseUrl': 'https://example.com/api',
-        'searchPath': '/search',
-        'detailPath': '/w/{id}',
+        'listKey': '@direct', // ✅ 默认按“随机直链”理解
+        'searchPath': '',     // ✅ 直链模式下通常为空
+        'detailPath': '',     // ✅ 直链模式下通常为空
         'apiKey': null,
+        'filters': [],
       },
     );
   }
 
   @override
-  Map<String, dynamic> sanitizeSettings(Map<String, dynamic> s) {
-    final m = Map<String, dynamic>.from(s);
+  Map<String, dynamic> sanitizeSettings(Map<String, dynamic> raw) {
+    final m = Map<String, dynamic>.from(raw);
 
     String normBaseUrl(String? url) {
       var u = (url ?? '').trim();
-      if (u.isEmpty) return u;
+      if (u.isEmpty) return '';
       if (!u.startsWith('http://') && !u.startsWith('https://')) {
         u = 'https://$u';
       }
@@ -41,9 +50,9 @@ class SimpleJsonPlugin implements SourcePlugin {
       return u;
     }
 
-    String normPath(String? p, String fallback) {
-      var v = (p ?? fallback).trim();
-      if (v.isEmpty) v = fallback;
+    String normPath(String? p) {
+      var v = (p ?? '').trim();
+      if (v.isEmpty) return '';
       if (!v.startsWith('/')) v = '/$v';
       return v;
     }
@@ -54,12 +63,39 @@ class SimpleJsonPlugin implements SourcePlugin {
       return t;
     }
 
+    String normListKey(dynamic v) {
+      final t = (v is String) ? v.trim() : '';
+      return t.isEmpty ? '@direct' : t;
+    }
+
+    List<dynamic> normFilters(dynamic v) {
+      if (v is List) return v;
+      return const [];
+    }
+
+    // baseUrl / apiKey
     m['baseUrl'] = normBaseUrl(m['baseUrl'] as String?);
-    m['searchPath'] = normPath(m['searchPath'] as String?, '/search');
-    m['detailPath'] = normPath(m['detailPath'] as String?, '/w/{id}');
     m['apiKey'] = normOpt(m['apiKey'] as String?);
 
-    return m;
-  } // ✅ 关 sanitizeSettings
+    // 兼容 UI / 自由 JSON
+    m['listKey'] = normListKey(m['listKey']);
+    m['filters'] = normFilters(m['filters']);
 
-} // ✅ 关 class SimpleJsonPlugin
+    // ✅ 关键修正：
+    // 如果是随机直链（@direct），不要强行补 search/detail
+    final isDirect = (m['listKey'] as String) == '@direct';
+
+    if (isDirect) {
+      m['searchPath'] = normPath(m['searchPath'] as String?); // 保留用户输入；默认空
+      m['detailPath'] = normPath(m['detailPath'] as String?); // 保留用户输入；默认空
+    } else {
+      // 非直链模式：你至少需要 search/detail 的默认值兜底
+      final sp = normPath(m['searchPath'] as String?);
+      final dp = normPath(m['detailPath'] as String?);
+      m['searchPath'] = sp.isEmpty ? '/search' : sp;
+      m['detailPath'] = dp.isEmpty ? '/w/{id}' : dp;
+    }
+
+    return m;
+  }
+}

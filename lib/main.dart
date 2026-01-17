@@ -1,4 +1,3 @@
-//  lib/main.dart
 import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -13,7 +12,7 @@ import 'data/repository/wallpaper_repository.dart';
 import 'data/source_factory.dart';
 import 'domain/entities/filter_spec.dart';
 import 'domain/entities/search_query.dart';
-import 'domain/entities/source_capabilities.dart';
+import 'domain/entities/source_capabilities.dart' show SortBy, SortOrder, RatingLevel;
 import 'domain/entities/wallpaper_item.dart';
 import 'pages/filter_drawer.dart';
 import 'pages/settings_page.dart';
@@ -21,6 +20,7 @@ import 'pages/wallpaper_detail_page.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_store.dart';
 import 'widgets/foggy_app_bar.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,43 +31,47 @@ void main() async {
   ));
 
   final themeStore = ThemeStore();
+
   runApp(
     ThemeScope(
       store: themeStore,
-      child: ListenableBuilder(
-        listenable: themeStore,
-        builder: (context, child) => const MyApp(),
-      ),
+      child: MyApp(), // ❗不要 const，否则很容易卡住不重建
     ),
   );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
 
-    final customBg = store.enableCustomColors ? store.customBackgroundColor : null;
-    final customCard = store.enableCustomColors ? store.customCardColor : null;
+    // ✅ 监听 store：主题/圆角/自定义色变化会真实触发 MaterialApp 重建
+    return ListenableBuilder(
+      listenable: store,
+      builder: (context, _) {
+        final customBg = store.enableCustomColors ? store.customBackgroundColor : null;
+        final customCard = store.enableCustomColors ? store.customCardColor : null;
 
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      themeMode: store.mode,
-      theme: AppTheme.light(
-        store.accentColor,
-        customBg: customBg,
-        customCard: customCard,
-        cardRadius: store.cardRadius,
-      ),
-      darkTheme: AppTheme.dark(
-        store.accentColor,
-        customBg: customBg,
-        customCard: customCard,
-        cardRadius: store.cardRadius,
-      ),
-      home: const HomePage(),
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          themeMode: store.mode,
+          theme: AppTheme.light(
+            store.accentColor,
+            customBg: customBg,
+            customCard: customCard,
+            cardRadius: store.cardRadius,
+          ),
+          darkTheme: AppTheme.dark(
+            store.accentColor,
+            customBg: customBg,
+            customCard: customCard,
+            cardRadius: store.cardRadius,
+          ),
+          home: const HomePage(),
+        );
+      },
     );
   }
 }
@@ -455,7 +459,7 @@ class _HomePageState extends State<HomePage> {
                               builder: (_) => WallpaperDetailPage(
                                 id: item.id,
                                 heroThumb: imageUrl,
-                                item: item, // ← 就是这里
+                                item: item,
                               ),
                             ),
                           ),
