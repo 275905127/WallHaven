@@ -1,14 +1,18 @@
 name: Flutter CI
 
 on:
-  pull_request:
-    branches: [ "main" ]
   push:
+    branches: [ "main" ]
+  pull_request:
     branches: [ "main" ]
   workflow_dispatch:
     inputs:
       build_apk:
         description: "Also build release APK"
+        required: false
+        default: "true"
+      build_aab:
+        description: "Also build release AAB"
         required: false
         default: "true"
       target_platform:
@@ -96,11 +100,33 @@ jobs:
       # Tests（阻断）
       - name: Run tests
         run: flutter test
+      
+      - name: Decode keystore & write key.properties
+        if: ${{ inputs.build_aab != 'false' || inputs.build_apk == 'true' }}
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android/upload-keystore.jks
+          cat > android/key.properties <<'EOF'
+          storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
+          keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
+          storeFile=upload-keystore.jks
+          EOF
 
       # Build（阻断）
       - name: Build APK (release)
         if: ${{ inputs.build_apk == 'true' }}
         run: flutter build apk --release --target-platform="${{ inputs.target_platform }}"
+        
+      - name: Build AAB (release)
+        if: ${{ inputs.build_aab != 'false' }}
+        run: flutter build appbundle --release
+
+      - name: Upload AAB artifact
+        if: ${{ inputs.build_aab != 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: build/app/outputs/bundle/release/*.aab
 
       - name: Upload APK artifact
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_apk == 'true' }}
