@@ -1,33 +1,50 @@
 // lib/pages/settings_page.dart
 import 'package:flutter/material.dart';
 
+import 'personalization_page.dart';
+import 'source_management_page.dart';
+
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
+
+  void _push(BuildContext context, Widget page) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
-        children: const [
+        children: [
           ListTile(
-            leading: Icon(Icons.palette_outlined),
-            title: Text('主题'),
-            subtitle: Text('浅色 / 深色'),
+            leading: const Icon(Icons.palette_outlined),
+            title: const Text('主题 / 个性化'),
+            subtitle: const Text('浅色 / 深色 / 自定义颜色 / 圆角'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _push(context, const PersonalizationPage()),
           ),
-          Divider(),
+          const Divider(height: 1),
 
           ListTile(
-            leading: Icon(Icons.filter_alt_outlined),
-            title: Text('默认筛选'),
-            subtitle: Text('分辨率 / 分类'),
+            leading: const Icon(Icons.source_outlined),
+            title: const Text('图源管理'),
+            subtitle: const Text('添加 / 编辑 / 切换图源'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _push(context, const SourceManagementPage()),
           ),
-          Divider(),
+          const Divider(height: 1),
 
           ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('关于'),
-            subtitle: Text('版本信息'),
+            leading: const Icon(Icons.info_outline),
+            title: const Text('关于'),
+            subtitle: const Text('版本信息'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showAboutDialog(
+              context: context,
+              applicationName: 'wallhaven',
+              applicationVersion: 'dev',
+            ),
           ),
         ],
       ),
