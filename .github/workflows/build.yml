@@ -2,9 +2,9 @@ name: Flutter CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
     inputs:
       build_apk:
@@ -75,15 +75,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
+      - name: Debug inputs
+        run: |
+          echo "event='${{ github.event_name }}'"
+          echo "build_apk='${{ inputs.build_apk }}'"
+          echo "build_aab='${{ inputs.build_aab }}'"
+          echo "target_platform='${{ inputs.target_platform }}'"
+          echo "strict_analyze='${{ inputs.strict_analyze }}'"
 
       - name: Pub get
         run: flutter pub get
 
-      # 可选：格式（不阻断）
       - name: Check format (non-blocking)
         run: dart format . || true
 
-      # Analyze（按你的输入决定是否阻断）
       - name: Analyze (non-blocking by default)
         if: ${{ inputs.strict_analyze != 'true' }}
         run: flutter analyze || true
@@ -92,13 +97,21 @@ jobs:
         if: ${{ inputs.strict_analyze == 'true' }}
         run: flutter analyze
 
-      # Tests（阻断）
       - name: Run tests
         run: flutter test
-      
+
+      # 只有在需要构建 release（apk 或 aab）时才准备签名文件
       - name: Decode keystore & write key.properties
         if: ${{ inputs.build_aab != 'false' || inputs.build_apk == 'true' }}
+        shell: bash
         run: |
+          set -euo pipefail
+
+          if [ -z "${{ secrets.ANDROID_KEYSTORE_B64 }}" ]; then
+            echo "ANDROID_KEYSTORE_B64 is empty. Skipping signing setup."
+            exit 0
+          fi
+
           echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android/upload-keystore.jks
 
           cat > android/key.properties <<'EOF'
@@ -108,11 +121,19 @@ jobs:
           storeFile=upload-keystore.jks
           EOF
 
-      # Build（阻断）
+      - name: Debug signing files
+        if: ${{ inputs.build_aab != 'false' || inputs.build_apk == 'true' }}
+        shell: bash
+        run: |
+          ls -la android || true
+          ls -la android/app || true
+          echo "---- android/key.properties ----"
+          cat android/key.properties || true
+
       - name: Build APK (release)
         if: ${{ inputs.build_apk == 'true' }}
         run: flutter build apk --release --target-platform="${{ inputs.target_platform }}"
-        
+
       - name: Build AAB (release)
         if: ${{ inputs.build_aab != 'false' }}
         run: flutter build appbundle --release
@@ -125,7 +146,7 @@ jobs:
           path: build/app/outputs/bundle/release/*.aab
 
       - name: Upload APK artifact
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_apk == 'true' }}
+        if: ${{ inputs.build_apk == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
