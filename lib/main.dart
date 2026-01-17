@@ -1,3 +1,4 @@
+// lib/main.dart
 import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -20,7 +21,6 @@ import 'pages/wallpaper_detail_page.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_store.dart';
 import 'widgets/foggy_app_bar.dart';
-
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -105,6 +105,9 @@ class _HomePageState extends State<HomePage> {
   FilterSpec _filters = const FilterSpec();
 
   bool _didInitDeps = false; // ✅ 防止 didChangeDependencies 重复初始化
+
+  // ✅ 关键：失败不再白屏
+  String? _lastError;
 
   @override
   void initState() {
@@ -254,7 +257,10 @@ class _HomePageState extends State<HomePage> {
     if (_isLoading) return;
     if (_repo == null) return;
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _lastError = null; // ✅ 新一轮请求，先清错误
+    });
 
     _page = 1;
     _items.clear();
@@ -268,13 +274,24 @@ class _HomePageState extends State<HomePage> {
     if (_isLoading) return;
     if (_repo == null) return;
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      // loadMore 不清 _lastError：你滚到最后加载失败，应该保留错误线索
+    });
 
     final nextPage = _page + 1;
     final ok = await _fetchItems(page: nextPage);
     if (ok) _page = nextPage;
 
     if (mounted) setState(() => _isLoading = false);
+  }
+
+  String _shortError(Object e) {
+    final s = e.toString().trim();
+    if (s.isEmpty) return '未知错误';
+    // 避免爆一长串堆栈/对象打印
+    if (s.length > 240) return '${s.substring(0, 240)}…';
+    return s;
   }
 
   Future<bool> _fetchItems({required int page}) async {
@@ -292,12 +309,26 @@ class _HomePageState extends State<HomePage> {
       );
 
       if (!mounted) return false;
-      setState(() => _items.addAll(newItems));
+
+      // ✅ 请求成功：清错误
+      setState(() {
+        _lastError = null;
+        _items.addAll(newItems);
+      });
+
       return true;
     } catch (e) {
       if (!mounted) return false;
+
+      final msg = _shortError(e);
+
+      setState(() {
+        _lastError = msg; // ✅ 关键：让错误在页面可见
+      });
+
+      // 保留 Snackbar，但它不再是唯一反馈渠道
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('图源请求失败：$e')),
+        SnackBar(content: Text('图源请求失败：$msg')),
       );
       return false;
     }
@@ -361,6 +392,95 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _openDrawer() {
+    _scaffoldKey.currentState?.openDrawer();
+  }
+
+  Widget _emptyState(BuildContext context) {
+    final store = ThemeScope.of(context);
+    final cfg = store.currentSourceConfig;
+    final baseUrl = (store.currentSettings['baseUrl'] as String?)?.trim() ?? '';
+
+    final title = (_lastError != null) ? '加载失败' : '没有结果';
+    final subtitle = (_lastError != null)
+        ? _lastError!
+        : '当前筛选条件可能导致 0 条结果，或图源返回为空。';
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 120, 18, 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _lastError != null ? Icons.cloud_off : Icons.inbox_outlined,
+                size: 44,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('当前图源：${cfg.name} (${cfg.pluginId})'),
+                    if (baseUrl.isNotEmpty) Text('baseUrl：$baseUrl'),
+                    const SizedBox(height: 4),
+                    Text('page=$_page  items=${_items.length}  loading=$_isLoading'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                alignment: WrapAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _isLoading ? null : _initData,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('重试'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _openDrawer,
+                    icon: const Icon(Icons.tune),
+                    label: const Text('打开筛选'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SettingsPage()),
+                      );
+                    },
+                    icon: const Icon(Icons.settings),
+                    label: const Text('去设置/图源管理'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
@@ -375,6 +495,10 @@ class _HomePageState extends State<HomePage> {
           _lastSourceConfigId = currentId;
         } else if (_lastSourceConfigId != currentId) {
           _lastSourceConfigId = currentId;
+
+          // ✅ 切源：把错误也清掉，否则你会看到上一源的错误残留
+          _lastError = null;
+
           if (!_isLoading) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
@@ -398,6 +522,9 @@ class _HomePageState extends State<HomePage> {
               );
 
         final drawerRadius = store.cardRadius;
+
+        final bool showSpinnerOnly = _items.isEmpty && _isLoading && _lastError == null;
+        final bool showEmpty = _items.isEmpty && !_isLoading;
 
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: overlay,
@@ -431,64 +558,70 @@ class _HomePageState extends State<HomePage> {
               fogStrength: 0.82,
               actions: const [],
             ),
-            body: _items.isEmpty && _isLoading
+            body: showSpinnerOnly
                 ? const Center(child: CircularProgressIndicator())
-                : RefreshIndicator(
-                    onRefresh: _onRefresh,
-                    edgeOffset: 100,
-                    child: MasonryGridView.count(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.fromLTRB(12, 100, 12, 20),
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      itemCount: _items.length,
-                      itemBuilder: (context, index) {
-                        final item = _items[index];
+                : showEmpty
+                    ? _emptyState(context)
+                    : RefreshIndicator(
+                        onRefresh: _onRefresh,
+                        edgeOffset: 100,
+                        child: MasonryGridView.count(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.fromLTRB(12, 100, 12, 20),
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          itemCount: _items.length,
+                          itemBuilder: (context, index) {
+                            final item = _items[index];
 
-                        final w = item.width <= 0 ? 1 : item.width;
-                        final h = item.height <= 0 ? 1 : item.height;
-                        final aspectRatio = (w / h).clamp(0.5, 2.0);
+                            final w = item.width <= 0 ? 1 : item.width;
+                            final h = item.height <= 0 ? 1 : item.height;
+                            final aspectRatio = (w / h).clamp(0.5, 2.0);
 
-                        final imageUrl = item.preview.toString();
+                            final imageUrl = item.preview.toString();
 
-                        return GestureDetector(
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => WallpaperDetailPage(
-                                id: item.id,
-                                heroThumb: imageUrl,
-                                item: item,
-                              ),
-                            ),
-                          ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: theme.cardColor,
-                              borderRadius: BorderRadius.circular(store.imageRadius),
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: AspectRatio(
-                              aspectRatio: aspectRatio,
-                              child: CachedNetworkImage(
-                                imageUrl: imageUrl,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  color: theme.cardColor,
-                                  child: const Center(child: Icon(Icons.image, color: Colors.grey)),
-                                ),
-                                errorWidget: (context, url, error) => Container(
-                                  color: theme.cardColor,
-                                  child: const Center(child: Icon(Icons.error, color: Colors.grey)),
+                            return GestureDetector(
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => WallpaperDetailPage(
+                                    id: item.id,
+                                    heroThumb: imageUrl,
+                                    item: item,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: theme.cardColor,
+                                  borderRadius: BorderRadius.circular(store.imageRadius),
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: AspectRatio(
+                                  aspectRatio: aspectRatio,
+                                  child: CachedNetworkImage(
+                                    imageUrl: imageUrl,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) => Container(
+                                      color: theme.cardColor,
+                                      child: const Center(
+                                        child: Icon(Icons.image, color: Colors.grey),
+                                      ),
+                                    ),
+                                    errorWidget: (context, url, error) => Container(
+                                      color: theme.cardColor,
+                                      child: const Center(
+                                        child: Icon(Icons.error, color: Colors.grey),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
           ),
         );
       },
