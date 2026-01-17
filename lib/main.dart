@@ -47,7 +47,6 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
 
-    // ✅ 监听 store：主题/圆角/自定义色变化会真实触发 MaterialApp 重建
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {
@@ -76,7 +75,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// 🏠 首页
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
   @override
@@ -100,20 +98,25 @@ class _HomePageState extends State<HomePage> {
 
   late final HttpClient _http;
   late final SourceFactory _factory;
-  WallpaperRepository? _repo; // ✅ 依赖 ThemeScope，不能在 initState 里 new
+  WallpaperRepository? _repo;
 
   FilterSpec _filters = const FilterSpec();
+  bool _didInitDeps = false;
 
-  bool _didInitDeps = false; // ✅ 防止 didChangeDependencies 重复初始化
-
-  // ✅ 关键：失败不再白屏
+  // ====== 诊断信息（不靠命令，不靠日志） ======
   String? _lastError;
+  String? _lastErrorType;
+
+  String? _lastRequestUrl;
+  Map<String, dynamic>? _lastRequestParams;
+
+  int? _lastResponseCount;
+  String? _lastResponseSampleUrl;
 
   @override
   void initState() {
     super.initState();
 
-    // ✅ 这些不依赖 context，可以留在 initState
     _http = HttpClient();
     _factory = SourceFactory(http: _http);
 
@@ -136,13 +139,9 @@ class _HomePageState extends State<HomePage> {
     if (_didInitDeps) return;
     _didInitDeps = true;
 
-    // ✅ 只能在这里（或 build）里依赖 ThemeScope.of(context)
     final store = ThemeScope.of(context);
-
-    // 初始化 repo（依赖当前 source）
     _repo = WallpaperRepository(_factory.fromStore(store));
 
-    // 启动流程（只跑一次）
     _bootstrap();
   }
 
@@ -259,7 +258,12 @@ class _HomePageState extends State<HomePage> {
 
     setState(() {
       _isLoading = true;
-      _lastError = null; // ✅ 新一轮请求，先清错误
+
+      // 新一轮请求：把“上一次失败/成功的诊断”清到可控状态
+      _lastError = null;
+      _lastErrorType = null;
+      _lastResponseCount = null;
+      _lastResponseSampleUrl = null;
     });
 
     _page = 1;
@@ -274,10 +278,7 @@ class _HomePageState extends State<HomePage> {
     if (_isLoading) return;
     if (_repo == null) return;
 
-    setState(() {
-      _isLoading = true;
-      // loadMore 不清 _lastError：你滚到最后加载失败，应该保留错误线索
-    });
+    setState(() => _isLoading = true);
 
     final nextPage = _page + 1;
     final ok = await _fetchItems(page: nextPage);
@@ -289,9 +290,99 @@ class _HomePageState extends State<HomePage> {
   String _shortError(Object e) {
     final s = e.toString().trim();
     if (s.isEmpty) return '未知错误';
-    // 避免爆一长串堆栈/对象打印
     if (s.length > 240) return '${s.substring(0, 240)}…';
     return s;
+  }
+
+  // ====== Wallhaven 参数（仅用于“展示诊断”，不参与真实请求逻辑） ======
+  String _mapWallhavenSortBy(SortBy v) {
+    switch (v) {
+      case SortBy.toplist:
+        return 'toplist';
+      case SortBy.newest:
+        return 'date_added';
+      case SortBy.views:
+        return 'views';
+      case SortBy.favorites:
+        return 'favorites';
+      case SortBy.random:
+        return 'random';
+      case SortBy.relevance:
+        return 'relevance';
+    }
+  }
+
+  String _mapWallhavenOrder(SortOrder o) => o == SortOrder.asc ? 'asc' : 'desc';
+
+  String _mapWallhavenCategories(Set<String> cats) {
+    final g = cats.contains('general') ? '1' : '0';
+    final a = cats.contains('anime') ? '1' : '0';
+    final p = cats.contains('people') ? '1' : '0';
+    final s = '$g$a$p';
+    return (s == '000') ? '111' : s;
+  }
+
+  String _mapWallhavenPurity(Set<RatingLevel> r) {
+    final sfw = r.contains(RatingLevel.safe) ? '1' : '0';
+    final sk = r.contains(RatingLevel.questionable) ? '1' : '0';
+    final ns = r.contains(RatingLevel.explicit) ? '1' : '0';
+    final s = '$sfw$sk$ns';
+    return (s == '000') ? '100' : s;
+  }
+
+  void _updateDiagBeforeRequest({
+    required ThemeStore store,
+    required int page,
+  }) {
+    final cfg = store.currentSourceConfig;
+    final settings = store.currentSettings;
+    final baseUrl = (settings['baseUrl'] as String?)?.trim() ?? '';
+
+    String? url;
+    final params = <String, dynamic>{};
+
+    if (cfg.pluginId == 'wallhaven') {
+      url = baseUrl.isNotEmpty ? '$baseUrl/search' : null;
+
+      final f = _filters;
+      params['page'] = page;
+      if (f.text.trim().isNotEmpty) params['q'] = f.text.trim();
+      if (f.sortBy != null) params['sorting'] = _mapWallhavenSortBy(f.sortBy!);
+      if (f.order != null) params['order'] = _mapWallhavenOrder(f.order!);
+
+      if (f.resolutions.isNotEmpty) {
+        params['resolutions'] = (f.resolutions.toList()..sort()).join(',');
+      }
+      if ((f.atleast ?? '').trim().isNotEmpty) params['atleast'] = f.atleast!.trim();
+
+      if (f.ratios.isNotEmpty) {
+        params['ratios'] = (f.ratios.toList()..sort()).join(',');
+      }
+      if ((f.color ?? '').trim().isNotEmpty) {
+        params['colors'] = f.color!.trim().replaceAll('#', '');
+      }
+
+      params['categories'] = _mapWallhavenCategories(f.categories);
+      params['purity'] = _mapWallhavenPurity(f.rating);
+
+      if ((f.timeRange ?? '').trim().isNotEmpty) params['topRange'] = f.timeRange!.trim();
+
+      final apiKey = (settings['apiKey'] as String?)?.trim();
+      if (apiKey != null && apiKey.isNotEmpty) params['apikey'] = '***'; // 不把 key 明文打出来
+    } else if (cfg.pluginId == 'generic') {
+      // generic 的真实请求形态是可配置的：这里只能给“能看懂的最小诊断”
+      url = baseUrl.isNotEmpty ? baseUrl : null;
+      params['note'] = 'generic 图源请求形态由 JSON 配置决定，这里只展示基础信息';
+      params['page'] = page;
+      if (_filters.text.trim().isNotEmpty) params['q'] = _filters.text.trim();
+    } else {
+      url = baseUrl.isNotEmpty ? baseUrl : null;
+      params['note'] = '未知 pluginId：无法推断请求路径';
+      params['page'] = page;
+    }
+
+    _lastRequestUrl = url;
+    _lastRequestParams = params;
   }
 
   Future<bool> _fetchItems({required int page}) async {
@@ -299,6 +390,9 @@ class _HomePageState extends State<HomePage> {
     if (repo == null) return false;
 
     final store = ThemeScope.of(context);
+
+    // ✅ 每次真实请求前，把“我们认为会请求什么”记录下来（用于页面显示）
+    _updateDiagBeforeRequest(store: store, page: page);
 
     try {
       final src = _factory.fromStore(store);
@@ -310,9 +404,13 @@ class _HomePageState extends State<HomePage> {
 
       if (!mounted) return false;
 
-      // ✅ 请求成功：清错误
       setState(() {
         _lastError = null;
+        _lastErrorType = null;
+
+        _lastResponseCount = newItems.length;
+        _lastResponseSampleUrl = newItems.isNotEmpty ? newItems.first.preview.toString() : null;
+
         _items.addAll(newItems);
       });
 
@@ -323,10 +421,12 @@ class _HomePageState extends State<HomePage> {
       final msg = _shortError(e);
 
       setState(() {
-        _lastError = msg; // ✅ 关键：让错误在页面可见
+        _lastError = msg;
+        _lastErrorType = e.runtimeType.toString();
+        _lastResponseCount = null;
+        _lastResponseSampleUrl = null;
       });
 
-      // 保留 Snackbar，但它不再是唯一反馈渠道
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('图源请求失败：$msg')),
       );
@@ -396,14 +496,61 @@ class _HomePageState extends State<HomePage> {
     _scaffoldKey.currentState?.openDrawer();
   }
 
-  Widget _emptyState(BuildContext context) {
+  Widget _diagnosticBox(BuildContext context) {
     final store = ThemeScope.of(context);
     final cfg = store.currentSourceConfig;
     final baseUrl = (store.currentSettings['baseUrl'] as String?)?.trim() ?? '';
 
+    String prettyJson(Object? v) {
+      try {
+        return const JsonEncoder.withIndent('  ').convert(v);
+      } catch (_) {
+        return v?.toString() ?? '';
+      }
+    }
+
+    final reqUrl = _lastRequestUrl ?? '(unknown)';
+    final reqParams = _lastRequestParams ?? const <String, dynamic>{};
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).dividerColor),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: DefaultTextStyle(
+        style: Theme.of(context).textTheme.bodySmall ?? const TextStyle(fontSize: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('当前图源：${cfg.name} (${cfg.pluginId})'),
+            if (baseUrl.isNotEmpty) Text('baseUrl：$baseUrl'),
+            const SizedBox(height: 6),
+            Text('请求（推断）：$reqUrl'),
+            const SizedBox(height: 4),
+            Text('queryParameters（推断）：\n${prettyJson(reqParams)}'),
+            const SizedBox(height: 6),
+            Text('结果：'
+                ' page=$_page'
+                ' items=${_items.length}'
+                ' loading=$_isLoading'
+                '${_lastResponseCount != null ? ' lastCount=$_lastResponseCount' : ''}'),
+            if ((_lastResponseSampleUrl ?? '').isNotEmpty) Text('示例：${_lastResponseSampleUrl!}'),
+            if ((_lastError ?? '').isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text('错误类型：${_lastErrorType ?? '(unknown)'}'),
+              Text('错误信息：${_lastError!}'),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyState(BuildContext context) {
     final title = (_lastError != null) ? '加载失败' : '没有结果';
     final subtitle = (_lastError != null)
-        ? _lastError!
+        ? '请求失败（见下方诊断）'
         : '当前筛选条件可能导致 0 条结果，或图源返回为空。';
 
     return Center(
@@ -419,10 +566,7 @@ class _HomePageState extends State<HomePage> {
                 size: 44,
               ),
               const SizedBox(height: 12),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 8),
               Text(
                 subtitle,
@@ -430,22 +574,10 @@ class _HomePageState extends State<HomePage> {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Theme.of(context).dividerColor),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('当前图源：${cfg.name} (${cfg.pluginId})'),
-                    if (baseUrl.isNotEmpty) Text('baseUrl：$baseUrl'),
-                    const SizedBox(height: 4),
-                    Text('page=$_page  items=${_items.length}  loading=$_isLoading'),
-                  ],
-                ),
-              ),
+
+              // ✅ 核心：不用你跑命令，页面自己告诉你“请求推断/参数/错误/样例”
+              _diagnosticBox(context),
+
               const SizedBox(height: 14),
               Wrap(
                 spacing: 10,
@@ -496,8 +628,13 @@ class _HomePageState extends State<HomePage> {
         } else if (_lastSourceConfigId != currentId) {
           _lastSourceConfigId = currentId;
 
-          // ✅ 切源：把错误也清掉，否则你会看到上一源的错误残留
+          // 切源：清掉上一源的诊断残留
           _lastError = null;
+          _lastErrorType = null;
+          _lastResponseCount = null;
+          _lastResponseSampleUrl = null;
+          _lastRequestUrl = null;
+          _lastRequestParams = null;
 
           if (!_isLoading) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
