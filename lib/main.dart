@@ -13,6 +13,7 @@ import 'data/repository/wallpaper_repository.dart';
 import 'data/source_factory.dart';
 import 'domain/entities/filter_spec.dart';
 import 'domain/entities/search_query.dart';
+import 'domain/entities/source_capabilities.dart';
 import 'domain/entities/wallpaper_item.dart';
 import 'pages/filter_drawer.dart';
 import 'pages/settings_page.dart';
@@ -20,8 +21,6 @@ import 'pages/wallpaper_detail_page.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_store.dart';
 import 'widgets/foggy_app_bar.dart';
-import 'domain/entities/source_capabilities.dart';
-import 'domain/search/query_spec.dart';
 
 
 void main() async {
