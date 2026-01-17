@@ -13,55 +13,54 @@ class SourceFactory {
   WallpaperSource fromStore(ThemeStore store) {
     final cfg = store.currentSourceConfig;
     final pluginId = cfg.pluginId;
+
+    // ✅ 只从 store.currentSettings 取（ThemeStore 已经 sanitize + wallhaven /api/v1 兜底迁移）
     final settings = store.currentSettings;
 
-    if (pluginId == 'wallhaven') {
-      // ✅ 与 WallhavenSourcePlugin 的默认值对齐（plugin 里是 https://wallhaven.cc）
-      // 具体 API 路径应该由 WallhavenSource 自己拼（/api/v1/...），不要在这里塞进去。
-      final baseUrl = (settings['baseUrl'] as String?)?.trim();
-      final fixedBaseUrl = (baseUrl == null || baseUrl.isEmpty) ? 'https://wallhaven.cc' : baseUrl;
+    switch (pluginId) {
+      case 'wallhaven':
+        {
+          // ThemeStore 已保证是 https://wallhaven.cc/api/v1 这种格式
+          final baseUrl = (settings['baseUrl'] as String?)?.trim() ?? '';
+          if (baseUrl.isEmpty) {
+            throw StateError(
+              'Wallhaven baseUrl is empty. Check settings for configId=${cfg.id}',
+            );
+          }
 
-      return WallhavenSource(
-        sourceId: cfg.id,
-        http: http,
-        baseUrl: fixedBaseUrl,
-        apiKey: (settings['apiKey'] as String?) ?? (settings['apikey'] as String?),
-      );
-    }
+          final apiKey = (settings['apiKey'] as String?)?.trim();
+          return WallhavenSource(
+            sourceId: cfg.id,
+            http: http,
+            baseUrl: baseUrl,
+            apiKey: (apiKey != null && apiKey.isNotEmpty) ? apiKey : null,
+          );
+        }
 
-    if (pluginId == 'generic') {
-      final baseUrl = (settings['baseUrl'] as String?)?.trim() ?? '';
-      final listKey = (settings['listKey'] as String?)?.trim() ?? '@direct';
-      final apiKey = (settings['apiKey'] as String?);
+      case 'generic':
+        {
+          final baseUrl = (settings['baseUrl'] as String?)?.trim() ?? '';
+          final searchPath = (settings['searchPath'] as String?)?.trim() ?? '';
+          final detailPath = (settings['detailPath'] as String?)?.trim() ?? '';
 
-      // ✅ 明确分支：@direct = 随机直链模式
-      if (listKey == '@direct') {
-        return GenericJsonSource(
-          sourceId: cfg.id,
-          http: http,
-          baseUrl: baseUrl,
-          searchPath: '', // 直链模式不走搜索
-          detailPath: '', // 直链模式不走详情
-          settings: settings,
-          apiKey: apiKey,
+          final apiKey = (settings['apiKey'] as String?)?.trim();
+          return GenericJsonSource(
+            sourceId: cfg.id,
+            http: http,
+            baseUrl: baseUrl,
+            searchPath: searchPath,
+            detailPath: detailPath,
+            settings: settings,
+            apiKey: (apiKey != null && apiKey.isNotEmpty) ? apiKey : null,
+          );
+        }
+
+      default:
+        throw StateError(
+          'Unsupported pluginId: $pluginId. '
+          'configId=${cfg.id}, name=${cfg.name}. '
+          'Did you forget to register plugin in SourceRegistry?',
         );
-      }
-
-      // ✅ 非直链模式：需要 search/detail（由 sanitize 兜底，但这里再做一次保险）
-      final searchPath = (settings['searchPath'] as String?)?.trim() ?? '';
-      final detailPath = (settings['detailPath'] as String?)?.trim() ?? '';
-
-      return GenericJsonSource(
-        sourceId: cfg.id,
-        http: http,
-        baseUrl: baseUrl,
-        searchPath: searchPath.isEmpty ? '/search' : searchPath,
-        detailPath: detailPath.isEmpty ? '/w/{id}' : detailPath,
-        settings: settings,
-        apiKey: apiKey,
-      );
     }
-
-    throw StateError('Unsupported pluginId: $pluginId');
   }
 }
