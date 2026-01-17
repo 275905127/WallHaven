@@ -75,11 +75,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Debug inputs
-        run: |
-          echo "build_apk='${{ inputs.build_apk }}'"
-          echo "target_platform='${{ inputs.target_platform }}'"
-          echo "strict_analyze='${{ inputs.strict_analyze }}'"
 
       - name: Pub get
         run: flutter pub get
