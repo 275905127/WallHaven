@@ -1,10 +1,8 @@
 // lib/pages/settings_page.dart
 import 'package:flutter/material.dart';
 
-import 'sub_pages.dart'; // 你的 PersonalizationPage / SourceManagementPage 都在 sub_pages.dart 里就这样写
-// 如果你已经拆成单独文件：
-// import 'personalization_page.dart';
-// import 'source_management_page.dart';
+import 'personalization_page.dart';
+import 'source_management_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
