@@ -1,3 +1,4 @@
+// lib/design/app_tokens.dart
 import 'dart:ui' show lerpDouble;
 import 'package:flutter/material.dart';
 
@@ -26,35 +27,18 @@ class AppTokens extends ThemeExtension<AppTokens> {
   final double dividerThickness;
   final double sliderTrackHeight;
 
-  // =============================================================
-  // FoggyAppBar (所有视觉常量必须在 tokens)
-  // =============================================================
-
-  /// 背景透明度：未滚动（更透明）
-  final double appBarFogOpacityIdle; // 0..1
-
-  /// 背景透明度：已滚动（更“实”）
-  final double appBarFogOpacityScrolled; // 0..1
-
-  /// 模糊：未滚动
+  // FoggyAppBar (全部走 tokens，组件不许硬编码)
   final double appBarBlurSigmaIdle;
-
-  /// 模糊：已滚动
   final double appBarBlurSigmaScrolled;
 
-  /// 下边线透明度（仅滚动时显示）
-  final double appBarBottomStrokeOpacityScrolled; // 0..1
+  final double appBarFogOpacityIdle; // 0..1
+  final double appBarFogOpacityScrolled; // 0..1
 
-  /// 下边线宽度
+  final double appBarBottomStrokeOpacityScrolled; // 0..1
   final double appBarBottomStrokeWidth;
 
-  /// AppBar 水平内边距（Row 外层 padding）
   final double appBarHPadding;
-
-  /// leading 左右间距（替代 SizedBox 6）
   final double appBarLeadingGap;
-
-  /// actions 末尾间距（替代 SizedBox 6）
   final double appBarTrailingGap;
 
   // Motion
@@ -82,18 +66,15 @@ class AppTokens extends ThemeExtension<AppTokens> {
     required this.smallRadius,
     required this.dividerThickness,
     required this.sliderTrackHeight,
-
-    // FoggyAppBar
-    required this.appBarFogOpacityIdle,
-    required this.appBarFogOpacityScrolled,
     required this.appBarBlurSigmaIdle,
     required this.appBarBlurSigmaScrolled,
+    required this.appBarFogOpacityIdle,
+    required this.appBarFogOpacityScrolled,
     required this.appBarBottomStrokeOpacityScrolled,
     required this.appBarBottomStrokeWidth,
     required this.appBarHPadding,
     required this.appBarLeadingGap,
     required this.appBarTrailingGap,
-
     required this.expandDuration,
     required this.expandCurve,
     required this.controlThumb,
@@ -108,7 +89,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
       switchThumbOff: const Color(0xFF5D5D5D),
       switchTrackOn: const Color(0xFF0D0D0D),
       switchTrackOff: const Color(0xFFE3E3E3),
-      switchTrackOutline: Colors.black.withAlpha(26), // ~10%
+      switchTrackOutline: Colors.black.withAlpha(26),
       switchTrackOutlineWidth: 1.0,
 
       // Slider (light)
@@ -124,14 +105,14 @@ class AppTokens extends ThemeExtension<AppTokens> {
       dividerThickness: 2.0,
       sliderTrackHeight: 5.0,
 
-      // FoggyAppBar (light)
-      appBarFogOpacityIdle: 0.20,
-      appBarFogOpacityScrolled: 0.82,
-      appBarBlurSigmaIdle: 10.8, // 18 * 0.6
+      // FoggyAppBar
+      appBarBlurSigmaIdle: 12.0,
       appBarBlurSigmaScrolled: 18.0,
+      appBarFogOpacityIdle: 0.20,
+      appBarFogOpacityScrolled: 0.72,
       appBarBottomStrokeOpacityScrolled: 0.10,
       appBarBottomStrokeWidth: 1.0,
-      appBarHPadding: 0.0,
+      appBarHPadding: 8.0,
       appBarLeadingGap: 6.0,
       appBarTrailingGap: 6.0,
 
@@ -152,7 +133,7 @@ class AppTokens extends ThemeExtension<AppTokens> {
       switchThumbOff: const Color(0xFFC4C4C4),
       switchTrackOn: const Color(0xFFFFFFFF),
       switchTrackOff: const Color(0xFF3B3B3B),
-      switchTrackOutline: Colors.white.withAlpha(31), // ~12%
+      switchTrackOutline: Colors.white.withAlpha(31),
       switchTrackOutlineWidth: 1.0,
 
       // Slider (dark)
@@ -168,14 +149,14 @@ class AppTokens extends ThemeExtension<AppTokens> {
       dividerThickness: 2.0,
       sliderTrackHeight: 5.0,
 
-      // FoggyAppBar (dark)
-      appBarFogOpacityIdle: 0.20,
-      appBarFogOpacityScrolled: 0.78,
-      appBarBlurSigmaIdle: 10.8,
+      // FoggyAppBar
+      appBarBlurSigmaIdle: 12.0,
       appBarBlurSigmaScrolled: 18.0,
+      appBarFogOpacityIdle: 0.18,
+      appBarFogOpacityScrolled: 0.62,
       appBarBottomStrokeOpacityScrolled: 0.14,
       appBarBottomStrokeWidth: 1.0,
-      appBarHPadding: 0.0,
+      appBarHPadding: 8.0,
       appBarLeadingGap: 6.0,
       appBarTrailingGap: 6.0,
 
@@ -206,18 +187,15 @@ class AppTokens extends ThemeExtension<AppTokens> {
     double? smallRadius,
     double? dividerThickness,
     double? sliderTrackHeight,
-
-    // FoggyAppBar
-    double? appBarFogOpacityIdle,
-    double? appBarFogOpacityScrolled,
     double? appBarBlurSigmaIdle,
     double? appBarBlurSigmaScrolled,
+    double? appBarFogOpacityIdle,
+    double? appBarFogOpacityScrolled,
     double? appBarBottomStrokeOpacityScrolled,
     double? appBarBottomStrokeWidth,
     double? appBarHPadding,
     double? appBarLeadingGap,
     double? appBarTrailingGap,
-
     Duration? expandDuration,
     Curve? expandCurve,
     Color? controlThumb,
@@ -231,33 +209,27 @@ class AppTokens extends ThemeExtension<AppTokens> {
       switchTrackOff: switchTrackOff ?? this.switchTrackOff,
       switchTrackOutline: switchTrackOutline ?? this.switchTrackOutline,
       switchTrackOutlineWidth: switchTrackOutlineWidth ?? this.switchTrackOutlineWidth,
-
       sliderThumb: sliderThumb ?? this.sliderThumb,
       sliderTrackActive: sliderTrackActive ?? this.sliderTrackActive,
       sliderTrackInactive: sliderTrackInactive ?? this.sliderTrackInactive,
-
       chevronColor: chevronColor ?? this.chevronColor,
       disabledFg: disabledFg ?? this.disabledFg,
       dividerColor: dividerColor ?? this.dividerColor,
-
       smallRadius: smallRadius ?? this.smallRadius,
       dividerThickness: dividerThickness ?? this.dividerThickness,
       sliderTrackHeight: sliderTrackHeight ?? this.sliderTrackHeight,
-
-      appBarFogOpacityIdle: appBarFogOpacityIdle ?? this.appBarFogOpacityIdle,
-      appBarFogOpacityScrolled: appBarFogOpacityScrolled ?? this.appBarFogOpacityScrolled,
       appBarBlurSigmaIdle: appBarBlurSigmaIdle ?? this.appBarBlurSigmaIdle,
       appBarBlurSigmaScrolled: appBarBlurSigmaScrolled ?? this.appBarBlurSigmaScrolled,
+      appBarFogOpacityIdle: appBarFogOpacityIdle ?? this.appBarFogOpacityIdle,
+      appBarFogOpacityScrolled: appBarFogOpacityScrolled ?? this.appBarFogOpacityScrolled,
       appBarBottomStrokeOpacityScrolled:
           appBarBottomStrokeOpacityScrolled ?? this.appBarBottomStrokeOpacityScrolled,
       appBarBottomStrokeWidth: appBarBottomStrokeWidth ?? this.appBarBottomStrokeWidth,
       appBarHPadding: appBarHPadding ?? this.appBarHPadding,
       appBarLeadingGap: appBarLeadingGap ?? this.appBarLeadingGap,
       appBarTrailingGap: appBarTrailingGap ?? this.appBarTrailingGap,
-
       expandDuration: expandDuration ?? this.expandDuration,
       expandCurve: expandCurve ?? this.expandCurve,
-
       controlThumb: controlThumb ?? this.controlThumb,
       controlTrackActive: controlTrackActive ?? this.controlTrackActive,
       controlTrackInactive: controlTrackInactive ?? this.controlTrackInactive,
@@ -267,61 +239,45 @@ class AppTokens extends ThemeExtension<AppTokens> {
   @override
   AppTokens lerp(ThemeExtension<AppTokens>? other, double t) {
     if (other is! AppTokens) return this;
-
     return AppTokens(
       switchThumbOn: Color.lerp(switchThumbOn, other.switchThumbOn, t) ?? switchThumbOn,
       switchThumbOff: Color.lerp(switchThumbOff, other.switchThumbOff, t) ?? switchThumbOff,
       switchTrackOn: Color.lerp(switchTrackOn, other.switchTrackOn, t) ?? switchTrackOn,
       switchTrackOff: Color.lerp(switchTrackOff, other.switchTrackOff, t) ?? switchTrackOff,
-      switchTrackOutline:
-          Color.lerp(switchTrackOutline, other.switchTrackOutline, t) ?? switchTrackOutline,
+      switchTrackOutline: Color.lerp(switchTrackOutline, other.switchTrackOutline, t) ?? switchTrackOutline,
       switchTrackOutlineWidth:
-          lerpDouble(switchTrackOutlineWidth, other.switchTrackOutlineWidth, t) ??
-              switchTrackOutlineWidth,
-
+          lerpDouble(switchTrackOutlineWidth, other.switchTrackOutlineWidth, t) ?? switchTrackOutlineWidth,
       sliderThumb: Color.lerp(sliderThumb, other.sliderThumb, t) ?? sliderThumb,
-      sliderTrackActive:
-          Color.lerp(sliderTrackActive, other.sliderTrackActive, t) ?? sliderTrackActive,
-      sliderTrackInactive:
-          Color.lerp(sliderTrackInactive, other.sliderTrackInactive, t) ?? sliderTrackInactive,
-
+      sliderTrackActive: Color.lerp(sliderTrackActive, other.sliderTrackActive, t) ?? sliderTrackActive,
+      sliderTrackInactive: Color.lerp(sliderTrackInactive, other.sliderTrackInactive, t) ?? sliderTrackInactive,
       chevronColor: Color.lerp(chevronColor, other.chevronColor, t) ?? chevronColor,
       disabledFg: Color.lerp(disabledFg, other.disabledFg, t) ?? disabledFg,
       dividerColor: Color.lerp(dividerColor, other.dividerColor, t) ?? dividerColor,
-
       smallRadius: lerpDouble(smallRadius, other.smallRadius, t) ?? smallRadius,
       dividerThickness: lerpDouble(dividerThickness, other.dividerThickness, t) ?? dividerThickness,
       sliderTrackHeight: lerpDouble(sliderTrackHeight, other.sliderTrackHeight, t) ?? sliderTrackHeight,
 
-      appBarFogOpacityIdle:
-          lerpDouble(appBarFogOpacityIdle, other.appBarFogOpacityIdle, t) ?? appBarFogOpacityIdle,
-      appBarFogOpacityScrolled:
-          lerpDouble(appBarFogOpacityScrolled, other.appBarFogOpacityScrolled, t) ??
-              appBarFogOpacityScrolled,
-      appBarBlurSigmaIdle:
-          lerpDouble(appBarBlurSigmaIdle, other.appBarBlurSigmaIdle, t) ?? appBarBlurSigmaIdle,
+      appBarBlurSigmaIdle: lerpDouble(appBarBlurSigmaIdle, other.appBarBlurSigmaIdle, t) ?? appBarBlurSigmaIdle,
       appBarBlurSigmaScrolled:
-          lerpDouble(appBarBlurSigmaScrolled, other.appBarBlurSigmaScrolled, t) ??
-              appBarBlurSigmaScrolled,
+          lerpDouble(appBarBlurSigmaScrolled, other.appBarBlurSigmaScrolled, t) ?? appBarBlurSigmaScrolled,
+      appBarFogOpacityIdle: lerpDouble(appBarFogOpacityIdle, other.appBarFogOpacityIdle, t) ?? appBarFogOpacityIdle,
+      appBarFogOpacityScrolled:
+          lerpDouble(appBarFogOpacityScrolled, other.appBarFogOpacityScrolled, t) ?? appBarFogOpacityScrolled,
       appBarBottomStrokeOpacityScrolled:
           lerpDouble(appBarBottomStrokeOpacityScrolled, other.appBarBottomStrokeOpacityScrolled, t) ??
               appBarBottomStrokeOpacityScrolled,
       appBarBottomStrokeWidth:
-          lerpDouble(appBarBottomStrokeWidth, other.appBarBottomStrokeWidth, t) ??
-              appBarBottomStrokeWidth,
+          lerpDouble(appBarBottomStrokeWidth, other.appBarBottomStrokeWidth, t) ?? appBarBottomStrokeWidth,
       appBarHPadding: lerpDouble(appBarHPadding, other.appBarHPadding, t) ?? appBarHPadding,
       appBarLeadingGap: lerpDouble(appBarLeadingGap, other.appBarLeadingGap, t) ?? appBarLeadingGap,
-      appBarTrailingGap:
-          lerpDouble(appBarTrailingGap, other.appBarTrailingGap, t) ?? appBarTrailingGap,
+      appBarTrailingGap: lerpDouble(appBarTrailingGap, other.appBarTrailingGap, t) ?? appBarTrailingGap,
 
       expandDuration: other.expandDuration,
       expandCurve: other.expandCurve,
 
       controlThumb: Color.lerp(controlThumb, other.controlThumb, t) ?? controlThumb,
-      controlTrackActive:
-          Color.lerp(controlTrackActive, other.controlTrackActive, t) ?? controlTrackActive,
-      controlTrackInactive:
-          Color.lerp(controlTrackInactive, other.controlTrackInactive, t) ?? controlTrackInactive,
+      controlTrackActive: Color.lerp(controlTrackActive, other.controlTrackActive, t) ?? controlTrackActive,
+      controlTrackInactive: Color.lerp(controlTrackInactive, other.controlTrackInactive, t) ?? controlTrackInactive,
     );
   }
 }
