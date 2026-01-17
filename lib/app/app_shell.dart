@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../pages/home_page.dart';
+import '../pages/personalization_page.dart';
 import '../pages/settings_page.dart';
 import '../theme/theme_store.dart';
 import '../widgets/foggy_app_bar.dart';
@@ -22,7 +23,7 @@ class _AppShellState extends State<AppShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _sc = ScrollController();
 
-  final AppController _controller = AppController();
+  AppController? _controller;
   StreamSubscription<AppEffect>? _effSub;
 
   bool _isScrolled = false;
@@ -35,26 +36,49 @@ class _AppShellState extends State<AppShell> {
       final s = _sc.offset > 0;
       if (s != _isScrolled) setState(() => _isScrolled = s);
     });
+  }
 
-    _effSub = _controller.effects.listen(_handleEffect);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // 只初始化一次
+    if (_controller != null) return;
+
+    final store = ThemeScope.of(context);
+    final c = AppController(store: store);
+    _controller = c;
+    _effSub = c.effects.listen(_handleEffect);
   }
 
   @override
   void dispose() {
     _effSub?.cancel();
-    _controller.dispose();
+    _controller?.dispose();
     _sc.dispose();
     super.dispose();
   }
 
   void _handleEffect(AppEffect e) {
     if (!mounted) return;
+    final c = _controller;
+    if (c == null) return;
 
     switch (e) {
       case NavigateToSettingsEffect():
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const SettingsPage()),
+          MaterialPageRoute(builder: (_) => SettingsPage(controller: c)),
         );
+        break;
+
+      case NavigateToPersonalizationEffect():
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => PersonalizationPage(controller: c)),
+        );
+        break;
+
+      case PopRouteEffect():
+        Navigator.of(context).maybePop();
         break;
 
       case OpenDrawerEffect():
@@ -71,6 +95,12 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
     final drawerRadius = store.cardRadius;
+    final c = _controller;
+
+    // controller 尚未初始化（极短窗口），先给空壳
+    if (c == null) {
+      return const SizedBox.shrink();
+    }
 
     return Scaffold(
       key: _scaffoldKey,
@@ -94,8 +124,8 @@ class _AppShellState extends State<AppShell> {
                 title: const Text('设置'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
-                  _controller.dispatch(const CloseDrawerIntent());
-                  _controller.dispatch(const OpenSettingsIntent());
+                  c.dispatch(const CloseDrawerIntent());
+                  c.dispatch(const OpenSettingsIntent());
                 },
               ),
             ],
