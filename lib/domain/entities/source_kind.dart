@@ -1,4 +1,0 @@
-enum SourceKind {
-  pagedSearch,
-  random,
-}
