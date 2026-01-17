@@ -5,7 +5,7 @@ import 'package:wallhaven/app/app.dart';
 import 'package:wallhaven/theme/theme_store.dart';
 
 void main() {
-  testWidgets('app boots', (WidgetTester tester) async {
+  testWidgets('app boots', (tester) async {
     final store = ThemeStore();
 
     await tester.pumpWidget(
@@ -16,7 +16,6 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-
-    expect(find.byType(MaterialApp), findsOneWidget);
+    expect(find.text('App'), findsOneWidget);
   });
 }
