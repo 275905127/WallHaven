@@ -1,8 +1,10 @@
 // lib/pages/source_management_page.dart
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
+import '../data/http/http_client.dart';
 import '../sources/source_plugin.dart';
 import '../theme/theme_store.dart';
 import '../widgets/foggy_app_bar.dart';
@@ -19,6 +21,9 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
   final ScrollController _sc = ScrollController();
   bool _isScrolled = false;
 
+  // ✅ 专门给“测试图源”用的 HTTP 客户端（避免污染业务链路）
+  final HttpClient _probeHttp = HttpClient();
+
   @override
   void initState() {
     super.initState();
@@ -31,6 +36,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
   @override
   void dispose() {
     _sc.dispose();
+    _probeHttp.dio.close(force: true);
     super.dispose();
   }
 
@@ -38,7 +44,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
 
   String _baseUrlOf(SourceConfig c) {
     final v = c.settings['baseUrl'];
-    return (v is String) ? v : '';
+    return (v is String) ? v.trim() : '';
   }
 
   String? _apiKeyOf(SourceConfig c) {
@@ -53,6 +59,275 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     return null;
   }
 
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  // =========================
+  // ✅ Probe helpers (只用于测试)
+  // =========================
+  String _trimSlash(String s) {
+    var u = s.trim();
+    while (u.endsWith('/')) u = u.substring(0, u.length - 1);
+    return u;
+  }
+
+  String _join(String base, String path) {
+    final b = _trimSlash(base);
+    final p = path.trim();
+    if (p.isEmpty) return b;
+    if (p.startsWith('http://') || p.startsWith('https://')) return p;
+    if (p.startsWith('/')) return '$b$p';
+    return '$b/$p';
+  }
+
+  String _normWallhavenApiBase(String raw) {
+    var u = raw.trim();
+    if (u.isEmpty) u = 'https://wallhaven.cc/api/v1';
+
+    if (!u.startsWith('http://') && !u.startsWith('https://')) {
+      u = 'https://$u';
+    }
+    u = _trimSlash(u);
+
+    // 允许用户填：wallhaven.cc / wallhaven.cc/api / wallhaven.cc/api/v1
+    if (u.endsWith('/api/v1')) return u;
+    if (u.endsWith('/api')) return '$u/v1';
+
+    final uri = Uri.tryParse(u);
+    final host = uri?.host.toLowerCase() ?? '';
+    if (host.contains('wallhaven.cc') && !u.endsWith('/api/v1')) {
+      return '$u/api/v1';
+    }
+
+    // 非 wallhaven 域名就不瞎补
+    return u;
+  }
+
+  String? _extractUrl(dynamic x) {
+    if (x is String) {
+      final s = x.trim();
+      return s.isEmpty ? null : s;
+    }
+    if (x is Map) {
+      for (final k in const ['url', 'image', 'src', 'path', 'link', 'data']) {
+        final v = x[k];
+        if (v is String && v.trim().isNotEmpty) return v.trim();
+      }
+    }
+    return null;
+  }
+
+  dynamic _pickPayload(dynamic root, String listKey) {
+    if (listKey.isEmpty || listKey == '@direct') return root;
+    if (root is Map && root.containsKey(listKey)) return root[listKey];
+    return root;
+  }
+
+  Future<Map<String, dynamic>> _probeWallhaven(SourceConfig cfg) async {
+    final apiBase = _normWallhavenApiBase(_baseUrlOf(cfg));
+    final apiKey = _apiKeyOf(cfg);
+
+    // 最小探测：/search?page=1
+    final url = _join(apiBase, '/search');
+
+    final qp = <String, dynamic>{
+      'page': 1,
+      // 不给 purity/categories 时 Wallhaven 也能回，但结果可能受默认值影响
+      if (apiKey != null && apiKey.isNotEmpty) 'apikey': apiKey,
+    };
+
+    final resp = await _probeHttp.dio.get(url, queryParameters: qp);
+
+    final data = resp.data;
+    if (data is! Map) {
+      return {
+        'ok': false,
+        'status': resp.statusCode ?? -1,
+        'message': '返回不是 JSON object',
+      };
+    }
+
+    final list = (data['data'] as List?) ?? const [];
+    final count = list.length;
+
+    String? firstThumb;
+    if (count > 0) {
+      final e = list.first;
+      if (e is Map) {
+        final thumbs = (e['thumbs'] as Map?) ?? const {};
+        firstThumb = (thumbs['large'] as String?) ??
+            (thumbs['small'] as String?) ??
+            (e['path'] as String?);
+      }
+    }
+
+    return {
+      'ok': resp.statusCode == 200,
+      'status': resp.statusCode ?? -1,
+      'count': count,
+      'sample': firstThumb,
+      'url': url,
+    };
+  }
+
+  Future<Map<String, dynamic>> _probeGeneric(SourceConfig cfg) async {
+    final baseUrl = _baseUrlOf(cfg);
+    final apiKey = _apiKeyOf(cfg);
+
+    final searchPath = (cfg.settings['searchPath'] is String) ? (cfg.settings['searchPath'] as String).trim() : '';
+    final listKey = (cfg.settings['listKey'] is String) ? (cfg.settings['listKey'] as String).trim() : '';
+
+    if (baseUrl.isEmpty) {
+      return {'ok': false, 'status': -1, 'message': 'baseUrl 为空'};
+    }
+
+    // generic 可能 baseUrl 就是完整 endpoint；searchPath 可能为空
+    final url = _join(baseUrl, searchPath);
+
+    final qp = <String, dynamic>{
+      // 不加 page/q，尽量不假设接口
+      if (apiKey != null && apiKey.isNotEmpty) 'apikey': apiKey,
+    };
+
+    final resp = await _probeHttp.dio.get(url, queryParameters: qp);
+    final root = resp.data;
+
+    // 尝试给用户一个“我确实拿到图了”的证据：抽一个 url
+    String? extracted;
+
+    if (listKey == '@direct') {
+      extracted = _extractUrl(root) ?? _extractUrl(_pickPayload(root, listKey));
+    } else {
+      final payload = _pickPayload(root, listKey);
+      extracted = _extractUrl(payload);
+      if (extracted == null && payload is List && payload.isNotEmpty) {
+        extracted = _extractUrl(payload.first);
+      }
+      if (extracted == null && root is Map) {
+        // 常见：dataKey / data
+        final dataKey = (cfg.settings['dataKey'] ?? cfg.settings['listKey'] ?? 'data').toString().trim();
+        final p = root[dataKey];
+        extracted = _extractUrl(p);
+        if (extracted == null && p is List && p.isNotEmpty) {
+          extracted = _extractUrl(p.first);
+        }
+      }
+    }
+
+    return {
+      'ok': resp.statusCode == 200,
+      'status': resp.statusCode ?? -1,
+      'url': url,
+      'sample': extracted,
+      'note': extracted == null ? '没能从响应里提取到直链（但不一定代表配置错，可能字段名不同）' : null,
+    };
+  }
+
+  Future<void> _probeSource(SourceConfig cfg) async {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const AlertDialog(
+        title: Text('测试图源'),
+        content: SizedBox(
+          height: 72,
+          child: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 14),
+              Expanded(child: Text('正在请求接口…')),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    Map<String, dynamic> result;
+    try {
+      final pluginId = cfg.pluginId.trim();
+      if (pluginId == 'wallhaven') {
+        result = await _probeWallhaven(cfg);
+      } else if (pluginId == 'generic') {
+        result = await _probeGeneric(cfg);
+      } else {
+        result = {
+          'ok': false,
+          'status': -1,
+          'message': '不支持测试的 pluginId: $pluginId',
+        };
+      }
+    } on DioException catch (e) {
+      result = {
+        'ok': false,
+        'status': e.response?.statusCode ?? -1,
+        'message': e.message ?? 'DioException',
+        'detail': e.response?.data,
+      };
+    } catch (e) {
+      result = {
+        'ok': false,
+        'status': -1,
+        'message': '异常：$e',
+      };
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pop(); // close loading
+
+    final ok = result['ok'] == true;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final status = result['status'];
+        final url = (result['url']?.toString() ?? '').trim();
+        final msg = (result['message']?.toString() ?? '').trim();
+        final count = result['count'];
+        final sample = (result['sample']?.toString() ?? '').trim();
+        final note = (result['note']?.toString() ?? '').trim();
+
+        String summary = ok ? '✅ 连接成功' : '❌ 连接失败';
+        if (status != null) summary += '（HTTP: $status）';
+
+        final lines = <String>[
+          if (url.isNotEmpty) '请求：$url',
+          if (count != null) '返回数量：$count',
+          if (sample.isNotEmpty) '示例：$sample',
+          if (note.isNotEmpty) '说明：$note',
+          if (msg.isNotEmpty) '错误：$msg',
+        ];
+
+        return AlertDialog(
+          title: Text(summary),
+          content: SingleChildScrollView(
+            child: SelectableText(lines.isEmpty ? '无更多信息' : lines.join('\n\n')),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('关闭'),
+            ),
+            if (sample.isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _toast('已拿到示例直链（你可以复制去浏览器验证）');
+                },
+                child: const Text('OK'),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  // =========================
+  // Add / Edit dialogs
+  // =========================
   void _showAddSourceDialog(BuildContext context) {
     final store = ThemeScope.of(context);
 
@@ -62,11 +337,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     final listKeyCtrl = TextEditingController(text: "@direct");
 
     String? errorText;
-
-    void toast(String msg) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-    }
 
     bool looksLikeJson(String s) {
       final t = s.trim();
@@ -107,12 +377,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         children: [
                           const Icon(Icons.error_outline, size: 18, color: Colors.red),
                           const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              errorText!,
-                              style: const TextStyle(color: Colors.red),
-                            ),
-                          ),
+                          Expanded(child: Text(errorText!, style: const TextStyle(color: Colors.red))),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -148,8 +413,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                                         "listKey": "@direct",
                                         "filters": []
                                       };
-                                      jsonCtrl.text =
-                                          const JsonEncoder.withIndent("  ").convert(sample);
+                                      jsonCtrl.text = const JsonEncoder.withIndent("  ").convert(sample);
                                       setState(() => errorText = null);
                                     },
                                     icon: const Icon(Icons.auto_awesome_outlined, size: 18),
@@ -240,15 +504,13 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         store.addSourceFromJsonString(raw);
 
                         Navigator.pop(dialogCtx);
-                        toast("已添加图源");
+                        _toast("已添加图源");
                         return;
                       }
 
                       final name = nameCtrl.text.trim();
                       final url = urlCtrl.text.trim();
-                      final listKey = listKeyCtrl.text.trim().isEmpty
-                          ? "@direct"
-                          : listKeyCtrl.text.trim();
+                      final listKey = listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
 
                       if (name.isEmpty || url.isEmpty) {
                         setState(() => errorText = "名称和 API 地址是必填。");
@@ -265,7 +527,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                       store.addSourceFromJsonString(jsonEncode(cfg));
 
                       Navigator.pop(dialogCtx);
-                      toast("已添加图源");
+                      _toast("已添加图源");
                     } catch (e) {
                       setState(() => errorText = "添加失败：$e");
                     }
@@ -301,14 +563,13 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
               TextField(
                 controller: nameCtrl,
                 decoration: const InputDecoration(labelText: "名称", filled: true),
-                enabled: !builtIn, // 默认源名字锁住就够了
+                enabled: !builtIn,
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: urlCtrl,
                 decoration: const InputDecoration(labelText: "API 地址", filled: true),
-                // ✅ 允许默认源改 endpoint（镜像站/自建代理都要用）
-                enabled: true,
+                enabled: !builtIn,
               ),
               const SizedBox(height: 16),
               const Divider(),
@@ -334,13 +595,13 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
             onPressed: () {
               final nextSettings = Map<String, dynamic>.from(cfg.settings);
 
-              final u = urlCtrl.text.trim();
-              if (u.isNotEmpty) nextSettings['baseUrl'] = u;
+              if (!builtIn) {
+                final u = urlCtrl.text.trim();
+                if (u.isNotEmpty) nextSettings['baseUrl'] = u;
+              }
 
-              nextSettings['username'] =
-                  userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
-              nextSettings['apiKey'] =
-                  keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim();
+              nextSettings['username'] = userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
+              nextSettings['apiKey'] = keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim();
 
               final updated = cfg.copyWith(
                 name: builtIn ? cfg.name : nameCtrl.text.trim(),
@@ -401,6 +662,14 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (isCurrent) const Icon(Icons.check, size: 18),
+
+                        // ✅ 新增：测试按钮（不影响当前源，不切换也能测）
+                        IconButton(
+                          tooltip: "测试图源",
+                          icon: const Icon(Icons.bolt_outlined),
+                          onPressed: () => _probeSource(cfg),
+                        ),
+
                         IconButton(
                           icon: const Icon(Icons.edit_outlined),
                           onPressed: () => _showEditConfigDialog(context, cfg),
@@ -413,10 +682,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         else
                           const Padding(
                             padding: EdgeInsets.only(right: 6),
-                            child: Text(
-                              "默认",
-                              style: TextStyle(fontSize: 12, color: Colors.grey),
-                            ),
+                            child: Text("默认", style: TextStyle(fontSize: 12, color: Colors.grey)),
                           ),
                       ],
                     ),
