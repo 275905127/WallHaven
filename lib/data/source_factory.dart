@@ -14,17 +14,19 @@ class SourceFactory {
     final cfg = store.currentSourceConfig;
     final pluginId = cfg.pluginId;
 
-    // ✅ 只从 store.currentSettings 取（ThemeStore 已经 sanitize + wallhaven /api/v1 兜底迁移）
+    // ✅ 只从 store.currentSettings 取（ThemeStore 已经 sanitize）
     final settings = store.currentSettings;
 
     switch (pluginId) {
       case 'wallhaven':
         {
-          // ThemeStore 已保证是 https://wallhaven.cc/api/v1 这种格式
+          // ThemeStore/WallhavenSourcePlugin 已保证尽量是 https://wallhaven.cc/api/v1
           final baseUrl = (settings['baseUrl'] as String?)?.trim() ?? '';
           if (baseUrl.isEmpty) {
+            final raw = cfg.settings['baseUrl'];
             throw StateError(
-              'Wallhaven baseUrl is empty. Check settings for configId=${cfg.id}',
+              'Wallhaven baseUrl is empty. '
+              'configId=${cfg.id}, rawBaseUrl=$raw',
             );
           }
 
@@ -40,6 +42,13 @@ class SourceFactory {
       case 'generic':
         {
           final baseUrl = (settings['baseUrl'] as String?)?.trim() ?? '';
+          if (baseUrl.isEmpty) {
+            throw StateError(
+              'Generic JSON baseUrl is empty. '
+              'configId=${cfg.id}, name=${cfg.name}',
+            );
+          }
+
           final searchPath = (settings['searchPath'] as String?)?.trim() ?? '';
           final detailPath = (settings['detailPath'] as String?)?.trim() ?? '';
 
