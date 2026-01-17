@@ -51,26 +51,27 @@ class WallhavenSourcePlugin implements SourcePlugin {
       if (!u.startsWith('http://') && !u.startsWith('https://')) {
         u = 'https://$u';
       }
+
       while (u.endsWith('/')) {
         u = u.substring(0, u.length - 1);
       }
 
-      // ✅ 用户填 root /api /api/v1 都兜底到 /api/v1
+      // 已经是 /api/v1
       if (u.endsWith('/api/v1')) return u;
 
-      if (u.endsWith('/api')) {
-        return '$u/v1';
-      }
+      // 用户写到 /api
+      if (u.endsWith('/api')) return '$u/v1';
 
       final uri = Uri.tryParse(u);
-      final host = uri?.host.toLowerCase() ?? '';
+      final host = (uri?.host ?? '').toLowerCase();
+
+      // ✅ 只匹配 wallhaven 主域或子域（避免误判 notwallhaven.cc）
+      final isWallhavenHost = host == 'wallhaven.cc' || host.endsWith('.wallhaven.cc');
 
       // 只要是 wallhaven 域且没写 /api/v1，就补齐
-      if (host.contains('wallhaven.cc')) {
-        return '$u/api/v1';
-      }
+      if (isWallhavenHost) return '$u/api/v1';
 
-      // 其它域名不乱补，尊重用户（但这样配错了就会在 UI/请求里暴露问题）
+      // 其它域名不乱补，尊重用户输入（配错了就让请求失败暴露出来）
       return u;
     }
 
