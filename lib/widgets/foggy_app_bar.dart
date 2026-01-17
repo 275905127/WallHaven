@@ -2,27 +2,17 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
+import '../design/app_tokens.dart';
+
 class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
   final Widget title;
   final bool isScrolled;
 
-  /// 允许外部完全接管 leading（比如返回按钮）
   final Widget? leading;
-
-  /// 右侧 actions
   final List<Widget> actions;
 
   /// 是否自动给一个“菜单按钮”（仅当 Scaffold 有 drawer 且 leading 为空时）
   final bool autoImplyDrawer;
-
-  /// 雾化强度（0~1），越大越“实”
-  final double fogStrength;
-
-  /// 模糊半径
-  final double blurSigma;
-
-  /// 可选：下边框强度（0~1），为 0 就不画
-  final double dividerStrength;
 
   const FoggyAppBar({
     super.key,
@@ -31,9 +21,6 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.leading,
     this.actions = const [],
     this.autoImplyDrawer = true,
-    this.fogStrength = 0.82,
-    this.blurSigma = 18,
-    this.dividerStrength = 0.12,
   });
 
   @override
@@ -41,7 +28,6 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   Widget? _buildLeading(BuildContext context) {
     if (leading != null) return leading;
-
     if (!autoImplyDrawer) return null;
 
     final scaffold = Scaffold.maybeOf(context);
@@ -58,60 +44,82 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = theme.extension<AppTokens>();
+    if (tokens == null) {
+      // 你项目是强 tokens 体系，这里直接暴露问题，不要默默降级
+      throw StateError('AppTokens not found in ThemeData.extensions');
+    }
 
-    // 背景：不滚动时更透明；滚动后更“实”
-    final double t = isScrolled ? 1.0 : 0.0;
-    final double opacity = (0.20 + (fogStrength - 0.20) * t).clamp(0.0, 1.0);
+    final t = isScrolled ? 1.0 : 0.0;
 
-    final Color bg = theme.scaffoldBackgroundColor.withOpacity(opacity);
+    final opacity = lerpDouble(
+          tokens.appBarFogOpacityIdle,
+          tokens.appBarFogOpacityScrolled,
+          t,
+        )!
+        .clamp(0.0, 1.0);
 
-    // 下边框：只在滚动时出现（避免视觉脏）
-    final bool showDivider = dividerStrength > 0 && isScrolled;
-    final Color divider = theme.dividerColor.withOpacity(dividerStrength.clamp(0.0, 1.0));
+    final blurSigma = lerpDouble(
+      tokens.appBarBlurSigmaIdle,
+      tokens.appBarBlurSigmaScrolled,
+      t,
+    )!;
+
+    final bg = theme.scaffoldBackgroundColor.withOpacity(opacity);
+
+    final showDivider = isScrolled && tokens.appBarDividerOpacityScrolled > 0;
+    final dividerColor =
+        theme.dividerColor.withOpacity(tokens.appBarDividerOpacityScrolled.clamp(0.0, 1.0));
 
     final leadingWidget = _buildLeading(context);
 
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(
-          sigmaX: isScrolled ? blurSigma : blurSigma * 0.6,
-          sigmaY: isScrolled ? blurSigma : blurSigma * 0.6,
-        ),
+        filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
         child: Container(
           decoration: BoxDecoration(
             color: bg,
-            border: showDivider ? Border(bottom: BorderSide(color: divider, width: 1)) : null,
+            border: showDivider
+                ? Border(
+                    bottom: BorderSide(
+                      color: dividerColor,
+                      width: tokens.appBarDividerWidth,
+                    ),
+                  )
+                : null,
           ),
           child: SafeArea(
             bottom: false,
             child: SizedBox(
               height: kToolbarHeight,
-              child: Row(
-                children: [
-                  if (leadingWidget != null) ...[
-                    const SizedBox(width: 6),
-                    leadingWidget,
-                    const SizedBox(width: 6),
-                  ] else
-                    const SizedBox(width: 12),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: tokens.appBarHPadding),
+                child: Row(
+                  children: [
+                    if (leadingWidget != null) ...[
+                      SizedBox(width: tokens.appBarLeadingGap),
+                      leadingWidget,
+                      SizedBox(width: tokens.appBarLeadingGap),
+                    ],
 
-                  Expanded(
-                    child: DefaultTextStyle(
-                      style: theme.appBarTheme.titleTextStyle ??
-                          theme.textTheme.titleMedium ??
-                          const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: title,
+                    Expanded(
+                      child: DefaultTextStyle(
+                        style: theme.appBarTheme.titleTextStyle ??
+                            theme.textTheme.titleMedium ??
+                            const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: title,
+                        ),
                       ),
                     ),
-                  ),
 
-                  ...actions,
-                  const SizedBox(width: 6),
-                ],
+                    ...actions,
+                    SizedBox(width: tokens.appBarTrailingGap),
+                  ],
+                ),
               ),
             ),
           ),
@@ -120,3 +128,6 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 }
+
+// 兼容 dart:ui lerpDouble
+double? lerpDouble(double a, double b, double t) => a + (b - a) * t;
