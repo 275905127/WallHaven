@@ -14,7 +14,7 @@ on:
       build_aab:
         description: "Also build release AAB"
         required: false
-        default: "true"
+        default: "false"
       target_platform:
         description: "APK target platform (android-arm64 / android-arm / android-x64)"
         required: false
@@ -102,24 +102,15 @@ jobs:
 
       # 只有在需要构建 release（apk 或 aab）时才准备签名文件
       - name: Decode keystore & write key.properties
-        if: ${{ inputs.build_aab != 'false' || inputs.build_apk == 'true' }}
-        shell: bash
+        if: ${{ inputs.build_aab == 'true' || inputs.build_apk == 'true' }}
         run: |
-          set -euo pipefail
-
-          if [ -z "${{ secrets.ANDROID_KEYSTORE_B64 }}" ]; then
-            echo "ANDROID_KEYSTORE_B64 is empty. Skipping signing setup."
-            exit 0
-          fi
-
-          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android/upload-keystore.jks
-
-          cat > android/key.properties <<'EOF'
-          storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
-          keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
-          keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
-          storeFile=upload-keystore.jks
-          EOF
+        echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android/upload-keystore.jks
+        cat > android/key.properties <<'EOF'
+        storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
+        keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
+        keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
+        storeFile=upload-keystore.jks
+        EOF
 
       - name: Debug signing files
         if: ${{ inputs.build_aab != 'false' || inputs.build_apk == 'true' }}
