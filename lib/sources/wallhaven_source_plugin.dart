@@ -13,10 +13,11 @@ import 'source_plugin.dart';
 class WallhavenSourcePlugin implements SourcePlugin {
   static const String kId = 'wallhaven';
 
-  /// 官方默认站点
-  /// 注意：这里只是“配置默认值”，
-  /// 真正请求逻辑在 data/sources/wallhaven/*
-  static const String kDefaultBaseUrl = 'https://wallhaven.cc';
+  /// Wallhaven 站点根域
+  static const String kSiteBase = 'https://wallhaven.cc';
+
+  /// Wallhaven API v1 根地址（WallhavenSource 代码要求用这个）
+  static const String kDefaultApiBaseUrl = '$kSiteBase/api/v1';
 
   @override
   String get pluginId => kId;
@@ -31,7 +32,8 @@ class WallhavenSourcePlugin implements SourcePlugin {
       pluginId: kId,
       name: 'Wallhaven',
       settings: {
-        'baseUrl': kDefaultBaseUrl,
+        // ✅ 必须是 api/v1，否则 data/sources/wallhaven/wallhaven_source.dart 会拼错路径
+        'baseUrl': kDefaultApiBaseUrl,
         'apiKey': null,
         'username': null,
       },
@@ -44,13 +46,31 @@ class WallhavenSourcePlugin implements SourcePlugin {
 
     String normBaseUrl(String? v) {
       var u = (v ?? '').trim();
-      if (u.isEmpty) return kDefaultBaseUrl;
+      if (u.isEmpty) return kDefaultApiBaseUrl;
+
       if (!u.startsWith('http://') && !u.startsWith('https://')) {
         u = 'https://$u';
       }
       while (u.endsWith('/')) {
         u = u.substring(0, u.length - 1);
       }
+
+      // ✅ 用户填 root /api /api/v1 都兜底到 /api/v1
+      if (u.endsWith('/api/v1')) return u;
+
+      if (u.endsWith('/api')) {
+        return '$u/v1';
+      }
+
+      final uri = Uri.tryParse(u);
+      final host = uri?.host.toLowerCase() ?? '';
+
+      // 只要是 wallhaven 域且没写 /api/v1，就补齐
+      if (host.contains('wallhaven.cc')) {
+        return '$u/api/v1';
+      }
+
+      // 其它域名不乱补，尊重用户（但这样配错了就会在 UI/请求里暴露问题）
       return u;
     }
 
@@ -60,7 +80,6 @@ class WallhavenSourcePlugin implements SourcePlugin {
       return t.isEmpty ? null : t;
     }
 
-    // 只做“规范化”，不引入业务逻辑
     s['baseUrl'] = normBaseUrl(s['baseUrl'] as String?);
     s['apiKey'] = normOpt(s['apiKey']);
     s['username'] = normOpt(s['username']);
