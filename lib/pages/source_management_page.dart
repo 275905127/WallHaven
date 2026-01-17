@@ -3,6 +3,12 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../data/http/http_client.dart';
+import '../data/repository/wallpaper_repository.dart';
+import '../data/source_factory.dart';
+import '../domain/entities/filter_spec.dart';
+import '../domain/entities/search_query.dart';
+import '../domain/entities/source_kind.dart';
 import '../sources/source_plugin.dart';
 import '../theme/theme_store.dart';
 import '../widgets/foggy_app_bar.dart';
@@ -53,68 +59,83 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     return null;
   }
 
-  // ----------------------------
-  // Wallhaven: 强制规范到 /api/v1
-  // ----------------------------
-  String _normalizeWallhavenBaseUrl(String input) {
-    var u = input.trim();
-    if (u.isEmpty) return u;
-
-    if (!u.startsWith('http://') && !u.startsWith('https://')) {
-      u = 'https://$u';
-    }
-    while (u.endsWith('/')) {
-      u = u.substring(0, u.length - 1);
-    }
-
-    // 如果用户只填了 https://wallhaven.cc 或 https://wallhaven.cc/api
-    // 最终都保证到 https://wallhaven.cc/api/v1
-    if (u.endsWith('/api/v1')) return u;
-
-    if (u.endsWith('/api')) {
-      return '$u/v1';
-    }
-
-    // 只要是 wallhaven.cc 域，且没写 /api/v1，就补上
-    final uri = Uri.tryParse(u);
-    final host = uri?.host.toLowerCase() ?? '';
-    if (host.contains('wallhaven.cc')) {
-      return '$u/api/v1';
-    }
-
-    return u;
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  bool _wallhavenBaseUrlLooksOk(String baseUrl) {
-    final u = baseUrl.trim();
-    return u.isNotEmpty && u.contains('/api/v1');
+  Future<void> _withLoading(String title, Future<void> Function() task) async {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Row(
+            children: [
+              SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+              SizedBox(width: 12),
+              Expanded(child: Text('请稍等…')),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await task();
+    } finally {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop(); // close loading
+    }
   }
 
-  // ----------------------------
-  // UI: status line
-  // ----------------------------
-  String _statusLineFor(SourceConfig cfg) {
-    final pid = cfg.pluginId;
-    final baseUrl = _baseUrlOf(cfg).trim();
+  Future<void> _testSourceConfig(SourceConfig cfg) async {
+    final store = ThemeScope.of(context);
+    final prevId = store.currentSourceConfig.id;
 
-    if (pid == 'wallhaven') {
-      if (baseUrl.isEmpty) return '⚠️ 未配置 baseUrl（应为 https://wallhaven.cc/api/v1）';
-      if (!_wallhavenBaseUrlLooksOk(baseUrl)) return '⚠️ baseUrl 需要包含 /api/v1（已自动修正可在编辑里保存）';
-      return '✅ baseUrl OK';
-    }
+    await _withLoading("测试图源", () async {
+      // 1) 临时切换到被测试源（复用现有 SourceFactory.fromStore(store)）
+      if (cfg.id != prevId) {
+        store.setCurrentSourceConfig(cfg.id);
+      }
 
-    if (pid == 'generic') {
-      if (baseUrl.isEmpty) return '⚠️ 未配置 baseUrl（随机直链/搜索都需要）';
-      return '✅ baseUrl OK';
-    }
+      final http = HttpClient();
+      try {
+        final factory = SourceFactory(http: http);
+        final repo = WallpaperRepository(factory.fromStore(store));
 
-    if (baseUrl.isEmpty) return '⚠️ 未配置 baseUrl';
-    return '✅ baseUrl OK';
+        final kind = repo.kind;
+        if (kind == SourceKind.random) {
+          final item = await repo.random(const FilterSpec());
+          if (item?.preview != null && item!.preview.toString().isNotEmpty) {
+            _toast("✅ 可用（random）\n${item.preview}");
+          } else {
+            _toast("⚠️ 请求成功，但没拿到有效图片链接（random）");
+          }
+        } else {
+          final items = await repo.search(const SearchQuery(page: 1, filters: FilterSpec()));
+          if (items.isNotEmpty) {
+            _toast("✅ 可用（search）返回 ${items.length} 条\n示例：${items.first.preview}");
+          } else {
+            _toast("⚠️ 请求成功，但返回 0 条（search）\n可能是接口结构不匹配或被筛选条件限制");
+          }
+        }
+      } catch (e) {
+        _toast("❌ 测试失败：$e");
+      } finally {
+        // 2) 恢复原来的当前源
+        if (prevId != cfg.id) {
+          store.setCurrentSourceConfig(prevId);
+        }
+        // 3) 释放 dio
+        http.dio.close(force: true);
+      }
+    });
   }
 
-  // ----------------------------
-  // Add dialog
-  // ----------------------------
   void _showAddSourceDialog(BuildContext context) {
     final store = ThemeScope.of(context);
 
@@ -124,11 +145,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     final listKeyCtrl = TextEditingController(text: "@direct");
 
     String? errorText;
-
-    void toast(String msg) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-    }
 
     bool looksLikeJson(String s) {
       final t = s.trim();
@@ -179,6 +195,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                     Flexible(
                       child: TabBarView(
                         children: [
+                          // A：粘贴 JSON
                           SingleChildScrollView(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -218,6 +235,8 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                               ],
                             ),
                           ),
+
+                          // B：表单生成 JSON（最简）
                           SingleChildScrollView(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -294,17 +313,15 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         }
 
                         store.addSourceFromJsonString(raw);
-
                         Navigator.pop(dialogCtx);
-                        toast("已添加图源");
+                        _toast("已添加图源");
                         return;
                       }
 
                       final name = nameCtrl.text.trim();
                       final url = urlCtrl.text.trim();
-                      final listKey = listKeyCtrl.text.trim().isEmpty
-                          ? "@direct"
-                          : listKeyCtrl.text.trim();
+                      final listKey =
+                          listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
 
                       if (name.isEmpty || url.isEmpty) {
                         setState(() => errorText = "名称和 API 地址是必填。");
@@ -319,9 +336,8 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                       };
 
                       store.addSourceFromJsonString(jsonEncode(cfg));
-
                       Navigator.pop(dialogCtx);
-                      toast("已添加图源");
+                      _toast("已添加图源");
                     } catch (e) {
                       setState(() => errorText = "添加失败：$e");
                     }
@@ -336,9 +352,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     );
   }
 
-  // ----------------------------
-  // Edit dialog: fix wallhaven url
-  // ----------------------------
   void _showEditConfigDialog(BuildContext context, SourceConfig cfg) {
     final store = ThemeScope.of(context);
 
@@ -348,9 +361,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     final urlCtrl = TextEditingController(text: _baseUrlOf(cfg));
     final userCtrl = TextEditingController(text: _usernameOf(cfg) ?? '');
     final keyCtrl = TextEditingController(text: _apiKeyOf(cfg) ?? '');
-
-    final isWallhaven = cfg.pluginId == 'wallhaven';
-    final isGeneric = cfg.pluginId == 'generic';
 
     showDialog(
       context: context,
@@ -368,13 +378,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
               const SizedBox(height: 16),
               TextField(
                 controller: urlCtrl,
-                decoration: InputDecoration(
-                  labelText: "API 地址",
-                  filled: true,
-                  helperText: isWallhaven
-                      ? "Wallhaven 需要以 /api/v1 结尾，例如：https://wallhaven.cc/api/v1"
-                      : (isGeneric ? "可填 host 或完整 endpoint" : null),
-                ),
+                decoration: const InputDecoration(labelText: "API 地址", filled: true),
                 enabled: !builtIn,
               ),
               const SizedBox(height: 16),
@@ -402,13 +406,8 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
               final nextSettings = Map<String, dynamic>.from(cfg.settings);
 
               if (!builtIn) {
-                var u = urlCtrl.text.trim();
-                if (u.isNotEmpty) {
-                  if (isWallhaven) {
-                    u = _normalizeWallhavenBaseUrl(u);
-                  }
-                  nextSettings['baseUrl'] = u;
-                }
+                final u = urlCtrl.text.trim();
+                if (u.isNotEmpty) nextSettings['baseUrl'] = u;
               }
 
               nextSettings['username'] =
@@ -457,13 +456,12 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
               SettingsGroup(
                 items: store.sourceConfigs.map((cfg) {
                   final builtIn = _isBuiltInConfig(cfg);
-                  final baseUrl = _baseUrlOf(cfg).trim();
+                  final baseUrl = _baseUrlOf(cfg);
                   final apiKey = _apiKeyOf(cfg);
                   final isCurrent = cfg.id == currentId;
 
                   var subtitle = baseUrl.isEmpty ? "(未配置 baseUrl)" : baseUrl;
                   subtitle += "\n插件: ${cfg.pluginId}";
-                  subtitle += "\n${_statusLineFor(cfg)}";
                   if (apiKey != null) subtitle += "\n🔑 已配置 API Key";
                   if (isCurrent) subtitle += "\n✅ 当前使用";
 
@@ -475,6 +473,14 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (isCurrent) const Icon(Icons.check, size: 18),
+
+                        // ✅ 新增：测试按钮
+                        IconButton(
+                          tooltip: "测试图源",
+                          icon: const Icon(Icons.play_circle_outline),
+                          onPressed: () => _testSourceConfig(cfg),
+                        ),
+
                         IconButton(
                           icon: const Icon(Icons.edit_outlined),
                           onPressed: () => _showEditConfigDialog(context, cfg),
@@ -487,8 +493,7 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         else
                           const Padding(
                             padding: EdgeInsets.only(right: 6),
-                            child: Text("默认",
-                                style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            child: Text("默认", style: TextStyle(fontSize: 12, color: Colors.grey)),
                           ),
                       ],
                     ),
