@@ -1,43 +1,31 @@
 // lib/app/app_controller.dart
-import 'package:flutter/foundation.dart';
+import 'dart:async';
 
+import 'app_effect.dart';
 import 'app_intent.dart';
 
-enum AppRoute {
-  home,
-  settings,
-}
+class AppController {
+  final _effects = StreamController<AppEffect>.broadcast();
 
-class AppController extends ChangeNotifier {
-  AppRoute _route = AppRoute.home;
-  bool _drawerOpen = false;
-
-  AppRoute get route => _route;
-  bool get drawerOpen => _drawerOpen;
+  Stream<AppEffect> get effects => _effects.stream;
 
   void dispatch(AppIntent intent) {
     switch (intent) {
-      case OpenDrawer():
-        _drawerOpen = true;
-        notifyListeners();
-        return;
+      case OpenSettingsIntent():
+        _effects.add(const NavigateToSettingsEffect());
+        break;
 
-      case CloseDrawer():
-        _drawerOpen = false;
-        notifyListeners();
-        return;
+      case OpenDrawerIntent():
+        _effects.add(const OpenDrawerEffect());
+        break;
 
-      case GoHome():
-        _route = AppRoute.home;
-        _drawerOpen = false;
-        notifyListeners();
-        return;
-
-      case GoSettings():
-        _route = AppRoute.settings;
-        _drawerOpen = false;
-        notifyListeners();
-        return;
+      case CloseDrawerIntent():
+        _effects.add(const CloseDrawerEffect());
+        break;
     }
+  }
+
+  void dispose() {
+    _effects.close();
   }
 }
