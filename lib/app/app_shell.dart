@@ -59,6 +59,23 @@ class _AppShellState extends State<AppShell> {
     super.dispose();
   }
 
+  void _closeDrawerIfOpen() {
+    final st = _scaffoldKey.currentState;
+    if (st == null) return;
+    if (st.isDrawerOpen) {
+      // 只在 drawer 打开时 pop，避免误伤路由栈
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _pushPage(Widget page) async {
+    // 避免抽屉动画/路由 push 叠在一起
+    _closeDrawerIfOpen();
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    if (!mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+  }
+
   void _handleEffect(AppEffect e) {
     if (!mounted) return;
     final c = _controller;
@@ -66,15 +83,11 @@ class _AppShellState extends State<AppShell> {
 
     switch (e) {
       case NavigateToSettingsEffect():
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => SettingsPage(controller: c)),
-        );
+        _pushPage(SettingsPage(controller: c));
         break;
 
       case NavigateToPersonalizationEffect():
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => PersonalizationPage(controller: c)),
-        );
+        _pushPage(PersonalizationPage(controller: c));
         break;
 
       case PopRouteEffect():
@@ -86,7 +99,7 @@ class _AppShellState extends State<AppShell> {
         break;
 
       case CloseDrawerEffect():
-        Navigator.of(context).maybePop();
+        _closeDrawerIfOpen();
         break;
     }
   }
@@ -97,9 +110,9 @@ class _AppShellState extends State<AppShell> {
     final drawerRadius = store.cardRadius;
     final c = _controller;
 
-    // controller 尚未初始化（极短窗口），先给空壳
+    // 首帧不要 shrink（会出现“白一下”，CI/测试也容易踩）
     if (c == null) {
-      return const SizedBox.shrink();
+      return const Scaffold(body: SizedBox.shrink());
     }
 
     return Scaffold(
@@ -124,6 +137,7 @@ class _AppShellState extends State<AppShell> {
                 title: const Text('设置'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
+                  // 先关 drawer 再导航（通过 effect 做）
                   c.dispatch(const CloseDrawerIntent());
                   c.dispatch(const OpenSettingsIntent());
                 },
