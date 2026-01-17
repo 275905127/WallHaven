@@ -1,6 +1,7 @@
 // lib/design/design.dart
 export 'tokens.dart';
 export 'theme.dart';
+export 'colors.dart';
 
-export 'primitives/foggy_app_bar.dart';
-export 'primitives/settings_widgets.dart';
+export '../widgets/foggy_app_bar.dart';
+export '../widgets/settings_widgets.dart';
