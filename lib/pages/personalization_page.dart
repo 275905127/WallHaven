@@ -1,15 +1,29 @@
 import 'package:flutter/material.dart';
+
+import '../app/app_controller.dart';
+import '../app/app_intent.dart';
 import '../theme/theme_store.dart';
 
 class PersonalizationPage extends StatelessWidget {
-  const PersonalizationPage({super.key});
+  final AppController controller;
+
+  const PersonalizationPage({
+    super.key,
+    required this.controller,
+  });
 
   @override
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('主题 / 个性化')),
+      appBar: AppBar(
+        title: const Text('主题 / 个性化'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => controller.dispatch(const PopRouteIntent()),
+        ),
+      ),
       body: ListenableBuilder(
         listenable: store,
         builder: (context, _) {
