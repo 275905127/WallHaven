@@ -26,8 +26,18 @@ class SourceRegistry {
     return p;
   }
 
-  Iterable<SourcePlugin> get allPlugins => _plugins.values;
+  /// 所有插件（用于 UI 展示）
+  List<SourcePlugin> get allPlugins => _plugins.values.toList(growable: false);
+
+  /// 所有 pluginId（用于 UI 展示/校验）
+  List<String> get allPluginIds => _plugins.keys.toList(growable: false);
 
   /// ThemeStore 构造默认源：默认用 wallhaven
   SourceConfig defaultConfig() => mustPlugin(WallhavenSourcePlugin.kId).defaultConfig();
+
+  /// ✅ 给 UI/ThemeStore 用：按 pluginId 生成该插件的默认配置
+  SourceConfig defaultConfigFor(String pluginId) => mustPlugin(pluginId).defaultConfig();
+
+  /// ✅ 是否支持某个 pluginId（比 plugin()!=null 更语义化）
+  bool supports(String pluginId) => _plugins.containsKey(pluginId);
 }
