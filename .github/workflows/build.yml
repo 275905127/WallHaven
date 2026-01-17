@@ -36,6 +36,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    # 给 push/pr 提供默认值（因为它们没有 inputs）
+    env:
+      BUILD_APK: ${{ github.event_name == 'workflow_dispatch' && inputs.build_apk || 'false' }}
+      BUILD_AAB: ${{ github.event_name == 'workflow_dispatch' && inputs.build_aab || 'false' }}
+      TARGET_PLATFORM: ${{ github.event_name == 'workflow_dispatch' && inputs.target_platform || 'android-arm64' }}
+      STRICT_ANALYZE: ${{ github.event_name == 'workflow_dispatch' && inputs.strict_analyze || 'false' }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -78,10 +85,10 @@ jobs:
       - name: Debug inputs
         run: |
           echo "event='${{ github.event_name }}'"
-          echo "build_apk='${{ inputs.build_apk }}'"
-          echo "build_aab='${{ inputs.build_aab }}'"
-          echo "target_platform='${{ inputs.target_platform }}'"
-          echo "strict_analyze='${{ inputs.strict_analyze }}'"
+          echo "BUILD_APK='${{ env.BUILD_APK }}'"
+          echo "BUILD_AAB='${{ env.BUILD_AAB }}'"
+          echo "TARGET_PLATFORM='${{ env.TARGET_PLATFORM }}'"
+          echo "STRICT_ANALYZE='${{ env.STRICT_ANALYZE }}'"
 
       - name: Pub get
         run: flutter pub get
@@ -90,30 +97,31 @@ jobs:
         run: dart format . || true
 
       - name: Analyze (non-blocking by default)
-        if: ${{ inputs.strict_analyze != 'true' }}
+        if: ${{ env.STRICT_ANALYZE != 'true' }}
         run: flutter analyze || true
 
       - name: Analyze (strict)
-        if: ${{ inputs.strict_analyze == 'true' }}
+        if: ${{ env.STRICT_ANALYZE == 'true' }}
         run: flutter analyze
 
       - name: Run tests
         run: flutter test
 
-      # 只有在需要构建 release（apk 或 aab）时才准备签名文件
+      # 只有在 workflow_dispatch 且需要构建 release（apk 或 aab）时才准备签名文件
       - name: Decode keystore & write key.properties
-        if: ${{ inputs.build_aab == 'true' || inputs.build_apk == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && (env.BUILD_AAB == 'true' || env.BUILD_APK == 'true') }}
+        shell: bash
         run: |
-        echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android/upload-keystore.jks
-        cat > android/key.properties <<'EOF'
-        storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
-        keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
-        keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
-        storeFile=upload-keystore.jks
-        EOF
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android/upload-keystore.jks
+          cat > android/key.properties <<'EOF'
+          storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
+          keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
+          storeFile=upload-keystore.jks
+          EOF
 
       - name: Debug signing files
-        if: ${{ inputs.build_aab != 'false' || inputs.build_apk == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && (env.BUILD_AAB == 'true' || env.BUILD_APK == 'true') }}
         shell: bash
         run: |
           ls -la android || true
@@ -122,22 +130,22 @@ jobs:
           cat android/key.properties || true
 
       - name: Build APK (release)
-        if: ${{ inputs.build_apk == 'true' }}
-        run: flutter build apk --release --target-platform="${{ inputs.target_platform }}"
+        if: ${{ github.event_name == 'workflow_dispatch' && env.BUILD_APK == 'true' }}
+        run: flutter build apk --release --target-platform="${{ env.TARGET_PLATFORM }}"
 
       - name: Build AAB (release)
-        if: ${{ inputs.build_aab == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && env.BUILD_AAB == 'true' }}
         run: flutter build appbundle --release
 
       - name: Upload AAB artifact
-        if: ${{ inputs.build_aab != 'false' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && env.BUILD_AAB == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: app-release-aab
           path: build/app/outputs/bundle/release/*.aab
 
       - name: Upload APK artifact
-        if: ${{ inputs.build_apk == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && env.BUILD_APK == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
