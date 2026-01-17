@@ -3,41 +3,45 @@ import 'package:flutter/material.dart';
 import '../theme/theme_store.dart';
 
 class HomePage extends StatelessWidget {
-  final ScrollController scrollController;
-
-  const HomePage({
-    super.key,
-    required this.scrollController,
-  });
+  const HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
+    final theme = Theme.of(context);
 
     return ListView(
-      controller: scrollController,
       padding: const EdgeInsets.fromLTRB(16, 110, 16, 24),
       children: [
         Text(
           '主页（空壳）',
-          style: Theme.of(context).textTheme.headlineSmall,
+          style: theme.textTheme.headlineSmall,
         ),
         const SizedBox(height: 12),
         Text(
-          '这里只保留容器能力：AppShell + Drawer + Settings + Personalization。\n'
-          '业务/筛选/图源全部删除，后面你重写时不会被历史结构拖死。',
-          style: Theme.of(context).textTheme.bodyMedium,
+          '这里只保留 App 容器能力：\n'
+          '- AppShell\n'
+          '- Drawer（仅设置入口）\n'
+          '- Settings / Personalization\n'
+          '- Theme / Tokens / FoggyAppBar\n\n'
+          '业务 / 图源 / 筛选已全部剥离。\n'
+          '你后面从这里开始重写，不会被任何历史结构拖死。',
+          style: theme.textTheme.bodyMedium,
         ),
         const SizedBox(height: 18),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
+            color: theme.cardColor,
             borderRadius: BorderRadius.circular(store.cardRadius),
           ),
           child: Text(
-            'cardRadius=${store.cardRadius}\nimageRadius=${store.imageRadius}\n'
-            'mode=${store.mode}\naccent=${store.accentName}',
+            'Debug:\n'
+            'cardRadius = ${store.cardRadius}\n'
+            'imageRadius = ${store.imageRadius}\n'
+            'mode = ${store.mode}\n'
+            'accent = ${store.accentName}',
+            style: theme.textTheme.bodyMedium,
           ),
         ),
       ],
