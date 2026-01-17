@@ -99,14 +99,14 @@ jobs:
       - name: Decode keystore & write key.properties
         if: ${{ inputs.build_aab != 'false' || inputs.build_apk == 'true' }}
         run: |
-    echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android/upload-keystore.jks
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > android/upload-keystore.jks
 
-    cat > android/key.properties <<'EOF'
-    storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
-    keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
-    keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
-    storeFile=upload-keystore.jks
-    EOF
+          cat > android/key.properties <<'EOF'
+          storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
+          keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
+          storeFile=upload-keystore.jks
+          EOF
 
       # Build（阻断）
       - name: Build APK (release)
