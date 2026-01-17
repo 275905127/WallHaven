@@ -53,6 +53,68 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     return null;
   }
 
+  // ----------------------------
+  // Wallhaven: 强制规范到 /api/v1
+  // ----------------------------
+  String _normalizeWallhavenBaseUrl(String input) {
+    var u = input.trim();
+    if (u.isEmpty) return u;
+
+    if (!u.startsWith('http://') && !u.startsWith('https://')) {
+      u = 'https://$u';
+    }
+    while (u.endsWith('/')) {
+      u = u.substring(0, u.length - 1);
+    }
+
+    // 如果用户只填了 https://wallhaven.cc 或 https://wallhaven.cc/api
+    // 最终都保证到 https://wallhaven.cc/api/v1
+    if (u.endsWith('/api/v1')) return u;
+
+    if (u.endsWith('/api')) {
+      return '$u/v1';
+    }
+
+    // 只要是 wallhaven.cc 域，且没写 /api/v1，就补上
+    final uri = Uri.tryParse(u);
+    final host = uri?.host.toLowerCase() ?? '';
+    if (host.contains('wallhaven.cc')) {
+      return '$u/api/v1';
+    }
+
+    return u;
+  }
+
+  bool _wallhavenBaseUrlLooksOk(String baseUrl) {
+    final u = baseUrl.trim();
+    return u.isNotEmpty && u.contains('/api/v1');
+  }
+
+  // ----------------------------
+  // UI: status line
+  // ----------------------------
+  String _statusLineFor(SourceConfig cfg) {
+    final pid = cfg.pluginId;
+    final baseUrl = _baseUrlOf(cfg).trim();
+
+    if (pid == 'wallhaven') {
+      if (baseUrl.isEmpty) return '⚠️ 未配置 baseUrl（应为 https://wallhaven.cc/api/v1）';
+      if (!_wallhavenBaseUrlLooksOk(baseUrl)) return '⚠️ baseUrl 需要包含 /api/v1（已自动修正可在编辑里保存）';
+      return '✅ baseUrl OK';
+    }
+
+    if (pid == 'generic') {
+      if (baseUrl.isEmpty) return '⚠️ 未配置 baseUrl（随机直链/搜索都需要）';
+      return '✅ baseUrl OK';
+    }
+
+    if (baseUrl.isEmpty) return '⚠️ 未配置 baseUrl';
+    return '✅ baseUrl OK';
+  }
+
+  // ----------------------------
+  // Add dialog
+  // ----------------------------
   void _showAddSourceDialog(BuildContext context) {
     final store = ThemeScope.of(context);
 
@@ -107,7 +169,9 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         children: [
                           const Icon(Icons.error_outline, size: 18, color: Colors.red),
                           const SizedBox(width: 8),
-                          Expanded(child: Text(errorText!, style: const TextStyle(color: Colors.red))),
+                          Expanded(
+                            child: Text(errorText!, style: const TextStyle(color: Colors.red)),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -115,7 +179,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                     Flexible(
                       child: TabBarView(
                         children: [
-                          // A：粘贴 JSON
                           SingleChildScrollView(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -143,7 +206,8 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                                         "listKey": "@direct",
                                         "filters": []
                                       };
-                                      jsonCtrl.text = const JsonEncoder.withIndent("  ").convert(sample);
+                                      jsonCtrl.text =
+                                          const JsonEncoder.withIndent("  ").convert(sample);
                                       setState(() => errorText = null);
                                     },
                                     icon: const Icon(Icons.auto_awesome_outlined, size: 18),
@@ -154,8 +218,6 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                               ],
                             ),
                           ),
-
-                          // B：表单生成 JSON（最简）
                           SingleChildScrollView(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -240,7 +302,9 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
 
                       final name = nameCtrl.text.trim();
                       final url = urlCtrl.text.trim();
-                      final listKey = listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
+                      final listKey = listKeyCtrl.text.trim().isEmpty
+                          ? "@direct"
+                          : listKeyCtrl.text.trim();
 
                       if (name.isEmpty || url.isEmpty) {
                         setState(() => errorText = "名称和 API 地址是必填。");
@@ -272,6 +336,9 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     );
   }
 
+  // ----------------------------
+  // Edit dialog: fix wallhaven url
+  // ----------------------------
   void _showEditConfigDialog(BuildContext context, SourceConfig cfg) {
     final store = ThemeScope.of(context);
 
@@ -281,6 +348,9 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
     final urlCtrl = TextEditingController(text: _baseUrlOf(cfg));
     final userCtrl = TextEditingController(text: _usernameOf(cfg) ?? '');
     final keyCtrl = TextEditingController(text: _apiKeyOf(cfg) ?? '');
+
+    final isWallhaven = cfg.pluginId == 'wallhaven';
+    final isGeneric = cfg.pluginId == 'generic';
 
     showDialog(
       context: context,
@@ -298,7 +368,13 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
               const SizedBox(height: 16),
               TextField(
                 controller: urlCtrl,
-                decoration: const InputDecoration(labelText: "API 地址", filled: true),
+                decoration: InputDecoration(
+                  labelText: "API 地址",
+                  filled: true,
+                  helperText: isWallhaven
+                      ? "Wallhaven 需要以 /api/v1 结尾，例如：https://wallhaven.cc/api/v1"
+                      : (isGeneric ? "可填 host 或完整 endpoint" : null),
+                ),
                 enabled: !builtIn,
               ),
               const SizedBox(height: 16),
@@ -326,11 +402,17 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
               final nextSettings = Map<String, dynamic>.from(cfg.settings);
 
               if (!builtIn) {
-                final u = urlCtrl.text.trim();
-                if (u.isNotEmpty) nextSettings['baseUrl'] = u;
+                var u = urlCtrl.text.trim();
+                if (u.isNotEmpty) {
+                  if (isWallhaven) {
+                    u = _normalizeWallhavenBaseUrl(u);
+                  }
+                  nextSettings['baseUrl'] = u;
+                }
               }
 
-              nextSettings['username'] = userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
+              nextSettings['username'] =
+                  userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
               nextSettings['apiKey'] = keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim();
 
               final updated = cfg.copyWith(
@@ -375,12 +457,13 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
               SettingsGroup(
                 items: store.sourceConfigs.map((cfg) {
                   final builtIn = _isBuiltInConfig(cfg);
-                  final baseUrl = _baseUrlOf(cfg);
+                  final baseUrl = _baseUrlOf(cfg).trim();
                   final apiKey = _apiKeyOf(cfg);
                   final isCurrent = cfg.id == currentId;
 
                   var subtitle = baseUrl.isEmpty ? "(未配置 baseUrl)" : baseUrl;
                   subtitle += "\n插件: ${cfg.pluginId}";
+                  subtitle += "\n${_statusLineFor(cfg)}";
                   if (apiKey != null) subtitle += "\n🔑 已配置 API Key";
                   if (isCurrent) subtitle += "\n✅ 当前使用";
 
@@ -404,7 +487,8 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         else
                           const Padding(
                             padding: EdgeInsets.only(right: 6),
-                            child: Text("默认", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            child: Text("默认",
+                                style: TextStyle(fontSize: 12, color: Colors.grey)),
                           ),
                       ],
                     ),
