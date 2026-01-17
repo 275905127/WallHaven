@@ -1,6 +1,7 @@
 // lib/pages/settings_page.dart
 import 'package:flutter/material.dart';
 
+import '../widgets/settings_widgets.dart';
 import 'personalization_page.dart';
 import 'source_management_page.dart';
 
@@ -16,35 +17,50 @@ class SettingsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          ListTile(
-            leading: const Icon(Icons.palette_outlined),
-            title: const Text('主题 / 个性化'),
-            subtitle: const Text('浅色 / 深色 / 自定义颜色 / 圆角'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _push(context, const PersonalizationPage()),
+          const SectionHeader(title: "外观"),
+          SettingsGroup(
+            items: [
+              SettingsItem(
+                icon: Icons.palette_outlined,
+                title: '主题 / 个性化',
+                subtitle: '浅色 / 深色 / 自定义颜色 / 圆角',
+                onTap: () => _push(context, const PersonalizationPage()),
+              ),
+            ],
           ),
-          const Divider(height: 1),
 
-          ListTile(
-            leading: const Icon(Icons.source_outlined),
-            title: const Text('图源管理'),
-            subtitle: const Text('添加 / 编辑 / 切换图源'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _push(context, const SourceManagementPage()),
+          const SizedBox(height: 20),
+
+          const SectionHeader(title: "内容"),
+          SettingsGroup(
+            items: [
+              SettingsItem(
+                icon: Icons.source_outlined,
+                title: '图源管理',
+                subtitle: '添加 / 编辑 / 切换图源',
+                onTap: () => _push(context, const SourceManagementPage()),
+              ),
+            ],
           ),
-          const Divider(height: 1),
 
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('关于'),
-            subtitle: const Text('版本信息'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => showAboutDialog(
-              context: context,
-              applicationName: 'wallhaven',
-              applicationVersion: 'dev',
-            ),
+          const SizedBox(height: 20),
+
+          const SectionHeader(title: "其他"),
+          SettingsGroup(
+            items: [
+              SettingsItem(
+                icon: Icons.info_outline,
+                title: '关于',
+                subtitle: '版本信息',
+                onTap: () => showAboutDialog(
+                  context: context,
+                  applicationName: 'wallhaven',
+                  applicationVersion: 'dev',
+                ),
+              ),
+            ],
           ),
         ],
       ),
