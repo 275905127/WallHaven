@@ -20,6 +20,9 @@ import 'pages/wallpaper_detail_page.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_store.dart';
 import 'widgets/foggy_app_bar.dart';
+import 'domain/entities/source_capabilities.dart';
+import 'domain/search/query_spec.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
