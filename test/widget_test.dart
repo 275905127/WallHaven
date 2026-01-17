@@ -1,21 +1,22 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:wallhaven/app/app.dart';
 import 'package:wallhaven/theme/theme_store.dart';
-import 'package:wallhaven/theme/theme_scope.dart';
-import 'package:wallhaven/main.dart';
 
 void main() {
-  testWidgets('App root can build (smoke test)', (tester) async {
-    final themeStore = ThemeStore();
+  testWidgets('app boots', (WidgetTester tester) async {
+    final store = ThemeStore();
 
     await tester.pumpWidget(
       ThemeScope(
-        store: themeStore,
-        child: MyApp(),
+        store: store,
+        child: const App(),
       ),
     );
 
-    // 关键：让首帧 + 一次 build 走完
-    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(MaterialApp), findsOneWidget);
   });
 }
