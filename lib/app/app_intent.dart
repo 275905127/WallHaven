@@ -3,18 +3,14 @@ sealed class AppIntent {
   const AppIntent();
 }
 
-class OpenDrawer extends AppIntent {
-  const OpenDrawer();
+class OpenSettingsIntent extends AppIntent {
+  const OpenSettingsIntent();
 }
 
-class CloseDrawer extends AppIntent {
-  const CloseDrawer();
+class OpenDrawerIntent extends AppIntent {
+  const OpenDrawerIntent();
 }
 
-class GoHome extends AppIntent {
-  const GoHome();
-}
-
-class GoSettings extends AppIntent {
-  const GoSettings();
+class CloseDrawerIntent extends AppIntent {
+  const CloseDrawerIntent();
 }
