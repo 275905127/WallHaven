@@ -1,9 +1,10 @@
 // lib/pages/settings_page.dart
 import 'package:flutter/material.dart';
 
-// TODO: 把下面两个 import 改成你项目里真实的文件名
-import 'personalization_page.dart';
-import 'source_management_page.dart';
+import 'sub_pages.dart'; // 你的 PersonalizationPage / SourceManagementPage 都在 sub_pages.dart 里就这样写
+// 如果你已经拆成单独文件：
+// import 'personalization_page.dart';
+// import 'source_management_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -14,8 +15,6 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
@@ -23,7 +22,7 @@ class SettingsPage extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.palette_outlined),
             title: const Text('主题 / 个性化'),
-            subtitle: const Text('浅色 / 深色 / 自定义颜色 / 圆角等'),
+            subtitle: const Text('浅色 / 深色 / 自定义颜色 / 圆角'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _push(context, const PersonalizationPage()),
           ),
@@ -43,14 +42,11 @@ class SettingsPage extends StatelessWidget {
             title: const Text('关于'),
             subtitle: const Text('版本信息'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              showAboutDialog(
-                context: context,
-                applicationName: 'wallhaven',
-                applicationVersion: 'dev',
-                applicationIcon: Icon(Icons.wallpaper, color: theme.iconTheme.color),
-              );
-            },
+            onTap: () => showAboutDialog(
+              context: context,
+              applicationName: 'wallhaven',
+              applicationVersion: 'dev',
+            ),
           ),
         ],
       ),
