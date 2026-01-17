@@ -126,7 +126,7 @@ jobs:
         run: flutter build apk --release --target-platform="${{ inputs.target_platform }}"
 
       - name: Build AAB (release)
-        if: ${{ inputs.build_aab != 'false' }}
+        if: ${{ inputs.build_aab == 'true' }}
         run: flutter build appbundle --release
 
       - name: Upload AAB artifact
