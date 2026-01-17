@@ -1,4 +1,5 @@
-import 'dart:ui' show ImageFilter;
+// lib/widgets/foggy_app_bar.dart
+import 'dart:ui' show ImageFilter, lerpDouble;
 
 import 'package:flutter/material.dart';
 
@@ -46,30 +47,21 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
     final theme = Theme.of(context);
     final tokens = theme.extension<AppTokens>();
     if (tokens == null) {
-      // 你项目是强 tokens 体系，这里直接暴露问题，不要默默降级
       throw StateError('AppTokens not found in ThemeData.extensions');
     }
 
-    final t = isScrolled ? 1.0 : 0.0;
-
-    final opacity = lerpDouble(
-          tokens.appBarFogOpacityIdle,
-          tokens.appBarFogOpacityScrolled,
-          t,
-        )!
+    // 二态：组件只负责“选哪个值”，不负责“怎么算更好看”
+    final double opacity = (isScrolled ? tokens.appBarFogOpacityScrolled : tokens.appBarFogOpacityIdle)
         .clamp(0.0, 1.0);
 
-    final blurSigma = lerpDouble(
-      tokens.appBarBlurSigmaIdle,
-      tokens.appBarBlurSigmaScrolled,
-      t,
-    )!;
+    final double blurSigma = isScrolled ? tokens.appBarBlurSigmaScrolled : tokens.appBarBlurSigmaIdle;
 
-    final bg = theme.scaffoldBackgroundColor.withOpacity(opacity);
+    final Color bg = theme.scaffoldBackgroundColor.withOpacity(opacity);
 
-    final showDivider = isScrolled && tokens.appBarDividerOpacityScrolled > 0;
-    final dividerColor =
-        theme.dividerColor.withOpacity(tokens.appBarDividerOpacityScrolled.clamp(0.0, 1.0));
+    final bool showStroke = isScrolled && tokens.appBarBottomStrokeOpacityScrolled > 0;
+    final Color strokeColor = theme.dividerColor.withOpacity(
+      tokens.appBarBottomStrokeOpacityScrolled.clamp(0.0, 1.0),
+    );
 
     final leadingWidget = _buildLeading(context);
 
@@ -79,11 +71,11 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
         child: Container(
           decoration: BoxDecoration(
             color: bg,
-            border: showDivider
+            border: showStroke
                 ? Border(
                     bottom: BorderSide(
-                      color: dividerColor,
-                      width: tokens.appBarDividerWidth,
+                      color: strokeColor,
+                      width: tokens.appBarBottomStrokeWidth,
                     ),
                   )
                 : null,
@@ -100,7 +92,9 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
                       SizedBox(width: tokens.appBarLeadingGap),
                       leadingWidget,
                       SizedBox(width: tokens.appBarLeadingGap),
-                    ],
+                    ] else
+                      // 没 leading 时保持左侧呼吸感（同样走 tokens）
+                      SizedBox(width: tokens.appBarLeadingGap * 2),
 
                     Expanded(
                       child: DefaultTextStyle(
@@ -128,6 +122,3 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 }
-
-// 兼容 dart:ui lerpDouble
-double? lerpDouble(double a, double b, double t) => a + (b - a) * t;
