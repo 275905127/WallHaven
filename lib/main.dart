@@ -21,6 +21,7 @@ import 'pages/wallpaper_detail_page.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_store.dart';
 import 'widgets/foggy_app_bar.dart';
+import 'theme/theme_scope.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
