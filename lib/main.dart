@@ -13,7 +13,6 @@ import 'data/repository/wallpaper_repository.dart';
 import 'data/source_factory.dart';
 import 'domain/entities/filter_spec.dart';
 import 'domain/entities/search_query.dart';
-import 'domain/entities/source_capabilities.dart';
 import 'domain/entities/wallpaper_item.dart';
 import 'pages/filter_drawer.dart';
 import 'pages/settings_page.dart';
