@@ -38,7 +38,8 @@ class ThemeScope extends InheritedWidget {
 // ThemeStore
 // ----------------------------
 class ThemeStore extends ChangeNotifier {
-  // ✅ 单例化：不要在 getter 里 new
+  // ⚠️ 这里的 http/factory 目前只用于 currentCapabilities 缓存计算。
+  // 它本质上不该做网络请求，但会 new Dio，所以必须在 dispose 里 close。
   final HttpClient _http = HttpClient();
   late final SourceFactory _factory = SourceFactory(http: _http);
 
@@ -98,12 +99,42 @@ class ThemeStore extends ChangeNotifier {
     return p;
   }
 
+  /// ✅ 修复点：Wallhaven 的配置层/请求层目前不一致
+  /// - 你的 WallhavenSource 用的是 baseUrl + "/search"（要求 baseUrl 是 .../api/v1）
+  /// - 但 WallhavenSourcePlugin 默认给的是 https://wallhaven.cc（不带 /api/v1）
+  ///
+  /// 我在 ThemeStore 这里做一次“兜底迁移”，保证最终进入业务链路的 settings.baseUrl 一定是 .../api/v1
+  Map<String, dynamic> _migrateWallhavenSettingsIfNeeded(
+    String pluginId,
+    Map<String, dynamic> sanitized,
+  ) {
+    if (pluginId != 'wallhaven') return sanitized;
+
+    final next = Map<String, dynamic>.from(sanitized);
+
+    String normWallhavenApiBase(String? raw) {
+      var u = (raw ?? '').trim();
+      if (u.isEmpty) u = 'https://wallhaven.cc';
+      if (!u.startsWith('http://') && !u.startsWith('https://')) u = 'https://$u';
+      while (u.endsWith('/')) u = u.substring(0, u.length - 1);
+
+      // ✅ 关键：保证是 API 根
+      if (!u.endsWith('/api/v1')) u = '$u/api/v1';
+      return u;
+    }
+
+    next['baseUrl'] = normWallhavenApiBase(next['baseUrl'] as String?);
+    return next;
+  }
+
   /// 给业务层用：拿到当前插件的“已清洗 settings”
-  Map<String, dynamic> get currentSettings => currentPlugin.sanitizeSettings(_currentConfig.settings);
+  Map<String, dynamic> get currentSettings {
+    final p = currentPlugin;
+    final sanitized = p.sanitizeSettings(_currentConfig.settings);
+    return _migrateWallhavenSettingsIfNeeded(_currentConfig.pluginId, sanitized);
+  }
 
   /// ✅ 给 UI 用：当前 source 的 capabilities（用于动态筛选 UI）
-  ///
-  /// 注意：这玩意会在 UI rebuild 时被频繁访问，所以必须避免每次都 new source。
   SourceCapabilities get currentCapabilities {
     final id = _currentConfig.id;
     if (_capsCacheForConfigId == id && _capsCache != null) return _capsCache!;
@@ -121,8 +152,15 @@ class ThemeStore extends ChangeNotifier {
 
   ThemeStore() {
     final def = _registry.defaultConfig();
-    _sourceConfigs = [def];
-    _currentConfig = def;
+
+    // ✅ 让默认 config 也过一次兜底迁移（否则首次启动就可能打错地址）
+    final migratedDefSettings =
+        _migrateWallhavenSettingsIfNeeded(def.pluginId, Map<String, dynamic>.from(def.settings));
+    final migratedDef = def.copyWith(settings: migratedDefSettings);
+
+    _sourceConfigs = [migratedDef];
+    _currentConfig = migratedDef;
+
     _loadFromPrefs();
   }
 
@@ -202,7 +240,13 @@ class ThemeStore extends ChangeNotifier {
     if (_currentConfig.id == configId) return;
     final idx = _sourceConfigs.indexWhere((c) => c.id == configId);
     if (idx == -1) return;
-    _currentConfig = _sourceConfigs[idx];
+
+    // ✅ 切换时也做一次兜底迁移
+    final raw = _sourceConfigs[idx];
+    final migratedSettings =
+        _migrateWallhavenSettingsIfNeeded(raw.pluginId, Map<String, dynamic>.from(raw.settings));
+    _currentConfig = raw.copyWith(settings: migratedSettings);
+
     _invalidateCapsCache();
     notifyListeners();
     savePreferences();
@@ -216,11 +260,14 @@ class ThemeStore extends ChangeNotifier {
     final p = _registry.plugin(pluginId);
     if (p == null) throw StateError('Plugin not found: $pluginId');
 
+    final sanitized = p.sanitizeSettings(settings);
+    final migrated = _migrateWallhavenSettingsIfNeeded(pluginId, sanitized);
+
     final cfg = SourceConfig(
       id: 'cfg_${DateTime.now().millisecondsSinceEpoch}',
       pluginId: pluginId,
       name: name.trim(),
-      settings: p.sanitizeSettings(settings),
+      settings: migrated,
     );
 
     _sourceConfigs = [..._sourceConfigs, cfg];
@@ -301,7 +348,10 @@ class ThemeStore extends ChangeNotifier {
     final p = _registry.plugin(updated.pluginId);
     if (p == null) return;
 
-    final fixed = updated.copyWith(settings: p.sanitizeSettings(updated.settings));
+    final sanitized = p.sanitizeSettings(updated.settings);
+    final migrated = _migrateWallhavenSettingsIfNeeded(updated.pluginId, sanitized);
+
+    final fixed = updated.copyWith(settings: migrated);
 
     final next = [..._sourceConfigs];
     next[idx] = fixed;
@@ -414,18 +464,20 @@ class ThemeStore extends ChangeNotifier {
         _currentConfig = def;
       }
 
-      // 全量清洗一次，避免历史脏数据
+      // 全量清洗一次，避免历史脏数据 + 兜底迁移 wallhaven baseUrl
       _sourceConfigs = _sourceConfigs.map((c) {
         final p = _registry.plugin(c.pluginId);
         if (p == null) return c;
-        return c.copyWith(settings: p.sanitizeSettings(c.settings));
+
+        final sanitized = p.sanitizeSettings(c.settings);
+        final migrated = _migrateWallhavenSettingsIfNeeded(c.pluginId, sanitized);
+        return c.copyWith(settings: migrated);
       }).toList();
 
-      final p = _registry.plugin(_currentConfig.pluginId);
-      if (p != null) {
-        _currentConfig =
-            _currentConfig.copyWith(settings: p.sanitizeSettings(_currentConfig.settings));
-      }
+      // current 也同步到清洗后的实例（避免指向旧对象）
+      final currentId = _currentConfig.id;
+      _currentConfig = _sourceConfigs.firstWhere((c) => c.id == currentId,
+          orElse: () => _sourceConfigs.first);
 
       _invalidateCapsCache();
       _recomputeEffectiveMode();
@@ -439,6 +491,10 @@ class ThemeStore extends ChangeNotifier {
   @override
   void dispose() {
     _saveDebounce?.cancel();
+
+    // ✅ 你现在的 ThemeStore 自己 new 了 HttpClient/Dio，不 close 会泄漏
+    _http.dio.close(force: true);
+
     super.dispose();
   }
 }
