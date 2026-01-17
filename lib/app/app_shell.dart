@@ -14,37 +14,32 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  final ScrollController _sc = ScrollController();
 
   bool _isScrolled = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _sc.addListener(() {
-      final s = _sc.offset > 0;
-      if (s != _isScrolled) setState(() => _isScrolled = s);
-    });
-  }
-
-  @override
-  void dispose() {
-    _sc.dispose();
-    super.dispose();
-  }
-
   void _openSettings() {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsPage()));
+  }
+
+  void _openDrawer() {
+    _scaffoldKey.currentState?.openDrawer();
+  }
+
+  void _handleScroll(double pixels) {
+    final next = pixels > 0;
+    if (next != _isScrolled) setState(() => _isScrolled = next);
   }
 
   @override
   Widget build(BuildContext context) {
     final store = ThemeScope.of(context);
     final drawerRadius = store.cardRadius;
+    final theme = Theme.of(context);
 
     return Scaffold(
       key: _scaffoldKey,
       drawerEnableOpenDragGesture: true,
+      drawerEdgeDragWidth: 110,
       drawer: Drawer(
         width: MediaQuery.of(context).size.width * (2 / 3),
         shape: RoundedRectangleBorder(
@@ -55,9 +50,12 @@ class _AppShellState extends State<AppShell> {
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 8, 16, 10),
-                child: Text('菜单', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                child: Text(
+                  '菜单',
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                ),
               ),
               ListTile(
                 leading: const Icon(Icons.settings_outlined),
@@ -76,8 +74,21 @@ class _AppShellState extends State<AppShell> {
       appBar: FoggyAppBar(
         title: const Text('App'),
         isScrolled: _isScrolled,
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: _openDrawer,
+        ),
       ),
-      body: HomePage(scrollController: _sc),
+      body: NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          // 只跟踪垂直滚动位置，避免横向/overscroll 干扰
+          if (n.metrics.axis == Axis.vertical) {
+            _handleScroll(n.metrics.pixels);
+          }
+          return false;
+        },
+        child: const HomePage(),
+      ),
     );
   }
 }
