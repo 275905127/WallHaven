@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import '../design/app_tokens.dart';
 import '../theme/theme_store.dart';
-import '../theme/app_tokens.dart';
 
 class SettingsItem {
   final IconData icon;
@@ -38,11 +38,6 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
-// ⚠️ WARNING:
-// SettingsGroup 的分割线 = 2px 背景缝（tokens.divider）
-// 这是设计决定，不是实现细节。
-// 不允许改成 Divider / opacity / margin / border。
-
 class SettingsGroup extends StatelessWidget {
   final List<SettingsItem> items;
   const SettingsGroup({super.key, required this.items});
@@ -53,7 +48,6 @@ class SettingsGroup extends StatelessWidget {
     final tokens = theme.extension<AppTokens>()!;
     final double largeRadius = ThemeScope.of(context).cardRadius;
 
-    // ✅ 组内相接处固定 4px，不跟随滑条
     const double jointRadius = 4.0;
 
     BorderRadius _radiusFor(int index) {
@@ -85,17 +79,12 @@ class SettingsGroup extends StatelessWidget {
     }
 
     Widget _divider() {
-      // 🔒 唯一合法分割方式：2px 背景缝（tokens）
       return Container(
         height: tokens.dividerThickness,
         color: tokens.dividerColor,
       );
     }
 
-    // ✅ 关键修复点：
-    // 以前只有 Container 的 decoration 有圆角，但没有裁切；
-    // Material / Ink 高亮会把连接处“顶成直角”。
-    // 这里让 Material 自己带 shape + clip，圆角才会 1:1 生效。
     return Column(
       children: List.generate(items.length, (index) {
         final item = items[index];
