@@ -11,14 +11,14 @@ class NavigateToPersonalizationEffect extends AppEffect {
   const NavigateToPersonalizationEffect();
 }
 
-class PopRouteEffect extends AppEffect {
-  const PopRouteEffect();
-}
-
 class OpenDrawerEffect extends AppEffect {
   const OpenDrawerEffect();
 }
 
 class CloseDrawerEffect extends AppEffect {
   const CloseDrawerEffect();
+}
+
+class PopRouteEffect extends AppEffect {
+  const PopRouteEffect();
 }
