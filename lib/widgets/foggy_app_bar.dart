@@ -1,10 +1,11 @@
-import 'dart:ui';
+import 'dart:ui' as ui;
 
-import '../design/app_tokens.dart';
+import 'package:flutter/material.dart';
 
 class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
   final Widget title;
   final bool isScrolled;
+  final double fogStrength;
   final Widget? leading;
   final List<Widget> actions;
 
@@ -12,6 +13,7 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     required this.title,
     required this.isScrolled,
+    this.fogStrength = 0.82,
     this.leading,
     this.actions = const [],
   });
@@ -22,24 +24,20 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tokens = theme.extension<AppTokens>()!;
-    final bg = theme.scaffoldBackgroundColor;
 
-    final fogOpacity = isScrolled ? tokens.appBarFogOpacity : 0.0;
-    final blur = isScrolled ? tokens.appBarBlurSigma : 0.0;
+    // 轻微分隔线（保留“雾化+边界”语义；具体视觉你后面再用 tokens 收敛）
+    final borderColor = theme.dividerColor.withOpacity(isScrolled ? 0.35 : 0.0);
 
     return ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+        filter: ui.ImageFilter.blur(
+          sigmaX: isScrolled ? 18 : 0,
+          sigmaY: isScrolled ? 18 : 0,
+        ),
         child: Container(
           decoration: BoxDecoration(
-            color: bg.withOpacity(fogOpacity),
-            border: Border(
-              bottom: BorderSide(
-                color: theme.dividerColor.withOpacity(isScrolled ? tokens.appBarBottomStrokeOpacity : 0.0),
-                width: 1,
-              ),
-            ),
+            color: theme.scaffoldBackgroundColor.withOpacity(isScrolled ? fogStrength : 0.0),
+            border: Border(bottom: BorderSide(color: borderColor, width: 1)),
           ),
           child: SafeArea(
             bottom: false,
@@ -52,10 +50,15 @@ class FoggyAppBar extends StatelessWidget implements PreferredSizeWidget {
                       IconButton(
                         icon: const Icon(Icons.menu),
                         onPressed: Scaffold.maybeOf(context)?.openDrawer,
+                        tooltip: 'Menu',
                       ),
                   Expanded(
                     child: DefaultTextStyle(
-                      style: theme.appBarTheme.titleTextStyle ?? theme.textTheme.titleMedium!,
+                      style: theme.appBarTheme.titleTextStyle ??
+                          theme.textTheme.titleMedium ??
+                          const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       child: title,
                     ),
                   ),
