@@ -107,7 +107,12 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         children: [
                           const Icon(Icons.error_outline, size: 18, color: Colors.red),
                           const SizedBox(width: 8),
-                          Expanded(child: Text(errorText!, style: const TextStyle(color: Colors.red))),
+                          Expanded(
+                            child: Text(
+                              errorText!,
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -143,7 +148,8 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                                         "listKey": "@direct",
                                         "filters": []
                                       };
-                                      jsonCtrl.text = const JsonEncoder.withIndent("  ").convert(sample);
+                                      jsonCtrl.text =
+                                          const JsonEncoder.withIndent("  ").convert(sample);
                                       setState(() => errorText = null);
                                     },
                                     icon: const Icon(Icons.auto_awesome_outlined, size: 18),
@@ -240,7 +246,9 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
 
                       final name = nameCtrl.text.trim();
                       final url = urlCtrl.text.trim();
-                      final listKey = listKeyCtrl.text.trim().isEmpty ? "@direct" : listKeyCtrl.text.trim();
+                      final listKey = listKeyCtrl.text.trim().isEmpty
+                          ? "@direct"
+                          : listKeyCtrl.text.trim();
 
                       if (name.isEmpty || url.isEmpty) {
                         setState(() => errorText = "名称和 API 地址是必填。");
@@ -293,13 +301,14 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
               TextField(
                 controller: nameCtrl,
                 decoration: const InputDecoration(labelText: "名称", filled: true),
-                enabled: !builtIn,
+                enabled: !builtIn, // 默认源名字锁住就够了
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: urlCtrl,
                 decoration: const InputDecoration(labelText: "API 地址", filled: true),
-                enabled: !builtIn,
+                // ✅ 允许默认源改 endpoint（镜像站/自建代理都要用）
+                enabled: true,
               ),
               const SizedBox(height: 16),
               const Divider(),
@@ -325,13 +334,13 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
             onPressed: () {
               final nextSettings = Map<String, dynamic>.from(cfg.settings);
 
-              if (!builtIn) {
-                final u = urlCtrl.text.trim();
-                if (u.isNotEmpty) nextSettings['baseUrl'] = u;
-              }
+              final u = urlCtrl.text.trim();
+              if (u.isNotEmpty) nextSettings['baseUrl'] = u;
 
-              nextSettings['username'] = userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
-              nextSettings['apiKey'] = keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim();
+              nextSettings['username'] =
+                  userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim();
+              nextSettings['apiKey'] =
+                  keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim();
 
               final updated = cfg.copyWith(
                 name: builtIn ? cfg.name : nameCtrl.text.trim(),
@@ -404,7 +413,10 @@ class _SourceManagementPageState extends State<SourceManagementPage> {
                         else
                           const Padding(
                             padding: EdgeInsets.only(right: 6),
-                            child: Text("默认", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            child: Text(
+                              "默认",
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
                           ),
                       ],
                     ),
